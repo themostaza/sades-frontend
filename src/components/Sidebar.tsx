@@ -1,0 +1,208 @@
+'use client';
+import React, { useState } from 'react';
+import Image from 'next/image';
+import { useRouter, usePathname } from 'next/navigation';
+import {
+  Home,
+  CheckSquare,
+  Users,
+  BriefcaseBusiness,
+  Wrench,
+  Bell,
+  Archive,
+  Settings,
+  LogOut,
+  User,
+  X,
+} from 'lucide-react';
+
+interface SidebarProps {
+  activeItem?: string;
+  onItemClick?: (item: string) => void;
+}
+
+const menuItems = [
+  { id: 'dashboard', icon: Home, label: 'Dashboard', route: '/dashboard' },
+  { id: 'interventi', icon: CheckSquare, label: 'Interventi', route: '/interventi' },
+  { id: 'utenti', icon: Users, label: 'Utenti', route: '/utenti' },
+  { id: 'clienti', icon: BriefcaseBusiness, label: 'Clienti', route: '/clienti' },
+  { id: 'apparecchiature', icon: Wrench, label: 'Apparecchiature', route: '/apparecchiature' },
+  { id: 'notifiche', icon: Bell, label: 'Notifiche', route: '/notifiche' },
+  { id: 'inventario', icon: Archive, label: 'Inventario', route: '/inventario' },
+];
+
+const bottomItems = [
+  { id: 'settings', icon: Settings, label: 'Impostazioni', route: '/settings' },
+  { id: 'logout', icon: LogOut, label: 'Logout' },
+];
+
+export default function Sidebar({
+  activeItem,
+  onItemClick,
+}: SidebarProps) {
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Determina l'item attivo basandosi sul pathname se activeItem non è fornito
+  const getActiveItem = () => {
+    if (activeItem) return activeItem;
+    
+    // Mappa i pathname agli item IDs
+    if (pathname === '/dashboard') return 'dashboard';
+    if (pathname === '/interventi') return 'interventi';
+    if (pathname === '/team') return 'team';
+    if (pathname === '/clienti') return 'clienti';
+    if (pathname === '/apparecchiature') return 'apparecchiature';
+    if (pathname === '/notifiche') return 'notifiche';
+    if (pathname === '/inventario') return 'inventario';
+    if (pathname === '/settings') return 'settings';
+    
+    return 'dashboard'; // default
+  };
+
+  const currentActiveItem = getActiveItem();
+
+  const handleItemClick = (itemId: string, route?: string) => {
+    if (itemId === 'logout') {
+      setShowLogoutDialog(true);
+      return;
+    }
+    
+    // Naviga alla route se specificata
+    if (route) {
+      router.push(route);
+    }
+    
+    // Chiama il callback se fornito
+    if (onItemClick) {
+      onItemClick(itemId);
+    }
+  };
+
+  const handleLogout = () => {
+    // Qui puoi aggiungere la logica di logout (es. cancellare token, reindirizzare, etc.)
+    console.log('Logout confermato');
+    setShowLogoutDialog(false);
+    // Esempio: router.push('/login');
+  };
+
+  const handleCancelLogout = () => {
+    setShowLogoutDialog(false);
+  };
+
+  return (
+    <div className="w-16 bg-teal-700 h-screen flex flex-col items-center py-4 shadow-lg">
+      {/* Logo */}
+      <div className="mb-6">
+          <Image
+            src="/favicon.ico"
+            alt="Sades Logo"
+            width={24}
+            height={24}
+            className="object-contain"
+          />
+        
+      </div>
+      {/* Menu Items */}
+      <div className="flex flex-col gap-2">
+        {menuItems.map(({ id, icon: Icon, label, route }) => (
+          <button
+            key={id}
+            onClick={() => handleItemClick(id, route)}
+            className={`
+              p-3 rounded-lg transition-all duration-200 hover:bg-teal-500 group relative
+              ${currentActiveItem === id ? 'bg-teal-500 shadow-md' : 'hover:bg-teal-500/70'}
+            `}
+          >
+            <Icon
+              size={20}
+              className={`
+                text-white transition-transform duration-200 group-hover:scale-110
+                ${currentActiveItem === id ? 'scale-110' : ''}
+              `}
+            />
+
+            {/* Tooltip */}
+            <div className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+              {label}
+            </div>
+          </button>
+        ))}
+      </div>
+      {/* Spacer */}
+      <div className="flex-1" />
+      {/* Bottom Items */}
+      <div className="flex flex-col gap-2">
+        {bottomItems.map(({ id, icon: Icon, label, route }) => (
+          <button
+            key={id}
+            onClick={() => handleItemClick(id, route)}
+            className={`
+              p-3 rounded-lg transition-all duration-200 hover:bg-teal-500 group relative
+              ${currentActiveItem === id ? 'bg-teal-500 shadow-md' : 'hover:bg-teal-500/70'}
+            `}
+          >
+            <Icon
+              size={20}
+              className={`
+                text-white transition-transform duration-200 group-hover:scale-110
+                ${currentActiveItem === id ? 'scale-110' : ''}
+              `}
+            />
+
+            {/* Tooltip */}
+            <div className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+              {label}
+            </div>
+          </button>
+        ))}
+
+        {/* User Avatar */}
+        <div className="mt-4 mb-2">
+          <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+            <User size={16} className="text-teal-600" />
+          </div>
+        </div>
+      </div>
+
+      {/* Logout Confirmation Dialog */}
+      {showLogoutDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Conferma Logout
+              </h3>
+              <button
+                onClick={handleCancelLogout}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <p className="text-gray-600 mb-6">
+              Sei sicuro di voler effettuare il logout? Dovrai accedere nuovamente per continuare.
+            </p>
+            
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={handleCancelLogout}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
