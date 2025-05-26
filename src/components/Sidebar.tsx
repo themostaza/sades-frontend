@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Home,
   CheckSquare,
@@ -24,7 +25,7 @@ interface SidebarProps {
 const menuItems = [
   { id: 'dashboard', icon: Home, label: 'Dashboard', route: '/dashboard' },
   { id: 'interventi', icon: CheckSquare, label: 'Interventi', route: '/interventi' },
-  { id: 'utenti', icon: Users, label: 'Utenti', route: '/utenti' },
+  { id: 'team', icon: Users, label: 'Team', route: '/team' },
   { id: 'clienti', icon: BriefcaseBusiness, label: 'Clienti', route: '/clienti' },
   { id: 'apparecchiature', icon: Wrench, label: 'Apparecchiature', route: '/apparecchiature' },
   { id: 'notifiche', icon: Bell, label: 'Notifiche', route: '/notifiche' },
@@ -43,6 +44,7 @@ export default function Sidebar({
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const { logout } = useAuth();
 
   // Determina l'item attivo basandosi sul pathname se activeItem non è fornito
   const getActiveItem = () => {
@@ -81,10 +83,8 @@ export default function Sidebar({
   };
 
   const handleLogout = () => {
-    // Qui puoi aggiungere la logica di logout (es. cancellare token, reindirizzare, etc.)
-    console.log('Logout confermato');
+    logout();
     setShowLogoutDialog(false);
-    // Esempio: router.push('/login');
   };
 
   const handleCancelLogout = () => {

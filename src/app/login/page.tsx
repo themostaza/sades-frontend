@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, X, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Eye, EyeOff, Mail, Lock, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -9,6 +11,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [isRedirecting, setIsRedirecting] = useState(false);
   
   // Forgot password dialog states
   const [showForgotPasswordDialog, setShowForgotPasswordDialog] = useState(false);
@@ -16,35 +20,75 @@ export default function LoginPage() {
   const [isResetLoading, setIsResetLoading] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
 
+  const authContext = useAuth();
+  const { login, isAuthenticated } = authContext;
+  const router = useRouter();
+
+  // Redirect se già autenticato
+  useEffect(() => {
+    if (isAuthenticated) {
+      setIsRedirecting(true);
+      router.push('/dashboard');
+    }
+  }, [isAuthenticated, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError('');
     
-    // Simulate login process
-    setTimeout(() => {
+    try {
+      const result = await login(email, password, rememberMe);
+      
+      if (result.success) {
+        // Il redirect a /dashboard sarà gestito automaticamente dall'useEffect
+        // quando isAuthenticated diventa true
+      } else {
+        setError(result.error || 'Credenziali non valide. Verifica email e password e riprova.');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setError('Errore durante il login. Riprova più tardi.');
+    } finally {
       setIsLoading(false);
-      // Here you would typically handle the login logic
-      console.log('Login attempt:', { email, password, rememberMe });
-    }, 1000);
+    }
   };
 
   const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsResetLoading(true);
+    setError(''); // Reset eventuali errori precedenti
     
-    // Simulate password reset request
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: forgotPasswordEmail }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setResetEmailSent(true);
+      } else {
+        // Mostra l'errore specifico dall'API
+        setError(data.error || 'Errore durante l\'invio della richiesta di recupero password');
+      }
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      setError('Errore di connessione. Verifica la tua connessione internet e riprova.');
+    } finally {
       setIsResetLoading(false);
-      setResetEmailSent(true);
-      // Here you would typically send the reset email
-      console.log('Password reset requested for:', forgotPasswordEmail);
-    }, 1000);
+    }
   };
 
   const closeForgotPasswordDialog = () => {
     setShowForgotPasswordDialog(false);
     setForgotPasswordEmail('');
     setResetEmailSent(false);
+    setError(''); // Reset degli errori quando si chiude il dialog
   };
 
   return (
@@ -69,6 +113,14 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center space-x-2">
+                <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+                <span className="text-sm text-red-700">{error}</span>
+              </div>
+            )}
+
             {/* Email Field */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
@@ -86,7 +138,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm placeholder-gray-400"
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm placeholder-gray-400 text-gray-900"
                   placeholder="Inserisci la tua email"
                 />
               </div>
@@ -109,7 +161,7 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                  className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm text-gray-900"
                   placeholder="••••••••"
                 />
                 <button
@@ -157,10 +209,15 @@ export default function LoginPage() {
             <div>
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || isRedirecting}
                 className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {isLoading ? (
+                {isRedirecting ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Reindirizzamento...
+                  </div>
+                ) : isLoading ? (
                   <div className="flex items-center">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                     Accesso in corso...
@@ -206,6 +263,14 @@ export default function LoginPage() {
 
             {!resetEmailSent ? (
               <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+                {/* Error Message for Forgot Password */}
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center space-x-2">
+                    <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                    <span className="text-sm text-red-700">{error}</span>
+                  </div>
+                )}
+
                 <div>
                   <label htmlFor="forgot-email" className="block text-sm font-medium text-gray-700 mb-2">
                     Email
@@ -221,7 +286,7 @@ export default function LoginPage() {
                       required
                       value={forgotPasswordEmail}
                       onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm placeholder-gray-400"
+                      className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm placeholder-gray-400 text-gray-900"
                       placeholder="Inserisci la tua email"
                     />
                   </div>
