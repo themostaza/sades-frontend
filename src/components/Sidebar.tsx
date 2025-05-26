@@ -11,7 +11,7 @@ import {
   Wrench,
   Bell,
   Archive,
-  Settings,
+  LifeBuoy,
   LogOut,
   User,
   X,
@@ -28,12 +28,13 @@ const menuItems = [
   { id: 'team', icon: Users, label: 'Team', route: '/team' },
   { id: 'clienti', icon: BriefcaseBusiness, label: 'Clienti', route: '/clienti' },
   { id: 'apparecchiature', icon: Wrench, label: 'Apparecchiature', route: '/apparecchiature' },
-  { id: 'notifiche', icon: Bell, label: 'Notifiche', route: '/notifiche' },
   { id: 'inventario', icon: Archive, label: 'Inventario', route: '/inventario' },
+  { id: 'notifiche', icon: Bell, label: 'Notifiche', route: '/notifiche' },
+  
 ];
 
 const bottomItems = [
-  { id: 'settings', icon: Settings, label: 'Impostazioni', route: '/settings' },
+  { id: 'help', icon: LifeBuoy, label: 'Supporto', route: '/help' },
   { id: 'logout', icon: LogOut, label: 'Logout' },
 ];
 
@@ -58,7 +59,7 @@ export default function Sidebar({
     if (pathname === '/apparecchiature') return 'apparecchiature';
     if (pathname === '/notifiche') return 'notifiche';
     if (pathname === '/inventario') return 'inventario';
-    if (pathname === '/settings') return 'settings';
+    if (pathname === '/help') return 'help';
     
     return 'dashboard'; // default
   };

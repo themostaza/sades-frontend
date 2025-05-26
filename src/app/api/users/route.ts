@@ -1,0 +1,79 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { config } from '../../../config/env';
+
+const BASE_URL = config.BASE_URL;
+
+interface User {
+  id: string;
+  name: string;
+  surname: string;
+  fiscal_code: string;
+  email: string;
+  phone_number: string;
+  note: string;
+  disabled: boolean;
+  status: string;
+  role: string;
+}
+
+interface ApiResponse {
+  data: User[];
+  meta: {
+    total: number;
+    page: number;
+    skip: number;
+    totalPages: number;
+  };
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const query = searchParams.get('query') || '';
+    const roleId = searchParams.get('role_id') || '';
+    const page = searchParams.get('page') || '1';
+    const skip = searchParams.get('skip') || '20';
+
+    // Costruisco l'URL con i parametri
+    const apiUrl = new URL(`${BASE_URL}api/users`);
+    apiUrl.searchParams.append('page', page);
+    apiUrl.searchParams.append('skip', skip);
+    
+    if (query) {
+      apiUrl.searchParams.append('query', query);
+    }
+    
+    if (roleId) {
+      apiUrl.searchParams.append('role_id', roleId);
+    }
+
+    console.log('🔄 Proxying users request to:', apiUrl.toString());
+
+    const response = await fetch(apiUrl.toString(), {
+      method: 'GET',
+      headers: {
+        'accept': '*/*',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyNDEwZDBlZS1jZTY1LTQ2M2ItYTMyYy1lYThiNjU5MWJhYzEiLCJyb2xlSWQiOjEsImlhdCI6MTc0ODI1OTM5MywiZXhwIjoxNzQ4MzQ1NzkzfQ.lD8Lf9d8IlVJF1m3kai1UT7B400eQbLeLUa66IQx_JQ'
+      },
+    });
+
+    console.log('📡 Backend response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Backend error:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data: ApiResponse = await response.json();
+    console.log('✅ Users fetched successfully:', data.meta);
+    
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('💥 Error fetching users:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch users' },
+      { status: 500 }
+    );
+  }
+} 
