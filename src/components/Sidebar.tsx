@@ -13,7 +13,6 @@ import {
   Archive,
   LifeBuoy,
   LogOut,
-  User,
   X,
 } from 'lucide-react';
 
@@ -158,13 +157,6 @@ export default function Sidebar({
             </div>
           </button>
         ))}
-
-        {/* User Avatar */}
-        <div className="mt-4 mb-2">
-          <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-            <User size={16} className="text-teal-600" />
-          </div>
-        </div>
       </div>
 
       {/* Logout Confirmation Dialog */}

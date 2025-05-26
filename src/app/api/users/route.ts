@@ -76,4 +76,53 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// POST - Create new user
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const authHeader = request.headers.get('authorization');
+    
+    console.log('🔄 Proxying user creation to:', `${BASE_URL}api/users`);
+    console.log('📤 Request body:', body);
+
+    const headers: Record<string, string> = {
+      'accept': 'application/json',
+      'Content-Type': 'application/json',
+    };
+
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
+
+    const response = await fetch(`${BASE_URL}api/users`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    console.log('📡 Backend response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Backend error:', errorText);
+      
+      return NextResponse.json(
+        { error: 'Failed to create user' },
+        { status: response.status }
+      );
+    }
+
+    const data = await response.json();
+    console.log('✅ User created successfully:', data);
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('💥 Proxy error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
 } 

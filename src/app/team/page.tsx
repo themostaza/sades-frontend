@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Filter } from 'lucide-react';
+import { Search, Plus, Filter, Edit, Mail, Trash2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import AbsencesTable from './AbsencesTable';
+import UserForm from './UserForm';
 
 interface TeamMember {
   id: string;
@@ -16,6 +17,11 @@ interface TeamMember {
   disabled: boolean;
   status: string;
   role: string;
+}
+
+interface Role {
+  id: number;
+  label: string;
 }
 
 interface ApiResponse {
@@ -45,7 +51,58 @@ export default function TeamPage() {
     totalPages: 1
   });
 
+  // Stati per la gestione delle viste
+  const [currentView, setCurrentView] = useState<'list' | 'create' | 'edit'>('list');
+  const [selectedUser, setSelectedUser] = useState<TeamMember | null>(null);
+
+  // Stati per i dialog
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<TeamMember | null>(null);
+  const [userForPasswordReset, setUserForPasswordReset] = useState<TeamMember | null>(null);
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
+
+  // Stati per i ruoli
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(true);
+
   const auth = useAuth();
+
+  // Carica i ruoli all'avvio del componente
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        setRolesLoading(true);
+        
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+
+        if (auth.token) {
+          headers['Authorization'] = `Bearer ${auth.token}`;
+        }
+
+        const response = await fetch('/api/roles', {
+          headers,
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch roles');
+        }
+
+        const rolesData: Role[] = await response.json();
+        setRoles(rolesData);
+        console.log('✅ Ruoli caricati:', rolesData);
+        
+      } catch (error) {
+        console.error('Errore durante il caricamento dei ruoli:', error);
+      } finally {
+        setRolesLoading(false);
+      }
+    };
+
+    fetchRoles();
+  }, [auth.token]);
 
   // Funzione per recuperare i dati dall'API
   const fetchTeamData = async () => {
@@ -95,8 +152,10 @@ export default function TeamPage() {
 
   // Effetto per caricare i dati iniziali e quando cambiano i filtri
   useEffect(() => {
-    fetchTeamData();
-  }, [currentPage, searchTerm, selectedRole]);
+    if (currentView === 'list') {
+      fetchTeamData();
+    }
+  }, [currentPage, searchTerm, selectedRole, currentView]);
 
   const getStatusColor = (status: string, disabled: boolean) => {
     if (disabled) {
@@ -144,12 +203,147 @@ export default function TeamPage() {
     return member.status === 'active' ? 'Attivo' : member.status;
   };
 
+  // Handlers per la gestione delle viste
+  const handleCreateUser = () => {
+    setSelectedUser(null);
+    setCurrentView('create');
+  };
+
+  const handleEditUser = (user: TeamMember) => {
+    setSelectedUser(user);
+    setCurrentView('edit');
+  };
+
+  const handleBackToList = () => {
+    setCurrentView('list');
+    setSelectedUser(null);
+    // Ricarica i dati quando torniamo alla lista
+    fetchTeamData();
+  };
+
+  const handleUserSaved = (user: TeamMember) => {
+    console.log('Utente salvato:', user);
+    // Torna alla lista e ricarica i dati
+    handleBackToList();
+  };
+
+  const handleDeleteUser = (user: TeamMember) => {
+    setUserToDelete(user);
+    setShowDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!userToDelete) return;
+
+    try {
+      const token = auth.token;
+      if (!token) {
+        console.error('Token non trovato, effettuando logout');
+        auth.logout();
+        return;
+      }
+
+      const response = await fetch(`/api/users/${userToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.error('Sessione scaduta, effettuando logout');
+          auth.logout();
+          return;
+        }
+        throw new Error('Errore durante l\'eliminazione');
+      }
+
+      console.log('✅ Utente eliminato con successo');
+      
+      // Rimuovi l'utente dalla lista locale
+      setTeamData(prevData => prevData.filter(user => user.id !== userToDelete.id));
+      
+      setShowDeleteDialog(false);
+      setUserToDelete(null);
+      
+    } catch (error) {
+      console.error('Errore durante l\'eliminazione:', error);
+    }
+  };
+
+  const handleResetPassword = (user: TeamMember) => {
+    setUserForPasswordReset(user);
+    setShowResetPasswordDialog(true);
+  };
+
+  const handleConfirmResetPassword = async () => {
+    if (!userForPasswordReset?.email) return;
+
+    try {
+      setResetPasswordLoading(true);
+
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: userForPasswordReset.email }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Errore API:', errorData);
+        throw new Error(errorData.message || 'Errore durante l\'invio della mail');
+      }
+
+      console.log('✅ Email di reset password inviata con successo');
+      setShowResetPasswordDialog(false);
+      setUserForPasswordReset(null);
+      
+    } catch (error) {
+      console.error('Errore durante l\'invio della mail:', error);
+    } finally {
+      setResetPasswordLoading(false);
+    }
+  };
+
+  // Renderizza il componente UserForm se siamo in modalità create o edit
+  if (currentView === 'create') {
+    return (
+      <UserForm
+        isCreating={true}
+        onBack={handleBackToList}
+        onSave={handleUserSaved}
+      />
+    );
+  }
+
+  if (currentView === 'edit' && selectedUser) {
+    return (
+      <UserForm
+        user={selectedUser}
+        isCreating={false}
+        onBack={handleBackToList}
+        onSave={handleUserSaved}
+        onDelete={(userId) => {
+          console.log('Utente eliminato:', userId);
+          handleBackToList();
+        }}
+      />
+    );
+  }
+
+  // Renderizza la vista lista (default)
   return (
     <div className="p-6 bg-white min-h-screen">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Team</h1>
-        <button className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
+        <button 
+          onClick={handleCreateUser}
+          className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+        >
           <Plus size={16} />
           Aggiungi nuovo
         </button>
@@ -174,12 +368,16 @@ export default function TeamPage() {
               value={selectedRole}
               onChange={(e) => handleRoleFilter(e.target.value)}
               className="flex items-center gap-2 px-4 py-2 border text-gray-800 border-gray-300 rounded-lg hover:bg-gray-50 bg-white appearance-none pr-8"
+              disabled={rolesLoading}
             >
-              <option value="">Filtra per ruolo</option>
-              <option value="amministrazione">Amministrazione</option>
-              <option value="tecnico">Tecnico</option>
-              <option value="ufficio">Ufficio</option>
-              <option value="magazzino">Magazzino</option>
+              <option value="">
+                {rolesLoading ? 'Caricamento...' : 'Filtra per ruolo'}
+              </option>
+              {roles.map((role) => (
+                <option key={role.id} value={role.id.toString()}>
+                  {role.label}
+                </option>
+              ))}
             </select>
             <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
           </div>
@@ -231,11 +429,18 @@ export default function TeamPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Azioni
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {teamData.map((member) => (
-                  <tr key={member.id} className="hover:bg-gray-50">
+                  <tr 
+                    key={member.id} 
+                    className="hover:bg-gray-50 cursor-pointer transition-colors"
+                    onClick={() => handleEditUser(member)}
+                  >
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {formatNominativo(member)}
                     </td>
@@ -260,6 +465,34 @@ export default function TeamPage() {
                       >
                         {formatStatus(member)}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div 
+                        className="flex items-center gap-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          onClick={() => handleEditUser(member)}
+                          className="text-teal-600 hover:text-teal-900 transition-colors"
+                          title="Modifica utente"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleResetPassword(member)}
+                          className="text-blue-600 hover:text-blue-900 transition-colors"
+                          title="Invia reset password"
+                        >
+                          <Mail size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(member)}
+                          className="text-red-600 hover:text-red-900 transition-colors"
+                          title="Elimina utente"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -294,6 +527,86 @@ export default function TeamPage() {
 
       {/* Componente Assenze tecnici */}
       <AbsencesTable />
+
+      {/* Dialog di conferma eliminazione */}
+      {showDeleteDialog && userToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 className="text-red-600" size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Elimina utente</h3>
+                <p className="text-sm text-gray-500">Questa azione non può essere annullata.</p>
+              </div>
+            </div>
+
+            <p className="text-gray-700 mb-6">
+              Sei sicuro di voler eliminare l&apos;utente <strong>{formatNominativo(userToDelete)}</strong>?
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteDialog(false);
+                  setUserToDelete(null);
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                Elimina
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog di conferma reset password */}
+      {showResetPasswordDialog && userForPasswordReset && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                <Mail className="text-blue-600" size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Reset password</h3>
+                <p className="text-sm text-gray-500">Invia email di reset password</p>
+              </div>
+            </div>
+
+            <p className="text-gray-700 mb-6">
+              Vuoi inviare un&apos;email di reset password a <strong>{userForPasswordReset.email}</strong>?
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowResetPasswordDialog(false);
+                  setUserForPasswordReset(null);
+                }}
+                disabled={resetPasswordLoading}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleConfirmResetPassword}
+                disabled={resetPasswordLoading}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resetPasswordLoading ? 'Invio...' : 'Invia email'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
