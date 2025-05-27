@@ -10,7 +10,7 @@ interface Intervento {
   orario: string;
   zona: string;
   tecnico: string;
-  status: 'In carico' | 'Completato' | 'Da assegnare';
+  status: string;
 }
 
 interface CalendarioViewProps {
