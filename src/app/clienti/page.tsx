@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, ChevronDown, AlertTriangle, Eye, Wrench } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import DettaglioCliente from './DettaglioCliente';
 
 interface Customer {
   id: number;
@@ -64,6 +65,10 @@ export default function ClientiPage() {
   });
   const [blacklistCurrentPage, setBlacklistCurrentPage] = useState(1);
   const [blacklistSearchTerm, setBlacklistSearchTerm] = useState('');
+
+  // Stati per la navigazione
+  const [currentView, setCurrentView] = useState<'list' | 'detail'>('list');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
 
   const auth = useAuth();
 
@@ -199,6 +204,26 @@ export default function ClientiPage() {
     return blacklistMeta.total;
   };
 
+  // Handler per aprire il dettaglio cliente
+  const handleOpenCustomerDetail = (customerId: number) => {
+    setSelectedCustomerId(customerId);
+    setCurrentView('detail');
+  };
+
+  // Handler per chiudere il dettaglio cliente
+  const handleCloseCustomerDetail = () => {
+    setSelectedCustomerId(null);
+    setCurrentView('list');
+  };
+
+  // Handler per aggiornare i dati dopo modifica blacklist
+  const handleCustomerUpdated = () => {
+    fetchCustomersData();
+    if (showBlacklistSection) {
+      fetchBlacklistData();
+    }
+  };
+
   if (loading && customersData.length === 0) {
     return (
       <div className="p-6 bg-white min-h-screen">
@@ -230,6 +255,18 @@ export default function ClientiPage() {
     );
   }
 
+  // Mostra il dettaglio cliente se siamo in quella vista
+  if (currentView === 'detail' && selectedCustomerId) {
+    return (
+      <DettaglioCliente
+        customerId={selectedCustomerId}
+        onBack={handleCloseCustomerDetail}
+        onCustomerUpdated={handleCustomerUpdated}
+      />
+    );
+  }
+
+  // Mostra la lista clienti (vista principale)
   return (
     <div className="p-6 bg-white min-h-screen">
       {/* Header */}
@@ -275,7 +312,11 @@ export default function ClientiPage() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {customersData.map((customer) => (
-                <tr key={customer.id} className="hover:bg-gray-50">
+                <tr 
+                  key={customer.id} 
+                  className="hover:bg-gray-50 cursor-pointer"
+                  onClick={() => handleOpenCustomerDetail(customer.id)}
+                >
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     <div>
                       <div className="font-medium">{customer.company_name}</div>
@@ -299,14 +340,20 @@ export default function ClientiPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={() => console.log('Visualizza dati cliente:', customer.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenCustomerDetail(customer.id);
+                        }}
                         className="text-teal-600 hover:text-teal-700 transition-colors"
                         title="Visualizza dati cliente"
                       >
                         <Eye size={18} />
                       </button>
                       <button
-                        onClick={() => console.log('Visualizza attrezzature:', customer.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          console.log('Visualizza attrezzature:', customer.id);
+                        }}
                         className="text-blue-600 hover:text-blue-700 transition-colors"
                         title="Visualizza attrezzature"
                       >
@@ -426,7 +473,11 @@ export default function ClientiPage() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {blacklistData.map((customer) => (
-                      <tr key={customer.id} className="hover:bg-red-50">
+                      <tr 
+                        key={customer.id} 
+                        className="hover:bg-red-50 cursor-pointer"
+                        onClick={() => handleOpenCustomerDetail(customer.id)}
+                      >
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           <div className="flex items-center gap-2">
                             <AlertTriangle size={16} className="text-red-500" />
@@ -453,14 +504,20 @@ export default function ClientiPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <div className="flex items-center gap-3">
                             <button
-                              onClick={() => console.log('Visualizza dati cliente blacklist:', customer.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenCustomerDetail(customer.id);
+                              }}
                               className="text-teal-600 hover:text-teal-700 transition-colors"
                               title="Visualizza dati cliente"
                             >
                               <Eye size={18} />
                             </button>
                             <button
-                              onClick={() => console.log('Visualizza attrezzature blacklist:', customer.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                console.log('Visualizza attrezzature blacklist:', customer.id);
+                              }}
                               className="text-blue-600 hover:text-blue-700 transition-colors"
                               title="Visualizza attrezzature"
                             >

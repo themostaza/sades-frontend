@@ -1,36 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { config } from '../../../config/env';
+import { 
+  AssistanceInterventionsApiResponse, 
+  CreateAssistanceInterventionRequest 
+} from '../../../types/assistance-interventions';
 
 const BASE_URL = config.BASE_URL;
-
-interface AssistanceIntervention {
-  id: number;
-  date: string;
-  time_slot: string;
-  from_datetime: string;
-  to_datetime: string;
-  customer_location_id: string;
-  call_code: string;
-  company_name: string;
-  assigned_to_name: string;
-  assigned_to_surname: string | null;
-  zone_label: string;
-  status_label: string;
-  status_color: string;
-  location_address: string;
-  location_city: string;
-  type_label: string;
-}
-
-interface AssistanceInterventionsApiResponse {
-  data: AssistanceIntervention[];
-  meta: {
-    total: number;
-    page: number;
-    skip: number;
-    totalPages: number;
-  };
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -128,7 +103,7 @@ export async function GET(request: NextRequest) {
 // POST - Create new assistance intervention
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body: CreateAssistanceInterventionRequest = await request.json();
     const authHeader = request.headers.get('authorization');
     
     console.log('🔄 Proxying assistance intervention creation to:', `${BASE_URL}api/assistance-interventions`);
