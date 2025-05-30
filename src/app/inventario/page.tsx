@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronDown, Filter, Package, MapPin, Loader2 } from 'lucide-react';
+import { Search, Filter, Package, MapPin, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { ArticleListItem, ArticlesApiResponse, PlaceType, ArticlePlace, Warehouse } from '../../types/article';
 import DettaglioArticolo from './DettaglioArticolo';
@@ -43,8 +43,8 @@ export default function InventarioPage() {
   });
   
   // Stati per le sezioni collapsibili
-  const [showGiacenzeSection, setShowGiacenzeSection] = useState(false);
-  const [showArticoliInArrivoSection, setShowArticoliInArrivoSection] = useState(false);
+  // const [showGiacenzeSection, setShowGiacenzeSection] = useState(false);
+  // const [showArticoliInArrivoSection, setShowArticoliInArrivoSection] = useState(false);
 
   // Stati per la navigazione
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
@@ -531,7 +531,7 @@ export default function InventarioPage() {
       </div>
 
       {/* Giacenze section */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden mb-6">
+      {/* <div className="bg-white rounded-lg border border-gray-200 overflow-hidden mb-6">
         <button
           onClick={() => setShowGiacenzeSection(!showGiacenzeSection)}
           className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
@@ -550,10 +550,10 @@ export default function InventarioPage() {
             </div>
           </div>
         )}
-      </div>
+      </div> */}
 
       {/* Articoli in arrivo section */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      {/* <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <button
           onClick={() => setShowArticoliInArrivoSection(!showArticoliInArrivoSection)}
           className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
@@ -572,7 +572,7 @@ export default function InventarioPage() {
             </div>
           </div>
         )}
-      </div>
+      </div> */}
     </div>
   );
 }
