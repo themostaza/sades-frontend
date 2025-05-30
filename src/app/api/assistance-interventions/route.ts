@@ -118,10 +118,13 @@ export async function POST(request: NextRequest) {
       headers['Authorization'] = authHeader;
     }
 
+    const payload = JSON.stringify(body);
+    console.log('📦 Serialized payload being sent:', payload);
+
     const response = await fetch(`${BASE_URL}api/assistance-interventions`, {
       method: 'POST',
       headers,
-      body: JSON.stringify(body),
+      body: payload,
     });
 
     console.log('📡 Backend response status:', response.status);

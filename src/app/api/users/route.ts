@@ -49,12 +49,18 @@ export async function GET(request: NextRequest) {
 
     console.log('🔄 Proxying users request to:', apiUrl.toString());
 
+    const authHeader = request.headers.get('authorization');
+    const headers: Record<string, string> = {
+      'accept': '*/*',
+    };
+
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
+
     const response = await fetch(apiUrl.toString(), {
       method: 'GET',
-      headers: {
-        'accept': '*/*',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyNDEwZDBlZS1jZTY1LTQ2M2ItYTMyYy1lYThiNjU5MWJhYzEiLCJyb2xlSWQiOjEsImlhdCI6MTc0ODI1OTM5MywiZXhwIjoxNzQ4MzQ1NzkzfQ.lD8Lf9d8IlVJF1m3kai1UT7B400eQbLeLUa66IQx_JQ'
-      },
+      headers,
     });
 
     console.log('📡 Backend response status:', response.status);

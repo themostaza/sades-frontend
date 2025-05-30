@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
     
-    console.log('🔄 Proxying zones request to:', `${BASE_URL}api/zones`);
+    console.log('🔄 Proxying intervention-types request to:', `${BASE_URL}api/intervention-types`);
     console.log('🔑 Auth header:', authHeader);
 
     const headers: Record<string, string> = {
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       headers['Authorization'] = authHeader;
     }
 
-    const response = await fetch(`${BASE_URL}api/zones`, {
+    const response = await fetch(`${BASE_URL}api/intervention-types`, {
       method: 'GET',
       headers,
     });
@@ -31,13 +31,13 @@ export async function GET(request: NextRequest) {
       console.error('❌ Backend error:', errorText);
       
       return NextResponse.json(
-        { error: 'Failed to fetch zones' },
+        { error: 'Failed to fetch intervention types' },
         { status: response.status }
       );
     }
 
     const data = await response.json();
-    console.log('✅ Backend success - zones fetched:', data?.length || 0, 'zones');
+    console.log('✅ Backend success - intervention types fetched:', data?.length || 0, 'types');
 
     return NextResponse.json(data);
   } catch (error) {

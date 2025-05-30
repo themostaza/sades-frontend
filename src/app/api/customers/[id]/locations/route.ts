@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { config } from '../../../config/env';
+import { config } from '../../../../../config/env';
 
 const BASE_URL = config.BASE_URL;
 
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const authHeader = request.headers.get('authorization');
+    const { id: customerId } = await params;
     
-    console.log('🔄 Proxying zones request to:', `${BASE_URL}api/zones`);
+    console.log('🔄 Proxying customer locations request to:', `${BASE_URL}api/customers/${customerId}/locations`);
     console.log('🔑 Auth header:', authHeader);
+    console.log('👤 Customer ID:', customerId);
 
     const headers: Record<string, string> = {
       'accept': 'application/json',
@@ -19,7 +24,7 @@ export async function GET(request: NextRequest) {
       headers['Authorization'] = authHeader;
     }
 
-    const response = await fetch(`${BASE_URL}api/zones`, {
+    const response = await fetch(`${BASE_URL}api/customers/${customerId}/locations`, {
       method: 'GET',
       headers,
     });
@@ -31,13 +36,13 @@ export async function GET(request: NextRequest) {
       console.error('❌ Backend error:', errorText);
       
       return NextResponse.json(
-        { error: 'Failed to fetch zones' },
+        { error: 'Failed to fetch customer locations' },
         { status: response.status }
       );
     }
 
     const data = await response.json();
-    console.log('✅ Backend success - zones fetched:', data?.length || 0, 'zones');
+    console.log('✅ Backend success - customer locations fetched:', data.data?.length || 0, 'locations');
 
     return NextResponse.json(data);
   } catch (error) {

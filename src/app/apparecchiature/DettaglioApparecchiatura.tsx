@@ -1,20 +1,18 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Upload, Eye, Download} from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import EquipmentAssociati from './EquipmentAssociati';
+import ImmaginiEquipment from './ImmaginiEquipment';
+import DocumentiEquipment from './DocumentiEquipment';
 
 interface EquipmentImage {
   id: number;
-  filename: string;
-  url: string;
-  uploaded_at: string;
-}
-
-interface LinkedEquipment {
-  id: number;
-  serial_number: string | null;
-  description: string;
+  equipment_id: number;
+  image_url: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface Equipment {
@@ -66,7 +64,7 @@ interface Equipment {
   family_label: string;
   subfamily_label: string;
   images: EquipmentImage[];
-  linked_equipments: LinkedEquipment[];
+  linked_equipments: number[];
 }
 
 interface DettaglioApparecchiaturaProps {
@@ -79,7 +77,6 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
   const [equipment, setEquipment] = useState<Equipment | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
 
   // Stati per la sezione dismesso (non presente nell'API, quindi manteniamo locale)
   const [dismesso, setDismesso] = useState(false);
@@ -124,7 +121,6 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
       setLoading(false);
     }
   };
-
 
   // Format date for input
   const formatDateForInput = (dateString: string | null | undefined) => {
@@ -388,25 +384,12 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">
-                      Questa apparecchiatura è associata a
-                    </label>
-                    <div className="space-y-2">
-                      {equipment.linked_equipments.map((linked, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 border border-gray-300 rounded bg-gray-50">
-                          <span className="text-gray-700">{linked.serial_number || `Equipment ${linked.id}`}</span>
-                          <div className="flex gap-2">
-                            <button className="text-gray-400 cursor-not-allowed" disabled>Rimuovi</button>
-                            <button className="text-gray-400 cursor-not-allowed" disabled>Apri</button>
-                          </div>
-                        </div>
-                      ))}
-                      <div className="w-full py-2 border border-dashed border-gray-300 rounded text-gray-400 text-center">
-                        Funzionalità disponibile in futuro
-                      </div>
-                    </div>
-                  </div>
+                  {/* Equipment Associati Component */}
+                  <EquipmentAssociati
+                    equipmentId={equipment.id}
+                    linkedEquipmentIds={equipment.linked_equipments}
+                    onEquipmentLinked={fetchEquipmentDetails}
+                  />
                 </div>
               </div>
 
@@ -581,179 +564,15 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
             </div>
           </div>
 
-          {/* Immagini */}
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-medium text-gray-900">Immagini</h2>
-            </div>
-            
-            <div className="p-6">
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {equipment.images.map((image, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">File</span>
-                        <span className="text-sm text-gray-500">Data di caricamento</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">{image.filename || `img_${index + 1}.png`}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-500">
-                            {image.uploaded_at ? new Date(image.uploaded_at).toLocaleDateString('it-IT') : '-'}
-                          </span>
-                          <button className="text-gray-400 hover:text-gray-600">
-                            <Eye size={16} />
-                          </button>
-                          <button className="text-gray-400 hover:text-gray-600">
-                            <Download size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {equipment.images.length === 0 && (
-                    <div className="col-span-2 text-center py-8 text-gray-500">
-                      Nessuna immagine caricata
-                    </div>
-                  )}
-                </div>
+          {/* Immagini Component */}
+          <ImmaginiEquipment
+            equipmentId={equipment.id}
+            images={equipment.images}
+            onImagesUpdated={fetchEquipmentDetails}
+          />
 
-                <button className="w-full py-3 border border-dashed border-gray-300 rounded-lg text-gray-500 hover:bg-gray-50 flex items-center justify-center gap-2">
-                  <Upload size={16} />
-                  Aggiungi
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Documenti */}
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-medium text-gray-900">Documenti</h2>
-            </div>
-            
-            <div className="p-6">
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-4">
-                  {/* Header */}
-                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg bg-gray-50">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium text-gray-700">Documento</span>
-                      <span className="text-sm font-medium text-gray-700">Data di caricamento</span>
-                    </div>
-                    <span className="text-sm font-medium text-gray-700">Azioni</span>
-                  </div>
-
-                  {/* Scheda tecnica */}
-                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-900">Scheda tecnica</span>
-                        <span className="text-sm text-gray-500">
-                          {equipment.tech_sheet_uploaded_at ? new Date(equipment.tech_sheet_uploaded_at).toLocaleDateString('it-IT') : '-'}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      {equipment.tech_sheet_url ? (
-                        <button className="text-teal-600 hover:text-teal-700 p-1 rounded" title="Visualizza documento">
-                          <Eye size={16} />
-                        </button>
-                      ) : (
-                        <span className="text-gray-300">-</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Disegno macchina e ricambi */}
-                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-900">Disegno macchina e ricambi</span>
-                        <span className="text-sm text-gray-500">
-                          {equipment.machine_design_uploaded_at ? new Date(equipment.machine_design_uploaded_at).toLocaleDateString('it-IT') : '-'}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      {equipment.machine_design_url ? (
-                        <button className="text-teal-600 hover:text-teal-700 p-1 rounded" title="Visualizza documento">
-                          <Eye size={16} />
-                        </button>
-                      ) : (
-                        <span className="text-gray-300">-</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Schema elettrico */}
-                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-900">Schema elettrico</span>
-                        <span className="text-sm text-gray-500">
-                          {equipment.electrical_diagram_uploaded_at ? new Date(equipment.electrical_diagram_uploaded_at).toLocaleDateString('it-IT') : '-'}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      {equipment.electrical_diagram_url ? (
-                        <button className="text-teal-600 hover:text-teal-700 p-1 rounded" title="Visualizza documento">
-                          <Eye size={16} />
-                        </button>
-                      ) : (
-                        <span className="text-gray-300">-</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Manuale servici */}
-                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-900">Manuale servici</span>
-                        <span className="text-sm text-gray-500">
-                          {equipment.service_manual_uploaded_at ? new Date(equipment.service_manual_uploaded_at).toLocaleDateString('it-IT') : '-'}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      {equipment.service_manual_url ? (
-                        <button className="text-teal-600 hover:text-teal-700 p-1 rounded" title="Visualizza documento">
-                          <Eye size={16} />
-                        </button>
-                      ) : (
-                        <span className="text-gray-300">-</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Manuale istruzioni */}
-                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-900">Manuale istruzioni</span>
-                        <span className="text-sm text-gray-500">
-                          {equipment.instruction_manual_uploaded_at ? new Date(equipment.instruction_manual_uploaded_at).toLocaleDateString('it-IT') : '-'}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      {equipment.instruction_manual_url ? (
-                        <button className="text-teal-600 hover:text-teal-700 p-1 rounded" title="Visualizza documento">
-                          <Eye size={16} />
-                        </button>
-                      ) : (
-                        <span className="text-gray-300">-</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* Documenti Component */}
+          <DocumentiEquipment equipment={equipment} />
         </div>
       )}
     </div>

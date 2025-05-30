@@ -46,6 +46,7 @@ export interface AssistanceInterventionDetail {
   status_label: string;
   status_color: string;
   customer_id: number;
+  customer_location_id: string;
   type_id: number;
   zone_id: number;
   address: string;
@@ -70,10 +71,10 @@ export interface CreateAssistanceInterventionRequest {
   customer_location_id: string;
   flg_home_service: boolean;
   flg_discount_home_service: boolean;
-  date: string;
-  time_slot: string;
-  from_datetime: string;
-  to_datetime: string;
+  date: string | null;
+  time_slot: string | null;
+  from_datetime: string | null;
+  to_datetime: string | null;
   quotation_price: number;
   opening_hours: string;
   assigned_to: string;
@@ -82,7 +83,7 @@ export interface CreateAssistanceInterventionRequest {
   status_id: number;
   equipments: number[];
   articles: Array<{
-    article_id: number;
+    article_id: string;
     quantity: number;
   }>;
 }
@@ -94,10 +95,10 @@ export interface UpdateAssistanceInterventionRequest {
   customer_location_id: string;
   flg_home_service: boolean;
   flg_discount_home_service: boolean;
-  date: string;
-  time_slot: string;
-  from_datetime: string;
-  to_datetime: string;
+  date: string | null;
+  time_slot: string | null;
+  from_datetime: string | null;
+  to_datetime: string | null;
   quotation_price: number;
   opening_hours: string;
   assigned_to: string;
@@ -106,7 +107,7 @@ export interface UpdateAssistanceInterventionRequest {
   status_id: number;
   equipments: number[];
   articles: Array<{
-    article_id: number;
+    article_id: string;
     quantity: number;
   }>;
 }

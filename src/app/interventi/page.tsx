@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, InfoIcon } from 'lucide-react';
+import { Search, Plus, InfoIcon, MapPin, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import NuovoIntervento from './NuovoIntervento';
+import DettaglioIntervento from './DettaglioIntervento';
 import CalendarioView from './CalendarioView';
 
 interface AssistanceIntervention {
@@ -53,6 +54,7 @@ export default function InterventiPage() {
   
   // Stati per i dati API
   const [interventionsData, setInterventionsData] = useState<AssistanceIntervention[]>([]);
+  const [zonesData, setZonesData] = useState<{id: number, label: string}[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [meta, setMeta] = useState({
@@ -65,13 +67,57 @@ export default function InterventiPage() {
   // Stati per i filtri
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedZone, setSelectedZone] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedTechnician] = useState('');
 
   const [viewMode, setViewMode] = useState<'lista' | 'calendario'>('lista');
   const [showNuovoIntervento, setShowNuovoIntervento] = useState(false);
+  
+  // Stati per il dettaglio intervento
+  const [showDettaglioIntervento, setShowDettaglioIntervento] = useState(false);
+  const [selectedInterventionId, setSelectedInterventionId] = useState<number | null>(null);
 
   const auth = useAuth();
+
+  // Funzione per gestire il click su una riga della tabella
+  const handleRowClick = (interventionId: number) => {
+    setSelectedInterventionId(interventionId);
+    setShowDettaglioIntervento(true);
+  };
+
+  // Funzione per chiudere il dettaglio e ricaricare i dati
+  const handleDettaglioClose = () => {
+    setShowDettaglioIntervento(false);
+    setSelectedInterventionId(null);
+    // Ricarica i dati per vedere eventuali modifiche
+    fetchInterventionsData();
+  };
+
+  // Funzione per recuperare le zone dall'API
+  const fetchZonesData = async () => {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (auth.token) {
+        headers['Authorization'] = `Bearer ${auth.token}`;
+      }
+
+      const response = await fetch('/api/zones', {
+        headers,
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch zones data');
+      }
+      
+      const data = await response.json();
+      setZonesData(data);
+      console.log('✅ Zone caricate:', data.length);
+    } catch (err) {
+      console.error('Error fetching zones data:', err);
+    }
+  };
 
   // Funzione per recuperare i dati dall'API
   const fetchInterventionsData = async () => {
@@ -94,10 +140,6 @@ export default function InterventiPage() {
       
       if (selectedZone) {
         params.append('zone_id', selectedZone);
-      }
-      
-      if (selectedStatus) {
-        params.append('status_id', selectedStatus);
       }
       
       if (selectedTechnician) {
@@ -140,35 +182,37 @@ export default function InterventiPage() {
   // Effetto per caricare i dati iniziali e quando cambiano i filtri
   useEffect(() => {
     fetchInterventionsData();
-  }, [currentPage, searchTerm, selectedDate, selectedZone, selectedStatus, selectedTechnician, auth.token]);
+  }, [currentPage, searchTerm, selectedDate, selectedZone, selectedTechnician, auth.token]);
+
+  // Effetto per caricare le zone al mount del componente
+  useEffect(() => {
+    fetchZonesData();
+  }, [auth.token]);
 
   // Funzione per mappare i colori dello status
   const getStatusColor = (statusColor: string, statusLabel: string) => {
-    // Se abbiamo un colore dal backend, lo usiamo
-    if (statusColor && statusColor.startsWith('#')) {
-      return `bg-gray-100 text-gray-800`; // Fallback per ora
-    }
-    
-    // Mappatura basata sul label
+    // Mappatura basata sul label usando gli stessi colori di NuovoIntervento.tsx
     switch (statusLabel.toLowerCase()) {
-      case 'in carico':
-        return 'bg-teal-100 text-teal-800';
-      case 'completato':
-        return 'bg-green-100 text-green-800';
       case 'da assegnare':
         return 'bg-orange-100 text-orange-800';
       case 'attesa preventivo':
         return 'bg-yellow-100 text-yellow-800';
       case 'attesa ricambio':
         return 'bg-blue-100 text-blue-800';
+      case 'in carico':
+        return 'bg-teal-100 text-teal-800';
       case 'da confermare':
         return 'bg-purple-100 text-purple-800';
+      case 'completato':
+        return 'bg-green-100 text-green-800';
       case 'non completato':
         return 'bg-gray-100 text-gray-800';
       case 'annullato':
         return 'bg-red-100 text-red-800';
       case 'fatturato':
         return 'bg-emerald-100 text-emerald-800';
+      case 'collocamento':
+        return 'bg-indigo-100 text-indigo-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -185,14 +229,23 @@ export default function InterventiPage() {
 
   // Funzione per formattare la data
   const formatDate = (dateString: string) => {
+    // Se la data è mancante, null, undefined o stringa vuota, non mostrare nulla
+    if (!dateString || dateString.trim() === '') {
+      return '-';
+    }
+    
     try {
       const date = new Date(dateString);
+      // Verifica se la data è valida
+      if (isNaN(date.getTime())) {
+        return '-';
+      }
       return date.toLocaleDateString('it-IT', {
         day: '2-digit',
         month: 'short'
       });
     } catch {
-      return dateString;
+      return '-';
     }
   };
 
@@ -213,18 +266,6 @@ export default function InterventiPage() {
       tecnico: formatTechnician(intervention.assigned_to_name, intervention.assigned_to_surname),
       status: intervention.status_label as unknown as string
     }));
-  };
-
-  // Funzione per ottenere zone uniche per il filtro
-  const getUniqueZones = () => {
-    const zones = interventionsData.map(item => item.zone_label).filter(Boolean);
-    return [...new Set(zones)];
-  };
-
-  // Funzione per ottenere status unici per il filtro
-  const getUniqueStatuses = () => {
-    const statuses = interventionsData.map(item => item.status_label).filter(Boolean);
-    return [...new Set(statuses)];
   };
 
   if (loading && interventionsData.length === 0) {
@@ -286,46 +327,42 @@ export default function InterventiPage() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
-              placeholder="Cerca azienda, tecnico, indirizzo, codice chiamata"
+              placeholder="Cerca Ragione sociale, descrizione, tecnico"
               value={searchTerm}
               onChange={(e) => handleSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700 placeholder-gray-400"
             />
           </div>
           
           <div className="relative">
-            <select
+            <input
+              type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white min-w-[150px]"
-            >
-              <option value="">Tutte le date</option>
-              {/* Qui potresti aggiungere opzioni di date specifiche */}
-            </select>
+              className="pl-10 pr-10 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 bg-white min-w-[180px] text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+              placeholder="Filtra per data"
+            />
+            {selectedDate && (
+              <button
+                onClick={() => setSelectedDate('')}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                type="button"
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
           
           <div className="relative">
+            <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
             <select
               value={selectedZone}
               onChange={(e) => setSelectedZone(e.target.value)}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white min-w-[150px]"
+              className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white min-w-[180px] text-gray-700"
             >
-              <option value="">Tutte le zone</option>
-              {getUniqueZones().map(zone => (
-                <option key={zone} value={zone}>{zone}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="relative">
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white min-w-[150px]"
-            >
-              <option value="">Tutti gli status</option>
-              {getUniqueStatuses().map(status => (
-                <option key={status} value={status}>{status}</option>
+              <option value="" className="text-gray-700">Filtra per zona</option>
+              {zonesData.map(zone => (
+                <option key={zone.id} value={zone.id} className="text-gray-700">{zone.label}</option>
               ))}
             </select>
           </div>
@@ -337,7 +374,7 @@ export default function InterventiPage() {
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 viewMode === 'lista'
                   ? 'bg-teal-600 text-white'
-                  : 'text-gray-600 hover:text-gray-900'
+                  : 'text-gray-700 hover:text-gray-900'
               }`}
             >
               Lista
@@ -347,7 +384,7 @@ export default function InterventiPage() {
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 viewMode === 'calendario'
                   ? 'bg-teal-600 text-white'
-                  : 'text-gray-600 hover:text-gray-900'
+                  : 'text-gray-700 hover:text-gray-900'
               }`}
             >
               Calendario
@@ -388,11 +425,11 @@ export default function InterventiPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {interventionsData.map((intervention) => (
-                  <tr key={intervention.id} className="hover:bg-gray-50 cursor-pointer">
+                  <tr key={intervention.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div>
                         <div className="font-medium">{intervention.company_name}</div>
-                        <div className="text-xs text-gray-500">#{intervention.call_code}</div>
+                        <div className="text-xs text-gray-500">#{intervention.call_code} ({intervention.id})</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -467,6 +504,16 @@ export default function InterventiPage() {
           fetchInterventionsData(); // Ricarica i dati dopo aver chiuso
         }}
       />
+
+      {/* Componente Dettaglio Intervento */}
+      {selectedInterventionId && (
+        <DettaglioIntervento
+          isOpen={showDettaglioIntervento}
+          onClose={handleDettaglioClose}
+          interventionId={selectedInterventionId}
+          onInterventionUpdated={fetchInterventionsData}
+        />
+      )}
     </div>
   );
 } 
