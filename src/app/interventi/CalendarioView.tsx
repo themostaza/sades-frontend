@@ -451,13 +451,24 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
 
   // Funzione per confermare la selezione di data e orario
   const confirmDateTime = async () => {
-    if (!currentInterventoId || !selectedDate || !selectedOrarioIntervento) {
+    if (!currentInterventoId) {
       return;
     }
 
     // Verifica che ci sia un tecnico selezionato se la sezione tecnico è visibile
     if (showTechnicianSection && !selectedTechnicianInDialog) {
       alert('Seleziona un tecnico prima di confermare.');
+      return;
+    }
+
+    // Se le sezioni data/orario sono visibili, verifica che siano compilate
+    if (showDateSection && !selectedDate) {
+      alert('Seleziona una data prima di confermare.');
+      return;
+    }
+
+    if (showTimeSection && !selectedOrarioIntervento) {
+      alert('Seleziona un orario prima di confermare.');
       return;
     }
 
@@ -484,42 +495,60 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
       const currentData: InterventionFromApi = await getResponse.json();
       console.log('📋 Dati attuali intervento:', currentData);
 
-      // Step 2: Prepara i dati dell'assegnazione
-      let formattedAssignment = '';
-      const formattedDate = new Date(selectedDate).toLocaleDateString('it-IT');
-      
-      switch (selectedOrarioIntervento) {
-        case 'mattina':
-          formattedAssignment = `${formattedDate} - Mattina (8:00 - 13:00)`;
-          break;
-        case 'pomeriggio':
-          formattedAssignment = `${formattedDate} - Pomeriggio (14:00 - 18:00)`;
-          break;
-        case 'tutto_il_giorno':
-          formattedAssignment = `${formattedDate} - Tutto il giorno (8:00 - 18:00)`;
-          break;
-        case 'fascia_oraria':
-          if (selectedOraInizio && selectedOraFine) {
-            formattedAssignment = `${formattedDate} dalle ${selectedOraInizio} alle ${selectedOraFine}`;
-          } else {
-            alert('Seleziona orario di inizio e fine per la fascia oraria.');
-            return;
-          }
-          break;
-        default:
-          return;
-      }
+      // Step 2: Prepara i dati di data/orario (solo se le sezioni sono visibili)
+      let finalDate = currentData.date;
+      let finalTimeSlot = currentData.time_slot;
+      let finalFromDatetime = currentData.from_datetime;
+      let finalToDatetime = currentData.to_datetime;
 
-      // Step 3: Mappa i dati dal dialog ai campi API
-      const assignmentData = parseAssignmentString(formattedAssignment);
+      // Se la sezione data/orario è visibile, aggiorna i valori
+      if (showDateSection || showTimeSection) {
+        let formattedAssignment = '';
+        const formattedDate = new Date(selectedDate).toLocaleDateString('it-IT');
+        
+        switch (selectedOrarioIntervento) {
+          case 'mattina':
+            formattedAssignment = `${formattedDate} - Mattina (8:00 - 13:00)`;
+            break;
+          case 'pomeriggio':
+            formattedAssignment = `${formattedDate} - Pomeriggio (14:00 - 18:00)`;
+            break;
+          case 'tutto_il_giorno':
+            formattedAssignment = `${formattedDate} - Tutto il giorno (8:00 - 18:00)`;
+            break;
+          case 'fascia_oraria':
+            if (selectedOraInizio && selectedOraFine) {
+              formattedAssignment = `${formattedDate} dalle ${selectedOraInizio} alle ${selectedOraFine}`;
+            } else {
+              alert('Seleziona orario di inizio e fine per la fascia oraria.');
+              return;
+            }
+            break;
+          default:
+            // Se non c'è orario selezionato ma la sezione è visibile, è un errore
+            if (showTimeSection) {
+              alert('Seleziona un orario prima di confermare.');
+              return;
+            }
+        }
+
+        // Solo se abbiamo una formattedAssignment valida, aggiorna i dati
+        if (formattedAssignment) {
+          const assignmentData = parseAssignmentString(formattedAssignment);
+          finalDate = assignmentData.date;
+          finalTimeSlot = assignmentData.time_slot;
+          finalFromDatetime = assignmentData.from_datetime;
+          finalToDatetime = assignmentData.to_datetime;
+        }
+      }
       
-      // Determina l'ID del tecnico (se la sezione tecnico è visibile)
+      // Step 3: Determina l'ID del tecnico (se la sezione tecnico è visibile)
       let technicianId = currentData.assigned_to; // Mantieni quello esistente di default
       if (showTechnicianSection && selectedTechnicianInDialog) {
         technicianId = selectedTechnicianInDialog.id;
       }
       
-      // Costruisci il body della PUT request con tutti i campi esistenti + le modifiche
+      // Step 4: Costruisci il body della PUT request con tutti i campi esistenti + le modifiche
       const updatePayload = {
         customer_id: currentData.customer_id,
         type_id: currentData.type_id,
@@ -527,11 +556,11 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
         customer_location_id: currentData.customer_location_id,
         flg_home_service: currentData.flg_home_service,
         flg_discount_home_service: currentData.flg_discount_home_service,
-        // I nuovi dati dal dialog
-        date: assignmentData.date,
-        time_slot: assignmentData.time_slot,
-        from_datetime: assignmentData.from_datetime,
-        to_datetime: assignmentData.to_datetime,
+        // Usa i dati finali (esistenti o aggiornati)
+        date: finalDate,
+        time_slot: finalTimeSlot,
+        from_datetime: finalFromDatetime,
+        to_datetime: finalToDatetime,
         quotation_price: parseFloat(currentData.quotation_price) || 0,
         opening_hours: currentData.opening_hours || '',
         assigned_to: technicianId,
@@ -548,7 +577,7 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
 
       console.log('📤 Payload PUT:', updatePayload);
 
-      // Step 4: Salva i dati con PUT
+      // Step 5: Salva i dati con PUT
       const putResponse = await fetch(`/api/assistance-interventions/${currentInterventoId}`, {
         method: 'PUT',
         headers,
@@ -563,7 +592,7 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
       const savedData = await putResponse.json();
       console.log('✅ Intervento salvato con successo:', savedData);
 
-      // Step 5: Chiudi il dialog e ricarica i dati
+      // Step 6: Chiudi il dialog e ricarica i dati
       closeDateTimeDialog();
       
       // Ricarica la lista degli interventi da assegnare per riflettere i cambiamenti
@@ -583,9 +612,14 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
 
   // Verifica se il form è valido per la conferma
   const isFormValid = () => {
-    if (!selectedDate || !selectedOrarioIntervento) return false;
+    // Se la sezione data è visibile, deve essere selezionata una data
+    if (showDateSection && !selectedDate) return false;
     
-    if (selectedOrarioIntervento === 'fascia_oraria') {
+    // Se la sezione orario è visibile, deve essere selezionato un orario
+    if (showTimeSection && !selectedOrarioIntervento) return false;
+    
+    // Se è selezionata una fascia oraria personalizzata, devono essere impostati inizio e fine
+    if (showTimeSection && selectedOrarioIntervento === 'fascia_oraria') {
       if (!selectedOraInizio || !selectedOraFine) return false;
     }
     
