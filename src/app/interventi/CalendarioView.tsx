@@ -15,6 +15,8 @@ interface Intervento {
   statusLabel?: string; // Status reale dall'API
   statusColor?: string; // Colore status dall'API
   callCode?: string; // Codice di chiamata
+  from_datetime?: string; // Orario di inizio
+  to_datetime?: string; // Orario di fine
 }
 
 interface User {
@@ -67,6 +69,9 @@ interface CalendarioViewProps {
 export default function CalendarioView({ interventi }: CalendarioViewProps) {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   
+  // Stati per gli interventi del calendario (interni)
+  const [interventiCalendario, setInterventiCalendario] = useState<Intervento[]>(interventi);
+  
   // Nuovi stati per gli interventi da assegnare
   const [interventiDaAssegnare, setInterventiDaAssegnare] = useState<Intervento[]>([]);
   const [loadingInterventiDaAssegnare, setLoadingInterventiDaAssegnare] = useState(true);
@@ -93,6 +98,69 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
   const [selectedTechnicianInDialog, setSelectedTechnicianInDialog] = useState<User | null>(null);
 
   const auth = useAuth();
+
+  // Funzione per fetchare gli interventi del calendario
+  const fetchInterventiCalendario = useCallback(async () => {
+    try {
+      
+      const params = new URLSearchParams({
+        skip: '500', // Numero elevato per evitare paginazione
+        page: '1',
+      });
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (auth.token) {
+        headers['Authorization'] = `Bearer ${auth.token}`;
+      }
+
+      const response = await fetch(`/api/assistance-interventions?${params.toString()}`, {
+        headers,
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.error('Sessione scaduta, effettuando logout');
+          auth.logout();
+          return;
+        }
+        throw new Error('Failed to fetch calendar interventions data');
+      }
+      
+      const data: ApiResponse<InterventionFromApi> = await response.json();
+      
+      // Converte nel formato atteso dal calendario (tutti gli interventi)
+      const convertedInterventi: Intervento[] = data.data.map((intervention: InterventionFromApi) => ({
+        id: intervention.id.toString(),
+        ragioneSociale: intervention.company_name,
+        data: intervention.date ? new Date(intervention.date).toLocaleDateString('it-IT', {
+          day: '2-digit',
+          month: 'short'
+        }) : '-',
+        orario: intervention.time_slot || '-',
+        zona: intervention.zone_label || '-',
+        tecnico: intervention.assigned_to_name ? 
+          (intervention.assigned_to_surname ? 
+            `${intervention.assigned_to_name} ${intervention.assigned_to_surname}` : 
+            intervention.assigned_to_name) : '-',
+        status: intervention.status_label || 'Da assegnare',
+        statusLabel: intervention.status_label,
+        statusColor: intervention.status_color,
+        callCode: intervention.call_code,
+        from_datetime: intervention.from_datetime,
+        to_datetime: intervention.to_datetime
+      }));
+      
+      setInterventiCalendario(convertedInterventi);
+      console.log('✅ Interventi calendario refreshati:', convertedInterventi.length);
+      
+    } catch (err) {
+      console.error('Error fetching calendar interventions:', err);
+    } finally {
+    }
+  }, [auth.token, auth.logout]);
 
   // Funzione per cercare i tecnici nel dialog
   const searchTechnicians = useCallback(async (query: string) => {
@@ -224,7 +292,9 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
         status: 'Da assegnare', // Impostiamo tutti come "Da assegnare" per coerenza
         statusLabel: intervention.status_label,
         statusColor: intervention.status_color,
-        callCode: intervention.call_code
+        callCode: intervention.call_code,
+        from_datetime: intervention.from_datetime,
+        to_datetime: intervention.to_datetime
       }));
       
       // Ordina gli interventi dal più recente al meno recente (ID decrescente)
@@ -247,6 +317,13 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
   useEffect(() => {
     fetchInterventiDaAssegnare();
   }, [fetchInterventiDaAssegnare]);
+
+  // Sincronizza interventiCalendario con la prop interventi
+  useEffect(() => {
+    console.log('🔄 Sincronizzazione interventi calendario:', interventi.length, 'interventi ricevuti');
+    console.log('📋 Primi 3 interventi:', interventi.slice(0, 3));
+    setInterventiCalendario(interventi);
+  }, [interventi]);
 
   // Gestisce il click fuori dal dropdown per chiuderlo
   useEffect(() => {
@@ -492,6 +569,9 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
       // Ricarica la lista degli interventi da assegnare per riflettere i cambiamenti
       fetchInterventiDaAssegnare();
       
+      // Refresh direttamente i dati del calendario
+      fetchInterventiCalendario();
+      
     } catch (error) {
       console.error('💥 Errore durante il salvataggio:', error);
       
@@ -513,6 +593,65 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
     if (showTechnicianSection && !selectedTechnicianInDialog) return false;
     
     return true;
+  };
+
+  // Funzione per ottenere l'ora da una stringa datetime
+  const getTimeFromDatetime = (datetime: string): string => {
+    if (!datetime) return '';
+    try {
+      const date = new Date(datetime);
+      return date.toTimeString().substring(0, 5); // Format: "HH:MM"
+    } catch {
+      return '';
+    }
+  };
+
+
+  // Funzione per ottenere gli interventi che iniziano in un time slot specifico
+  const getInterventiForTimeSlot = (day: Date, timeSlot: string): Intervento[] => {
+    const dayString = day.getDate().toString();
+    
+    // DEBUG: Versione più permissiva - mostra tutti gli interventi del giorno nel primo slot
+    if (timeSlot === '08:00') {
+      const allDayInterventions = interventiCalendario.filter(intervento => {
+        const matchesDay = intervento.data.includes(dayString);
+        if (matchesDay) {
+          console.log(`🔍 DEBUG: Intervento ${intervento.id} trovato per giorno ${dayString}:`, intervento);
+        }
+        return matchesDay;
+      });
+      console.log(`📊 DEBUG: Totale interventi per giorno ${dayString}:`, allDayInterventions.length);
+      return allDayInterventions;
+    }
+    
+    return []; // Per ora mostra solo nel primo slot per debug
+  };
+
+  // Funzione per calcolare la durata in ore di un intervento
+  const getInterventoDurationInHours = (intervento: Intervento): number => {
+    if (!intervento.from_datetime || !intervento.to_datetime) {
+      // Fallback basato sul time_slot se disponibile
+      if (intervento.orario === 'mattina') return 5; // 8:00-13:00
+      if (intervento.orario === 'pomeriggio') return 4; // 14:00-18:00
+      if (intervento.orario === 'tutto_il_giorno') return 10; // 8:00-18:00
+      return 1; // Default 1 ora
+    }
+    
+    try {
+      const startTime = new Date(intervento.from_datetime);
+      const endTime = new Date(intervento.to_datetime);
+      const durationMs = endTime.getTime() - startTime.getTime();
+      const durationHours = durationMs / (1000 * 60 * 60);
+      return Math.max(1, Math.round(durationHours)); // Minimo 1 ora
+    } catch {
+      return 1;
+    }
+  };
+
+  // Funzione per ottenere l'altezza del blocco in pixel (80px per ora)
+  const getBlockHeight = (intervento: Intervento): number => {
+    const hours = getInterventoDurationInHours(intervento);
+    return hours * 80; // 80px per ogni slot orario
   };
 
   // Genera solo i giorni lavorativi della settimana corrente (Lunedì-Venerdì)
@@ -569,15 +708,6 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
     const newDate = new Date(currentWeek);
     newDate.setDate(currentWeek.getDate() + (direction === 'next' ? 7 : -7));
     setCurrentWeek(newDate);
-  };
-
-  // Funzione per ottenere gli interventi per un giorno specifico
-  const getInterventiForDay = (day: Date) => {
-    const dayString = day.getDate().toString();
-    return interventi.filter(intervento => {
-      // Semplificazione: assumiamo che la data sia nel formato "26 Gen"
-      return intervento.data.includes(dayString);
-    });
   };
 
   // Funzione per ottenere il mese e anno corrente
@@ -791,28 +921,52 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
                 
                 {/* Colonne giorni */}
                 {weekDays.map((day) => {
-                  const dayInterventi = getInterventiForDay(day);
+                  const dayInterventi = getInterventiForTimeSlot(day, timeSlot);
                   
                   return (
                     <div key={`${day.toISOString()}-${timeSlot}`} className="relative p-2 border-r border-gray-200 last:border-r-0 min-h-[80px]">
                       {/* Mostra solo gli interventi che iniziano in questo slot */}
-                      {dayInterventi.map((intervento) => (
-                        <div
-                          key={intervento.id}
-                          className={`absolute left-2 right-2 ${getStatusColor(intervento.status)} text-white p-2 rounded text-xs cursor-pointer hover:opacity-80 z-10`}
-                          style={{
-                            height: '80px',
-                            top: '8px'
-                          }}
-                        >
-                          <div className="font-medium truncate">
-                            {intervento.ragioneSociale}
+                      {dayInterventi.map((intervento, index) => {
+                        const blockHeight = getBlockHeight(intervento);
+                        const startTime = getTimeFromDatetime(intervento.from_datetime || '') || 
+                          (intervento.orario === 'mattina' ? '08:00' : 
+                           intervento.orario === 'pomeriggio' ? '14:00' : 
+                           intervento.orario === 'tutto_il_giorno' ? '08:00' : timeSlot);
+                        const endTime = getTimeFromDatetime(intervento.to_datetime || '') ||
+                          (intervento.orario === 'mattina' ? '13:00' : 
+                           intervento.orario === 'pomeriggio' ? '18:00' : 
+                           intervento.orario === 'tutto_il_giorno' ? '18:00' : '—');
+                        const duration = getInterventoDurationInHours(intervento);
+                        
+                        return (
+                          <div
+                            key={intervento.id}
+                            className={`absolute left-2 right-2 ${getStatusColor(intervento.status)} text-white p-2 rounded text-xs cursor-pointer hover:opacity-80 shadow-md`}
+                            style={{
+                              height: blockHeight,
+                              top: `${8 + (index * 4)}px`, // Offset leggermente diverso per più interventi
+                              zIndex: 20 + index,
+                              border: '1px solid rgba(255,255,255,0.3)'
+                            }}
+                            title={`${intervento.ragioneSociale} - ${startTime} alle ${endTime} (${duration}h)`}
+                          >
+                            <div className="font-medium truncate text-xs">
+                              {intervento.ragioneSociale}
+                            </div>
+                            <div className="truncate opacity-90 text-[10px] mt-1">
+                              {intervento.tecnico !== '-' ? intervento.tecnico : 'Non assegnato'}
+                            </div>
+                            {duration > 1 && (
+                              <div className="absolute bottom-1 right-2 text-[10px] opacity-75 bg-black bg-opacity-20 px-1 rounded">
+                                {duration}h
+                              </div>
+                            )}
+                            <div className="text-[9px] opacity-75 mt-1">
+                              {startTime}-{endTime}
+                            </div>
                           </div>
-                          <div className="truncate opacity-90 text-xs">
-                            {intervento.tecnico !== '-' ? intervento.tecnico : 'Non assegnato'}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 })}
