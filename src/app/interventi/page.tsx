@@ -128,6 +128,8 @@ export default function InterventiPage() {
       const params = new URLSearchParams({
         page: currentPage.toString(),
         skip: pageSize.toString(),
+        order_by: 'date',
+        order_dir: 'desc'
       });
       
       if (searchTerm.trim()) {

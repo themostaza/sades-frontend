@@ -305,7 +305,32 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       
       // Gestione data e orari
       if (data.date) {
-        setData(data.date);
+        console.log('🗓️ Raw date from API:', data.date, 'Type:', typeof data.date);
+        
+        // Formattiamo la data per essere compatibile con input di tipo date (YYYY-MM-DD)
+        let formattedDate = '';
+        try {
+          if (typeof data.date === 'string' && data.date.trim()) {
+            // Se è già nel formato YYYY-MM-DD, usa direttamente
+            if (data.date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+              formattedDate = data.date;
+            } else {
+              // Altrimenti, prova a parsare e formattare
+              const dateObj = new Date(data.date);
+              if (!isNaN(dateObj.getTime())) {
+                formattedDate = dateObj.toISOString().split('T')[0];
+              }
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error formatting date:', error);
+        }
+        
+        console.log('🗓️ Formatted date for input:', formattedDate);
+        setData(formattedDate);
+      } else {
+        console.log('⚠️ No date found in API response');
+        setData('');
       }
       if (data.time_slot) {
         setOrarioIntervento(data.time_slot);
