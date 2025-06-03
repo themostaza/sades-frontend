@@ -519,6 +519,9 @@ export default function NuovoIntervento({ isOpen, onClose }: NuovoInterventoProp
             preventivo={preventivo}
             setPreventivo={setPreventivo}
             selectedCustomerId={selectedCustomerId}
+            destinazione={destinazione}
+            customerLocationsLoaded={customerLocationsLoaded}
+            hasCustomerLocations={hasCustomerLocations}
             selectedEquipments={selectedEquipments}
             setSelectedEquipments={setSelectedEquipments}
             selectedArticles={selectedArticles}

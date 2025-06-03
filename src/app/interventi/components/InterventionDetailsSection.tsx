@@ -20,6 +20,9 @@ interface InterventionDetailsSectionProps {
   preventivo: number;
   setPreventivo: (value: number) => void;
   selectedCustomerId: number | null;
+  destinazione: string;
+  customerLocationsLoaded: boolean;
+  hasCustomerLocations: boolean;
   selectedEquipments: Equipment[];
   setSelectedEquipments: (equipments: Equipment[]) => void;
   selectedArticles: SelectedArticle[];
@@ -49,6 +52,9 @@ export default function InterventionDetailsSection({
   preventivo,
   setPreventivo,
   selectedCustomerId,
+  destinazione,
+  customerLocationsLoaded,
+  hasCustomerLocations,
   selectedEquipments,
   setSelectedEquipments,
   selectedArticles,
@@ -72,9 +78,21 @@ export default function InterventionDetailsSection({
   const [showArticleDropdown, setShowArticleDropdown] = useState(false);
   const [isSearchingArticles, setIsSearchingArticles] = useState(false);
 
+  // Funzione per verificare se la ricerca apparecchiature è abilitata
+  const isEquipmentSearchEnabled = () => {
+    // Deve esserci un cliente selezionato
+    if (!selectedCustomerId) return false;
+    
+    // Se il cliente ha location disponibili, deve essere selezionata una destinazione
+    if (hasCustomerLocations && !destinazione) return false;
+    
+    // Se non ha location o ne ha una selezionata, è abilitata
+    return true;
+  };
+
   // Funzione per cercare le apparecchiature
   const searchEquipments = async (query: string = '') => {
-    if (!selectedCustomerId) {
+    if (!selectedCustomerId || !isEquipmentSearchEnabled()) {
       setEquipments([]);
       setShowEquipmentDropdown(false);
       return;
@@ -93,10 +111,13 @@ export default function InterventionDetailsSection({
           headers['Authorization'] = `Bearer ${auth.token}`;
         }
 
-        const response = await fetch(
-          `/api/equipments?customer_id=${selectedCustomerId}`,
-          { headers }
-        );
+        // Costruisci l'URL con i parametri appropriati
+        let apiUrl = `/api/equipments?customer_id=${selectedCustomerId}`;
+        if (destinazione) {
+          apiUrl += `&customer_location_id=${encodeURIComponent(destinazione)}`;
+        }
+
+        const response = await fetch(apiUrl, { headers });
 
         if (response.ok) {
           const data = await response.json();
@@ -138,10 +159,13 @@ export default function InterventionDetailsSection({
         headers['Authorization'] = `Bearer ${auth.token}`;
       }
 
-      const response = await fetch(
-        `/api/equipments?customer_id=${selectedCustomerId}&query=${encodeURIComponent(query)}`,
-        { headers }
-      );
+      // Costruisci l'URL con i parametri appropriati
+      let apiUrl = `/api/equipments?customer_id=${selectedCustomerId}&query=${encodeURIComponent(query)}`;
+      if (destinazione) {
+        apiUrl += `&customer_location_id=${encodeURIComponent(destinazione)}`;
+      }
+
+      const response = await fetch(apiUrl, { headers });
 
       if (response.ok) {
         const data = await response.json();
@@ -214,7 +238,7 @@ export default function InterventionDetailsSection({
   // Debounce per la ricerca apparecchiature
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (selectedCustomerId && equipmentSearchQuery.trim() && equipmentSearchQuery.length >= 2) {
+      if (isEquipmentSearchEnabled() && equipmentSearchQuery.trim() && equipmentSearchQuery.length >= 2) {
         searchEquipments(equipmentSearchQuery);
       } else if (equipmentSearchQuery.trim() === '' && equipments.length > 0) {
         // Se l'utente ha cancellato tutto e c'erano già risultati, mantienili
@@ -227,15 +251,15 @@ export default function InterventionDetailsSection({
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [equipmentSearchQuery, selectedCustomerId]);
+  }, [equipmentSearchQuery, selectedCustomerId, destinazione]);
 
-  // Reset apparecchiature quando cambia il cliente
+  // Reset apparecchiature quando cambia il cliente o la destinazione
   useEffect(() => {
     setSelectedEquipments([]);
     setEquipmentSearchQuery('');
     setEquipments([]);
     setShowEquipmentDropdown(false);
-  }, [selectedCustomerId]);
+  }, [selectedCustomerId, destinazione]);
 
   // Funzione per cercare gli articoli
   const searchArticles = async (query: string = '') => {
@@ -558,7 +582,7 @@ export default function InterventionDetailsSection({
               value={equipmentSearchQuery}
               onChange={(e) => setEquipmentSearchQuery(e.target.value)}
               onFocus={() => {
-                if (selectedCustomerId) {
+                if (isEquipmentSearchEnabled()) {
                   // Se ci sono già risultati, mostra il dropdown, altrimenti fai una ricerca
                   if (equipments.length > 0) {
                     setShowEquipmentDropdown(true);
@@ -570,9 +594,11 @@ export default function InterventionDetailsSection({
               placeholder={
                 !selectedCustomerId 
                   ? "Prima seleziona una ragione sociale..." 
+                  : !isEquipmentSearchEnabled()
+                  ? "Prima seleziona una destinazione..."
                   : "Cerca apparecchiatura..."
               }
-              disabled={!selectedCustomerId}
+              disabled={!isEquipmentSearchEnabled()}
               className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
             />
             <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
@@ -618,11 +644,19 @@ export default function InterventionDetailsSection({
         </div>
 
         {/* Messaggio informativo */}
-        {!selectedCustomerId && (
+        {!selectedCustomerId ? (
           <p className="mt-1 text-xs text-gray-500">
             💡 Seleziona prima una ragione sociale per cercare le apparecchiature
           </p>
-        )}
+        ) : hasCustomerLocations && !destinazione ? (
+          <p className="mt-1 text-xs text-gray-500">
+            💡 Seleziona una destinazione per cercare le apparecchiature specifiche di quella location
+          </p>
+        ) : !hasCustomerLocations && customerLocationsLoaded ? (
+          <p className="mt-1 text-xs text-amber-600">
+            ⚠️ Cliente senza destinazioni configurate - mostrate tutte le apparecchiature
+          </p>
+        ) : null}
 
         {/* Apparecchiature selezionate */}
         {selectedEquipments.length > 0 && (

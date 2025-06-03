@@ -13,6 +13,7 @@ interface Customer {
   address: string;
   city: string;
   zone_label: string;
+  area: string | null;
 }
 
 interface CustomerLocation {
@@ -240,6 +241,21 @@ export default function CustomerSection({
     setNumeroCellulare(customer.mobile_phone_number || 'N/A');
     setShowDropdown(false);
     
+    // Auto-popola la zona se il cliente ha un'area valorizzata
+    if (customer.area && zones.length > 0) {
+      const matchingZone = zones.find(zone => zone.id.toString() === customer.area);
+      if (matchingZone) {
+        setZona(customer.area);
+        console.log(`🎯 Auto-selected zone: ${matchingZone.label} (ID: ${customer.area})`);
+      } else {
+        setZona('');
+        console.log(`⚠️ Customer area "${customer.area}" doesn't match any available zone`);
+      }
+    } else {
+      setZona('');
+      console.log(`💡 Customer has no area defined or zones not loaded yet`);
+    }
+    
     // Reset destinazione e carica le nuove destinazioni
     setDestinazione('');
     fetchCustomerLocations(customer.id);
@@ -259,6 +275,7 @@ export default function CustomerSection({
       setDestinazione('');
       setCustomerLocations([]);
       setSelectedCustomerId(null);
+      setZona(''); // Reset anche la zona quando si cancella la ricerca
       // Reset lo stato delle destinazioni caricate
       onCustomerLocationsLoaded?.(false);
     }
@@ -301,6 +318,19 @@ export default function CustomerSection({
     fetchInterventionTypes();
     fetchZones();
   }, []);
+
+  // Auto-seleziona la zona quando le zone vengono caricate e c'è già un cliente selezionato
+  useEffect(() => {
+    if (selectedCustomer && selectedCustomer.area && zones.length > 0 && !zona) {
+      const matchingZone = zones.find(zone => zone.id.toString() === selectedCustomer.area);
+      if (matchingZone) {
+        setZona(selectedCustomer.area);
+        console.log(`🎯 Auto-selected zone after zones loaded: ${matchingZone.label} (ID: ${selectedCustomer.area})`);
+      } else {
+        console.log(`⚠️ Customer area "${selectedCustomer.area}" doesn't match any available zone after zones loaded`);
+      }
+    }
+  }, [zones, selectedCustomer, zona]);
 
   return (
     <div className="space-y-6">

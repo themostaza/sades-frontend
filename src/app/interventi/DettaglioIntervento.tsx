@@ -121,27 +121,33 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     message: ''
   });
 
-  // Stato per il loading durante l'aggiornamento
-  const [isUpdating, setIsUpdating] = useState(false);
-
   // Stato per il download PDF
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
 
-  // Funzione per mappare lo status ID al nome
-  const getStatusNameById = (statusId: number): string => {
-    const statusMap: Record<number, string> = {
-      1: 'da_assegnare',
-      2: 'attesa_preventivo',
-      3: 'attesa_ricambio',
-      4: 'in_carico',
-      5: 'da_confermare',
-      6: 'completato',
-      7: 'non_completato',
-      8: 'annullato',
-      9: 'fatturato',
-      10: 'collocamento'
-    };
-    return statusMap[statusId] || 'da_assegnare';
+  // Stato per l'autosave
+  const [autoSaveError, setAutoSaveError] = useState<string | null>(null);
+  // Flag per distinguere il caricamento iniziale dalle modifiche utente
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // Funzione per calcolare lo status dinamicamente basandosi sui dati dell'intervento
+  const calculateDynamicStatus = (assignedTo: string | null | undefined, quotationPrice: number): string => {
+    console.log('🔄 Calculating dynamic status with:', { assignedTo, quotationPrice });
+    
+    // 1. Se assigned_to è vuoto → status è "da_assegnare"
+    if (!assignedTo || assignedTo.trim() === '') {
+      console.log('✅ Status calculated: da_assegnare (no assigned_to)');
+      return 'da_assegnare';
+    }
+    
+    // 2. Se quotation_price è 0 → status è "attesa_preventivo"
+    if (quotationPrice === 0) {
+      console.log('✅ Status calculated: attesa_preventivo (quotation_price is 0)');
+      return 'attesa_preventivo';
+    }
+    
+    // 3. Se entrambi assigned_to e quotation_price sono compilati → status è "in_carico"
+    console.log('✅ Status calculated: in_carico (both assigned_to and quotation_price are set)');
+    return 'in_carico';
   };
 
   // Funzione per mappare i valori degli stati ai corrispondenti ID
@@ -269,6 +275,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   const loadInterventionData = async () => {
     try {
       setIsLoading(true);
+      setIsInitialLoad(true); // Inizio caricamento iniziale
       const data = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
       setInterventionData(data);
       
@@ -282,7 +289,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       }
       
       // Popola tutti i campi con i dati ricevuti
-      setSelectedStatus(getStatusNameById(data.status_id));
+      setSelectedStatus(calculateDynamicStatus(data.assigned_to, data.quotation_price));
       setRagioneSociale(data.company_name);
       setTipologiaIntervento(data.type_id.toString());
       setZona(data.zone_id.toString());
@@ -419,6 +426,10 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       });
     } finally {
       setIsLoading(false);
+      // Fine caricamento iniziale - ora le modifiche future sono dell'utente
+      setTimeout(() => {
+        setIsInitialLoad(false);
+      }, 500); // Piccolo delay per assicurarsi che tutti gli stati siano settati
     }
   };
 
@@ -430,6 +441,70 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       loadInterventionData();
     }
   }, [isOpen, interventionId]);
+
+  // useEffect per recalcolare lo status dinamicamente quando cambiano i valori correlati
+  useEffect(() => {
+    // Non calcolare durante il caricamento iniziale per evitare modifiche non necessarie
+    if (isInitialLoad || isLoading) {
+      return;
+    }
+
+    // Recalcola lo status basandosi sui valori attuali
+    const newStatus = calculateDynamicStatus(selectedTechnician?.id, preventivo);
+    
+    // Aggiorna solo se lo status è davvero cambiato
+    if (newStatus !== selectedStatus) {
+      console.log('🔄 Status auto-updated from', selectedStatus, 'to', newStatus);
+      setSelectedStatus(newStatus);
+    }
+  }, [selectedTechnician?.id, preventivo, isInitialLoad, isLoading]);
+
+  // AutoSave con debounce su tutti i campi modificabili
+  useEffect(() => {
+    // Reset errore autosave quando l'utente modifica qualcosa
+    if (autoSaveError) {
+      setAutoSaveError(null);
+    }
+
+    // Non fare autosave se siamo in fase di caricamento iniziale
+    if (isInitialLoad) {
+      console.log('⏸️ AutoSave skipped - initial load in progress');
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      // Solo se il componente è aperto e ci sono dati caricati
+      if (isOpen && interventionData && !isLoading) {
+        console.log('🔄 AutoSave triggered by field changes');
+        autoSave();
+      }
+    }, 2000); // 2 secondi di debounce
+
+    return () => clearTimeout(timer);
+  }, [
+    // Campi modificabili che devono triggerare autosave
+    // selectedStatus, // Rimosso perché ora è calcolato automaticamente basandosi su assigned_to e quotation_price
+    destinazione,
+    tipologiaIntervento,
+    zona,
+    data,
+    orarioIntervento,
+    oraInizio,
+    oraFine,
+    servizioDomicilio,
+    scontoServizioDomicilio,
+    preventivo,
+    orarioApertura,
+    noteInterne,
+    selectedTechnician?.id,
+    selectedEquipments,
+    selectedArticles,
+    // Dipendenze per autoSave
+    isOpen,
+    interventionData,
+    isLoading,
+    isInitialLoad // Aggiungo anche questo per re-triggerare quando diventa false
+  ]);
 
   // Funzione per verificare se tutti i campi obbligatori sono compilati
   const isFormValid = () => {
@@ -512,57 +587,27 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     }
   };
 
-  // Funzione per aggiornare l'intervento
-  const updateIntervention = async () => {
+  // Funzione per autosave (senza dialoghi)
+  const autoSave = async () => {
     if (!isFormValid()) {
-      // Determina il messaggio di errore specifico
-      let errorMessage = 'Per favore compila tutti i campi obbligatori.';
-      
-      if (!ragioneSociale || !tipologiaIntervento || !zona) {
-        errorMessage = 'Per favore compila tutti i campi obbligatori: Ragione Sociale, Tipologia Intervento e Zona.';
-      } else if (data && !orarioIntervento) {
-        errorMessage = 'Se specifichi una data, devi anche selezionare una fascia oraria.';
-      } else if (!data && orarioIntervento) {
-        errorMessage = 'Se specifichi una fascia oraria, devi anche selezionare una data.';
-      }
-      
-      setDialog({
-        isOpen: true,
-        type: 'error',
-        title: 'Campi obbligatori mancanti',
-        message: errorMessage
-      });
+      console.log('⏸️ AutoSave skipped - form not valid');
       return;
     }
 
-    // Validazione aggiuntiva solo se data e orario sono specificati
-    const missingFields = [];
-    
-    // Validazione specifica per fascia oraria (solo se è stata selezionata)
-    if (orarioIntervento === 'fascia_oraria') {
-      if (!oraInizio) missingFields.push('Ora inizio');
-      if (!oraFine) missingFields.push('Ora fine');
+    // Validazione aggiuntiva per l'autosave
+    if (orarioIntervento === 'fascia_oraria' && (!oraInizio || !oraFine)) {
+      console.log('⏸️ AutoSave skipped - missing time details');
+      return;
     }
 
-    // Validazione per IDs numerici
-    if (!selectedCustomerId || selectedCustomerId <= 0) missingFields.push('Cliente valido');
-    if (!tipologiaIntervento || parseInt(tipologiaIntervento) <= 0) missingFields.push('Tipologia intervento valida');
-    if (!zona || parseInt(zona) <= 0) missingFields.push('Zona valida');
-    
-    if (missingFields.length > 0) {
-      setDialog({
-        isOpen: true,
-        type: 'error',
-        title: 'Campi aggiuntivi richiesti',
-        message: `I seguenti campi sono richiesti: ${missingFields.join(', ')}`
-      });
+    if (!selectedCustomerId || !tipologiaIntervento || !zona) {
+      console.log('⏸️ AutoSave skipped - missing required IDs');
       return;
     }
 
     try {
-      setIsUpdating(true);
+      setAutoSaveError(null);
 
-      // Costruisco l'oggetto request per l'aggiornamento
       const requestData: UpdateAssistanceInterventionRequest = {
         customer_id: selectedCustomerId || 0,
         type_id: parseInt(tipologiaIntervento) || 0,
@@ -585,47 +630,25 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         internal_notes: noteInterne,
         status_id: getStatusId(),
         equipments: selectedEquipments.map(eq => eq.id),
-        articles: selectedArticles.map(art => {
-          console.log(`🔄 Using article ID: "${art.article.id}" (${typeof art.article.id})`);
-          return {
-            article_id: art.article.id,
-            quantity: art.quantity
-          };
-        })
+        articles: selectedArticles.map(art => ({
+          article_id: art.article.id,
+          quantity: art.quantity
+        }))
       };
 
-      console.log('🔄 Updating assistance intervention with data:', requestData);
-
-      const updatedData = await updateAssistanceIntervention(interventionId, requestData, auth.token || '');
-      console.log('✅ Intervention updated successfully:', updatedData);
+      console.log('💾 AutoSave: Updating intervention...');
+      await updateAssistanceIntervention(interventionId, requestData, auth.token || '');
+      console.log('✅ AutoSave: Success');
       
-      setDialog({
-        isOpen: true,
-        type: 'success',
-        title: 'Intervento aggiornato con successo!',
-        message: 'L\'intervento è stato aggiornato correttamente.'
-      });
 
       // Notifica il parent component dell'aggiornamento
       if (onInterventionUpdated) {
         onInterventionUpdated();
       }
-
-      // Ricarica i dati aggiornati
-      setTimeout(() => {
-        loadInterventionData();
-      }, 1000);
     } catch (error) {
-      console.error('❌ Error updating intervention:', error);
-      
-      setDialog({
-        isOpen: true,
-        type: 'error',
-        title: 'Errore durante l\'aggiornamento',
-        message: 'Si è verificato un errore durante l\'aggiornamento dell\'intervento. Riprova.'
-      });
+      console.error('❌ AutoSave error:', error);
+      setAutoSaveError('Errore nel salvataggio automatico');
     } finally {
-      setIsUpdating(false);
     }
   };
 
@@ -741,40 +764,42 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       </div>
       
       <div className="p-6 max-w-6xl mx-auto pb-8">
-        {/* Pulsante di salvataggio sopra gli status */}
-        <div className="mb-6 flex justify-end">
-          <button 
-            onClick={updateIntervention}
-            disabled={!isFormValid() || isUpdating}
-            className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors ${
-              isFormValid() && !isUpdating
-                ? 'bg-teal-600 hover:bg-teal-700 text-white' 
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            {isUpdating ? 'Aggiornamento in corso...' : 'Aggiorna intervento'}
-          </button>
-        </div>
-
         {/* Status badges */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-sm font-medium text-gray-700">Status</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {statusOptions.map((status) => (
-              <button
-                key={status.id}
-                onClick={() => setSelectedStatus(status.id)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                  selectedStatus === status.id 
-                    ? status.color + ' ring-2 ring-teal-500' 
-                    : status.color + ' opacity-70 hover:opacity-100'
-                }`}
-              >
-                {status.label}
-              </button>
-            ))}
+            {statusOptions.map((status) => {
+              // Gli status automatici non possono essere selezionati manualmente
+              const isAutoStatus = ['da_assegnare', 'attesa_preventivo', 'in_carico'].includes(status.id);
+              const isDisabled = isAutoStatus && selectedStatus !== status.id;
+              
+              return (
+                <button
+                  key={status.id}
+                  onClick={() => {
+                    if (!isAutoStatus) {
+                      setSelectedStatus(status.id);
+                    }
+                  }}
+                  disabled={isDisabled}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                    selectedStatus === status.id 
+                      ? status.color + ' ring-2 ring-teal-500' 
+                      : status.color + ' opacity-70 hover:opacity-100'
+                  } ${isDisabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'} ${
+                    isAutoStatus && selectedStatus === status.id ? 'ring-2 ring-blue-500' : ''
+                  }`}
+                  title={isAutoStatus ? 'Status calcolato automaticamente' : 'Clicca per selezionare'}
+                >
+                  {status.label}
+                  {isAutoStatus && selectedStatus === status.id && (
+                    <span className="ml-1 text-xs">🤖</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -818,6 +843,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
             preventivo={preventivo}
             setPreventivo={setPreventivo}
             selectedCustomerId={selectedCustomerId}
+            destinazione={destinazione}
             selectedEquipments={selectedEquipments}
             setSelectedEquipments={setSelectedEquipments}
             selectedArticles={selectedArticles}
@@ -826,6 +852,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
             setOrarioApertura={setOrarioApertura}
             noteInterne={noteInterne}
             setNoteInterne={setNoteInterne}
+            onCustomerLocationsLoaded={handleCustomerLocationsLoaded}
           />
 
           {/* Call Details Section */}
@@ -840,20 +867,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
             setCodiceChiamata={setCodiceChiamata}
           />
 
-          {/* Pulsante di salvataggio in basso */}
-          <div className="mt-8 pt-6 border-t border-gray-200 flex justify-end">
-            <button 
-              onClick={updateIntervention}
-              disabled={!isFormValid() || isUpdating}
-              className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isFormValid() && !isUpdating
-                  ? 'bg-teal-600 hover:bg-teal-700 text-white' 
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }`}
-            >
-              {isUpdating ? 'Aggiornamento in corso...' : 'Aggiorna intervento'}
-            </button>
-          </div>
+          {/* Form sections completato - tutto viene salvato automaticamente */}
         </div>
       </div>
 

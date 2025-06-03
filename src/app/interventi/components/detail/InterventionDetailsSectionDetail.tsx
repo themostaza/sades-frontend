@@ -22,6 +22,7 @@ interface InterventionDetailsSectionDetailProps {
   preventivo: number;
   setPreventivo: (value: number) => void;
   selectedCustomerId: number | null;
+  destinazione: string;
   selectedEquipments: Equipment[];
   setSelectedEquipments: (equipments: Equipment[]) => void;
   selectedArticles: SelectedArticle[];
@@ -30,6 +31,7 @@ interface InterventionDetailsSectionDetailProps {
   setOrarioApertura: (value: string) => void;
   noteInterne: string;
   setNoteInterne: (value: string) => void;
+  onCustomerLocationsLoaded?: (hasLocations: boolean) => void;
 }
 
 interface SelectedArticle {
@@ -53,6 +55,7 @@ export default function InterventionDetailsSectionDetail({
   preventivo,
   setPreventivo,
   selectedCustomerId,
+  destinazione,
   selectedEquipments,
   setSelectedEquipments,
   selectedArticles,
@@ -60,7 +63,7 @@ export default function InterventionDetailsSectionDetail({
   orarioApertura,
   setOrarioApertura,
   noteInterne,
-  setNoteInterne
+  setNoteInterne,
 }: InterventionDetailsSectionDetailProps) {
   const auth = useAuth();
 
@@ -76,10 +79,74 @@ export default function InterventionDetailsSectionDetail({
   const [showArticleDropdown, setShowArticleDropdown] = useState(false);
   const [isSearchingArticles, setIsSearchingArticles] = useState(false);
 
+  // Funzione per verificare se la ricerca apparecchiature è abilitata
+  const isEquipmentSearchEnabled = () => {
+    // Deve esserci un cliente selezionato
+    if (!selectedCustomerId) return false;
+    
+    // Per ora assumiamo che se c'è una destinazione specificata, deve essere usata nel filtro
+    // Se non c'è destinazione, possiamo comunque cercare (cliente senza location specifiche)
+    return true;
+  };
+
   // Funzione per cercare equipaggiamenti
   const searchEquipments = async (query: string = '') => {
-    if (!selectedCustomerId) {
-      console.warn('⚠️ Cannot search equipment without customer ID');
+    if (!selectedCustomerId || !isEquipmentSearchEnabled()) {
+      setEquipments([]);
+      setShowEquipmentDropdown(false);
+      return;
+    }
+
+    // Per query vuota o molto corta, fai comunque una ricerca se c'è un cliente selezionato
+    if (!query.trim() && selectedCustomerId) {
+      // Fetch iniziale senza filtro di testo
+      try {
+        setIsSearchingEquipments(true);
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+
+        if (auth.token) {
+          headers['Authorization'] = `Bearer ${auth.token}`;
+        }
+
+        // Costruisci l'URL con i parametri appropriati
+        let apiUrl = `/api/equipments?customer_id=${selectedCustomerId}`;
+        if (destinazione) {
+          apiUrl += `&customer_location_id=${encodeURIComponent(destinazione)}`;
+        }
+
+        const response = await fetch(apiUrl, { headers });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('🔍 Raw equipments API response:', data);
+          
+          // Filtra gli equipaggiamenti già selezionati
+          const filteredEquipments = (data.data || []).filter(
+            (equipment: Equipment) => !selectedEquipments.find(selected => selected.id === equipment.id)
+          );
+          setEquipments(filteredEquipments);
+          setShowEquipmentDropdown(true);
+        } else {
+          console.error('Errore nella ricerca equipaggiamenti');
+          setEquipments([]);
+          setShowEquipmentDropdown(false);
+        }
+      } catch (error) {
+        console.error('Errore nella ricerca equipaggiamenti:', error);
+        setEquipments([]);
+        setShowEquipmentDropdown(false);
+      } finally {
+        setIsSearchingEquipments(false);
+      }
+      return;
+    }
+
+    // Per query con testo, usa il filtro di ricerca
+    if (query.length < 2) {
+      setEquipments([]);
+      setShowEquipmentDropdown(false);
       return;
     }
 
@@ -93,10 +160,13 @@ export default function InterventionDetailsSectionDetail({
         headers['Authorization'] = `Bearer ${auth.token}`;
       }
 
-      const response = await fetch(
-        `/api/equipments?customer_id=${selectedCustomerId}&query=${encodeURIComponent(query)}`,
-        { headers }
-      );
+      // Costruisci l'URL con i parametri appropriati
+      let apiUrl = `/api/equipments?customer_id=${selectedCustomerId}&query=${encodeURIComponent(query)}`;
+      if (destinazione) {
+        apiUrl += `&customer_location_id=${encodeURIComponent(destinazione)}`;
+      }
+
+      const response = await fetch(apiUrl, { headers });
 
       if (response.ok) {
         const data = await response.json();
@@ -207,16 +277,27 @@ export default function InterventionDetailsSectionDetail({
   // Gestisce il debounce per la ricerca equipaggiamenti
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
-      if (equipmentSearchQuery.length >= 2) {
+      if (isEquipmentSearchEnabled() && equipmentSearchQuery.trim() && equipmentSearchQuery.length >= 2) {
         searchEquipments(equipmentSearchQuery);
-      } else {
-        setEquipments([]);
+      } else if (equipmentSearchQuery.trim() === '' && equipments.length > 0) {
+        // Se l'utente ha cancellato tutto e c'erano già risultati, mantienili
+        return;
+      } else if (equipmentSearchQuery.length > 0 && equipmentSearchQuery.length < 2) {
+        // Se c'è del testo ma meno di 2 caratteri, nascondi il dropdown
         setShowEquipmentDropdown(false);
       }
     }, 300);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [equipmentSearchQuery, selectedCustomerId]);
+  }, [equipmentSearchQuery, selectedCustomerId, destinazione]);
+
+  // Reset apparecchiature quando cambia il cliente o la destinazione
+  useEffect(() => {
+    setSelectedEquipments([]);
+    setEquipmentSearchQuery('');
+    setEquipments([]);
+    setShowEquipmentDropdown(false);
+  }, [selectedCustomerId, destinazione]);
 
   // Gestisce il debounce per la ricerca articoli
   useEffect(() => {
@@ -430,7 +511,7 @@ export default function InterventionDetailsSectionDetail({
               value={equipmentSearchQuery}
               onChange={(e) => setEquipmentSearchQuery(e.target.value)}
               onFocus={() => {
-                if (selectedCustomerId) {
+                if (isEquipmentSearchEnabled()) {
                   // Se ci sono già risultati, mostra il dropdown, altrimenti fai una ricerca
                   if (equipments.length > 0) {
                     setShowEquipmentDropdown(true);
@@ -444,7 +525,7 @@ export default function InterventionDetailsSectionDetail({
                   ? "Prima seleziona una ragione sociale..." 
                   : "Cerca apparecchiatura..."
               }
-              disabled={!selectedCustomerId}
+              disabled={!isEquipmentSearchEnabled()}
               className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
             />
             <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
@@ -476,6 +557,13 @@ export default function InterventionDetailsSectionDetail({
             </div>
           )}
         </div>
+
+        {/* Messaggi informativi */}
+        {!selectedCustomerId && (
+          <p className="mt-1 text-xs text-gray-500">
+            💡 Seleziona prima una ragione sociale per cercare le apparecchiature
+          </p>
+        )}
 
         {/* Equipaggiamenti selezionati */}
         {selectedEquipments.length > 0 && (
