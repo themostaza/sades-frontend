@@ -165,13 +165,64 @@ export default function DashboardPage() {
     intervention => intervention.status_label.toLowerCase() === 'da confermare'
   ).slice(0, 6); // Limit to 6 for display
 
+  // Calculate status counts for all intervention states
+  const getStatusCounts = () => {
+    const statusCounts = interventions.reduce((acc, intervention) => {
+      const status = intervention.status_label.toLowerCase();
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Define status configurations with colors and labels
+    const statusConfigs = [
+      { key: 'da assegnare', label: 'Da assegnare', color: 'bg-orange-100 text-orange-800', borderColor: 'border-orange-200' },
+      { key: 'attesa preventivo', label: 'Attesa preventivo', color: 'bg-yellow-100 text-yellow-800', borderColor: 'border-yellow-200' },
+      { key: 'attesa ricambio', label: 'Attesa ricambio', color: 'bg-blue-100 text-blue-800', borderColor: 'border-blue-200' },
+      { key: 'in carico', label: 'In carico', color: 'bg-teal-100 text-teal-800', borderColor: 'border-teal-200' },
+      { key: 'da confermare', label: 'Da confermare', color: 'bg-purple-100 text-purple-800', borderColor: 'border-purple-200' },
+      { key: 'completato', label: 'Completato', color: 'bg-green-100 text-green-800', borderColor: 'border-green-200' },
+      { key: 'non completato', label: 'Non completato', color: 'bg-gray-100 text-gray-800', borderColor: 'border-gray-200' },
+      { key: 'annullato', label: 'Annullato', color: 'bg-red-100 text-red-800', borderColor: 'border-red-200' },
+      { key: 'fatturato', label: 'Fatturato', color: 'bg-emerald-100 text-emerald-800', borderColor: 'border-emerald-200' },
+      { key: 'collocamento', label: 'Collocamento', color: 'bg-indigo-100 text-indigo-800', borderColor: 'border-indigo-200' },
+    ];
+
+    return statusConfigs.map(config => ({
+      ...config,
+      count: statusCounts[config.key] || 0
+    })).filter(status => status.count > 0); // Only show statuses with count > 0
+  };
+
+  const statusData = getStatusCounts();
+
+  // Handle status card click - navigate to interventions page with status filter
+  const handleStatusClick = (statusKey: string) => {
+    // For now, navigate to interventions page - in the future we can add status_id filtering
+    router.push(`/interventi?status=${encodeURIComponent(statusKey)}`);
+  };
+
   // Format date for display
   const formatDate = (dateString: string) => {
+    // Se la data è mancante, null, undefined o stringa vuota, non mostrare nulla
+    if (!dateString || dateString.trim() === '') {
+      return '-';
+    }
+    
     try {
       const date = new Date(dateString);
+      // Verifica se la data è valida
+      if (isNaN(date.getTime())) {
+        return '-';
+      }
+      
+      // Verifica se è una data "epoch" (1970) che indica data non impostata
+      if (date.getFullYear() <= 1970) {
+        return '-';
+      }
+      
       return date.toLocaleDateString('it-IT');
     } catch {
-      return dateString;
+      return '-';
     }
   };
 
@@ -265,6 +316,44 @@ export default function DashboardPage() {
         </button>
       </div>
 
+      {/* Interventi per Stato */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-medium text-gray-900">Interventi per stato</h2>
+          <button 
+            onClick={() => router.push('/interventi')}
+            className="text-teal-600 hover:text-teal-700 text-sm font-medium flex items-center gap-1"
+          >
+            Vedi tutti
+            <ExternalLink size={14} />
+          </button>
+        </div>
+        
+        {statusData.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {statusData.map((status) => (
+              <button
+                key={status.key}
+                onClick={() => handleStatusClick(status.key)}
+                className={`bg-white border ${status.borderColor} rounded-lg p-4 text-left hover:shadow-md transition-all duration-200 hover:scale-105 cursor-pointer group`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${status.color}`}>
+                    {status.label}
+                  </span>
+                  <ExternalLink size={14} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+                </div>
+                <div className="text-2xl font-bold text-gray-900">{status.count}</div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+            <p className="text-gray-600">Nessun intervento presente</p>
+          </div>
+        )}
+      </div>
+
       {/* Tables Container */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Interventi da assegnare */}
@@ -284,7 +373,7 @@ export default function DashboardPage() {
                     Regione sociale
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Data
+                    Data programmata
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Zona
@@ -350,7 +439,7 @@ export default function DashboardPage() {
                     Regione sociale
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Data
+                    Data programmata
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Zona

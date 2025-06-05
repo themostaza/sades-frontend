@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { useAuth } from '../contexts/AuthContext';
 import Sidebar from './Sidebar';
 
 interface AppLayoutProps {
@@ -11,15 +12,57 @@ interface AppLayoutProps {
 export default function AppLayout({ children }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { logout, token } = useAuth();
   
-  // Pagine che non devono mostrare la sidebar
+  // Pagine che non devono mostrare la sidebar (pagine pubbliche)
   const pagesWithoutSidebar = ['/', '/login'];
   const shouldShowSidebar = !pagesWithoutSidebar.includes(pathname);
+  
+  // Controllo di autenticazione per pagine non pubbliche
+  useEffect(() => {
+    // Esegui il controllo solo per pagine che richiedono autenticazione
+    if (shouldShowSidebar) {
+      // Verifica sincronizzazione tra cookie e localStorage/sessionStorage
+      const cookieToken = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth_token='))
+        ?.split('=')[1];
+      
+      const storageToken = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+      
+      // Se c'è token in storage ma non nel cookie -> logout automatico
+      if (storageToken && !cookieToken && token) {
+        console.log('🚫 Desincronizzazione rilevata: token presente in storage ma mancante nel cookie');
+        logout();
+        return;
+      }
+      
+      // Se non c'è token né in storage né nel cookie, ma AuthContext pensa di essere autenticato
+      if (!storageToken && !cookieToken && token) {
+        console.log('🚫 Nessun token trovato: logout automatico');
+        logout();
+        return;
+      }
+      
+      console.log('✅ Controllo autenticazione AppLayout:', {
+        pathname,
+        hasCookieToken: !!cookieToken,
+        hasStorageToken: !!storageToken,
+        hasContextToken: !!token
+      });
+    }
+  }, [pathname, token, shouldShowSidebar, logout]); // Controlla ad ogni cambio route
   
   // Determina l'item attivo dal pathname
   const getActiveItem = () => {
     if (pathname === '/dashboard') return 'dashboard';
     if (pathname === '/interventi') return 'interventi';
+    if (pathname === '/team') return 'team';
+    if (pathname === '/clienti') return 'clienti';
+    if (pathname === '/apparecchiature') return 'apparecchiature';
+    if (pathname === '/notifiche') return 'notifiche';
+    if (pathname === '/inventario') return 'inventario';
+    if (pathname === '/help') return 'help';
     if (pathname === '/') return 'dashboard'; // Default per la root
     return pathname.replace('/', '') || 'dashboard';
   };
@@ -42,23 +85,23 @@ export default function AppLayout({ children }: AppLayoutProps) {
       case 'interventi':
         router.push('/interventi');
         break;
-      case 'utenti':
-        router.push('/utenti');
+      case 'team':
+        router.push('/team');
         break;
-      case 'documenti':
-        router.push('/documenti');
+      case 'clienti':
+        router.push('/clienti');
         break;
-      case 'strumenti':
-        router.push('/strumenti');
+      case 'apparecchiature':
+        router.push('/apparecchiature');
         break;
       case 'notifiche':
         router.push('/notifiche');
         break;
-      case 'calendario':
-        router.push('/calendario');
+      case 'inventario':
+        router.push('/inventario');
         break;
-      case 'settings':
-        router.push('/settings');
+      case 'help':
+        router.push('/help');
         break;
       default:
         console.log(`Navigating to: ${item}`);

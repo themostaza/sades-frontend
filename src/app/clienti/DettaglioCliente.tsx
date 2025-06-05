@@ -221,8 +221,27 @@ export default function DettaglioCliente({ customerId, onBack, onCustomerUpdated
 
   // Formatta la data per la visualizzazione
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('it-IT');
+    // Se la data è mancante, null, undefined o stringa vuota, non mostrare nulla
+    if (!dateString || dateString.trim() === '') {
+      return '-';
+    }
+    
+    try {
+      const date = new Date(dateString);
+      // Verifica se la data è valida
+      if (isNaN(date.getTime())) {
+        return '-';
+      }
+      
+      // Verifica se è una data "epoch" (1970) che indica data non impostata
+      if (date.getFullYear() <= 1970) {
+        return '-';
+      }
+      
+      return date.toLocaleDateString('it-IT');
+    } catch {
+      return '-';
+    }
   };
 
   // Gestione visualizzazione intervento

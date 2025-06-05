@@ -97,7 +97,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       // Imposta il cookie per il middleware
       const maxAge = rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60; // 30 giorni o 1 giorno
-      document.cookie = `auth_token=${authToken}; path=/; max-age=${maxAge}`;
+      const isSecure = window.location.protocol === 'https:';
+      const cookieString = `auth_token=${authToken}; path=/; max-age=${maxAge}; SameSite=Lax${isSecure ? '; Secure' : ''}`;
+      document.cookie = cookieString;
+      
+      // Debug: mostra info del cookie
+      const expirationDate = new Date(Date.now() + (maxAge * 1000));
+      console.log('🍪 Cookie impostato:', {
+        rememberMe,
+        maxAgeDays: maxAge / (24 * 60 * 60),
+        expirationDate: expirationDate.toLocaleString('it-IT'),
+        cookieString
+      });
       
       // Salva nel localStorage se "ricordami" è selezionato
       if (rememberMe) {

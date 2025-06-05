@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import NuovoIntervento from './NuovoIntervento';
 import DettaglioIntervento from './DettaglioIntervento';
 import CalendarioView from './CalendarioView';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface AssistanceIntervention {
   id: number;
@@ -68,6 +69,7 @@ export default function InterventiPage() {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedZone, setSelectedZone] = useState('');
   const [selectedTechnician] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('');
 
   const [viewMode, setViewMode] = useState<'lista' | 'calendario'>('lista');
   const [showNuovoIntervento, setShowNuovoIntervento] = useState(false);
@@ -77,6 +79,31 @@ export default function InterventiPage() {
   const [selectedInterventionId, setSelectedInterventionId] = useState<number | null>(null);
 
   const auth = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Status configurations for the filter dropdown
+  const statusOptions = [
+    { key: '', label: 'Tutti gli stati' },
+    { key: 'da assegnare', label: 'Da assegnare' },
+    { key: 'attesa preventivo', label: 'Attesa preventivo' },
+    { key: 'attesa ricambio', label: 'Attesa ricambio' },
+    { key: 'in carico', label: 'In carico' },
+    { key: 'da confermare', label: 'Da confermare' },
+    { key: 'completato', label: 'Completato' },
+    { key: 'non completato', label: 'Non completato' },
+    { key: 'annullato', label: 'Annullato' },
+    { key: 'fatturato', label: 'Fatturato' },
+    { key: 'collocamento', label: 'Collocamento' },
+  ];
+
+  // Effect to handle URL search parameters for status filtering
+  useEffect(() => {
+    const statusFromUrl = searchParams.get('status');
+    if (statusFromUrl) {
+      setSelectedStatus(statusFromUrl);
+    }
+  }, [searchParams]);
 
   // Funzione per gestire il click su una riga della tabella
   const handleRowClick = (interventionId: number) => {
@@ -170,8 +197,20 @@ export default function InterventiPage() {
       }
       
       const data: ApiResponse = await response.json();
-      setInterventionsData(data.data);
-      setMeta(data.meta);
+      
+      // Apply client-side status filtering if selectedStatus is set
+      let filteredData = data.data;
+      if (selectedStatus) {
+        filteredData = data.data.filter(
+          intervention => intervention.status_label.toLowerCase() === selectedStatus.toLowerCase()
+        );
+      }
+      
+      setInterventionsData(filteredData);
+      setMeta({
+        ...data.meta,
+        total: filteredData.length // Update total to reflect filtered results
+      });
       console.log('✅ Interventi caricati:', data.meta);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -184,7 +223,7 @@ export default function InterventiPage() {
   // Effetto per caricare i dati iniziali e quando cambiano i filtri
   useEffect(() => {
     fetchInterventionsData();
-  }, [currentPage, searchTerm, selectedDate, selectedZone, selectedTechnician, auth.token]);
+  }, [currentPage, searchTerm, selectedDate, selectedZone, selectedTechnician, selectedStatus, auth.token]);
 
   // Effetto per caricare le zone al mount del componente
   useEffect(() => {
@@ -229,6 +268,18 @@ export default function InterventiPage() {
     setCurrentPage(newPage);
   };
 
+  const handleStatusFilter = (status: string) => {
+    setSelectedStatus(status);
+    setCurrentPage(1);
+    
+    // Update URL without status parameter if "Tutti gli stati" is selected
+    if (status === '') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('status');
+      router.replace(url.pathname + (url.search ? url.search : ''), { scroll: false });
+    }
+  };
+
   // Funzione per formattare la data
   const formatDate = (dateString: string) => {
     // Se la data è mancante, null, undefined o stringa vuota, non mostrare nulla
@@ -242,6 +293,12 @@ export default function InterventiPage() {
       if (isNaN(date.getTime())) {
         return '-';
       }
+      
+      // Verifica se è una data "epoch" (1970) che indica data non impostata
+      if (date.getFullYear() <= 1970) {
+        return '-';
+      }
+      
       return date.toLocaleDateString('it-IT', {
         day: '2-digit',
         month: 'short'
@@ -305,7 +362,36 @@ export default function InterventiPage() {
     <div className="p-6 bg-white min-h-screen">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Interventi</h1>
+        <div className="flex flex-col">
+          <h1 className="text-2xl font-semibold text-gray-900">Interventi</h1>
+          {selectedStatus && (
+            <div className="mt-1 flex items-center gap-2">
+              <span className="text-sm text-gray-600">Filtrato per stato:</span>
+              <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                statusOptions.find(s => s.key === selectedStatus)?.key === 'da assegnare' ? 'bg-orange-100 text-orange-800' :
+                statusOptions.find(s => s.key === selectedStatus)?.key === 'attesa preventivo' ? 'bg-yellow-100 text-yellow-800' :
+                statusOptions.find(s => s.key === selectedStatus)?.key === 'attesa ricambio' ? 'bg-blue-100 text-blue-800' :
+                statusOptions.find(s => s.key === selectedStatus)?.key === 'in carico' ? 'bg-teal-100 text-teal-800' :
+                statusOptions.find(s => s.key === selectedStatus)?.key === 'da confermare' ? 'bg-purple-100 text-purple-800' :
+                statusOptions.find(s => s.key === selectedStatus)?.key === 'completato' ? 'bg-green-100 text-green-800' :
+                statusOptions.find(s => s.key === selectedStatus)?.key === 'non completato' ? 'bg-gray-100 text-gray-800' :
+                statusOptions.find(s => s.key === selectedStatus)?.key === 'annullato' ? 'bg-red-100 text-red-800' :
+                statusOptions.find(s => s.key === selectedStatus)?.key === 'fatturato' ? 'bg-emerald-100 text-emerald-800' :
+                statusOptions.find(s => s.key === selectedStatus)?.key === 'collocamento' ? 'bg-indigo-100 text-indigo-800' :
+                'bg-gray-100 text-gray-800'
+              }`}>
+                {statusOptions.find(s => s.key === selectedStatus)?.label}
+              </span>
+              <button
+                onClick={() => handleStatusFilter('')}
+                className="text-gray-400 hover:text-gray-600 ml-1"
+                title="Rimuovi filtro"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <span>Totale: {meta.total}</span>
@@ -365,6 +451,20 @@ export default function InterventiPage() {
               <option value="" className="text-gray-700">Filtra per zona</option>
               {zonesData.map(zone => (
                 <option key={zone.id} value={zone.id} className="text-gray-700">{zone.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="relative">
+            <select
+              value={selectedStatus}
+              onChange={(e) => handleStatusFilter(e.target.value)}
+              className="pl-3 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white min-w-[180px] text-gray-700"
+            >
+              {statusOptions.map(status => (
+                <option key={status.key} value={status.key} className="text-gray-700">
+                  {status.label}
+                </option>
               ))}
             </select>
           </div>
