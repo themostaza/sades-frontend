@@ -15,6 +15,15 @@ interface EquipmentImage {
   updated_at: string;
 }
 
+interface EquipmentDocument {
+  id: number;
+  equipment_id: number;
+  document_url: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
 interface Equipment {
   id: number;
   description: string;
@@ -64,6 +73,7 @@ interface Equipment {
   family_label: string;
   subfamily_label: string;
   images: EquipmentImage[];
+  documents: EquipmentDocument[];
   linked_equipments: number[];
 }
 
@@ -572,7 +582,11 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
           />
 
           {/* Documenti Component */}
-          <DocumentiEquipment equipment={equipment} />
+          <DocumentiEquipment 
+            equipmentId={equipment.id}
+            documents={equipment.documents || []}
+            onDocumentsUpdated={fetchEquipmentDetails}
+          />
         </div>
       )}
     </div>
