@@ -168,20 +168,22 @@ export default function DashboardPage() {
   // Calculate status counts for all intervention states
   const getStatusCounts = () => {
     const statusCounts = interventions.reduce((acc, intervention) => {
-      const status = intervention.status_label.toLowerCase();
-      acc[status] = (acc[status] || 0) + 1;
+      const statusLabel = intervention.status_label.toLowerCase();
+      // Convert status_label to our internal key format (with underscores)
+      const statusKey = statusLabel.replace(/\s+/g, '_');
+      acc[statusKey] = (acc[statusKey] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 
     // Define status configurations with colors and labels
     const statusConfigs = [
-      { key: 'da assegnare', label: 'Da assegnare', color: 'bg-orange-100 text-orange-800', borderColor: 'border-orange-200' },
-      { key: 'attesa preventivo', label: 'Attesa preventivo', color: 'bg-yellow-100 text-yellow-800', borderColor: 'border-yellow-200' },
-      { key: 'attesa ricambio', label: 'Attesa ricambio', color: 'bg-blue-100 text-blue-800', borderColor: 'border-blue-200' },
-      { key: 'in carico', label: 'In carico', color: 'bg-teal-100 text-teal-800', borderColor: 'border-teal-200' },
-      { key: 'da confermare', label: 'Da confermare', color: 'bg-purple-100 text-purple-800', borderColor: 'border-purple-200' },
+      { key: 'da_assegnare', label: 'Da assegnare', color: 'bg-orange-100 text-orange-800', borderColor: 'border-orange-200' },
+      { key: 'attesa_preventivo', label: 'Attesa preventivo', color: 'bg-yellow-100 text-yellow-800', borderColor: 'border-yellow-200' },
+      { key: 'attesa_ricambio', label: 'Attesa ricambio', color: 'bg-blue-100 text-blue-800', borderColor: 'border-blue-200' },
+      { key: 'in_carico', label: 'In carico', color: 'bg-teal-100 text-teal-800', borderColor: 'border-teal-200' },
+      { key: 'da_confermare', label: 'Da confermare', color: 'bg-purple-100 text-purple-800', borderColor: 'border-purple-200' },
       { key: 'completato', label: 'Completato', color: 'bg-green-100 text-green-800', borderColor: 'border-green-200' },
-      { key: 'non completato', label: 'Non completato', color: 'bg-gray-100 text-gray-800', borderColor: 'border-gray-200' },
+      { key: 'non_completato', label: 'Non completato', color: 'bg-gray-100 text-gray-800', borderColor: 'border-gray-200' },
       { key: 'annullato', label: 'Annullato', color: 'bg-red-100 text-red-800', borderColor: 'border-red-200' },
       { key: 'fatturato', label: 'Fatturato', color: 'bg-emerald-100 text-emerald-800', borderColor: 'border-emerald-200' },
       { key: 'collocamento', label: 'Collocamento', color: 'bg-indigo-100 text-indigo-800', borderColor: 'border-indigo-200' },
@@ -197,7 +199,7 @@ export default function DashboardPage() {
 
   // Handle status card click - navigate to interventions page with status filter
   const handleStatusClick = (statusKey: string) => {
-    // For now, navigate to interventions page - in the future we can add status_id filtering
+    // Navigate to interventions page with status filter (using underscore format)
     router.push(`/interventi?status=${encodeURIComponent(statusKey)}`);
   };
 

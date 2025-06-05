@@ -16,10 +16,14 @@ export async function GET(request: NextRequest) {
     const customer_id = searchParams.get('customer_id');
     const customer_location_id = searchParams.get('customer_location_id');
     const query = searchParams.get('query');
+    const group_id = searchParams.get('group_id');
+    const brand_id = searchParams.get('brand_id');
+    const family_id = searchParams.get('family_id');
+    const subfamily_id = searchParams.get('subfamily_id');
     
     console.log('🔄 Proxying equipments request to:', `${BASE_URL}api/equipments`);
     console.log('🔑 Auth header:', authHeader);
-    console.log('📋 Query params:', { page, skip, customer_id, customer_location_id, query });
+    console.log('📋 Query params:', { page, skip, customer_id, customer_location_id, query, group_id, brand_id, family_id, subfamily_id });
 
     const headers: Record<string, string> = {
       'accept': 'application/json',
@@ -38,6 +42,10 @@ export async function GET(request: NextRequest) {
     if (customer_id) backendUrl.searchParams.append('customer_id', customer_id);
     if (customer_location_id) backendUrl.searchParams.append('customer_location_id', customer_location_id);
     if (query) backendUrl.searchParams.append('query', query);
+    if (group_id) backendUrl.searchParams.append('group_id', group_id);
+    if (brand_id) backendUrl.searchParams.append('brand_id', brand_id);
+    if (family_id) backendUrl.searchParams.append('family_id', family_id);
+    if (subfamily_id) backendUrl.searchParams.append('subfamily_id', subfamily_id);
 
     const response = await fetch(backendUrl.toString(), {
       method: 'GET',

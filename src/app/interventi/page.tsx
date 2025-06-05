@@ -78,6 +78,9 @@ export default function InterventiPage() {
   const [showDettaglioIntervento, setShowDettaglioIntervento] = useState(false);
   const [selectedInterventionId, setSelectedInterventionId] = useState<number | null>(null);
 
+  // Stato per tracciare se abbiamo letto i parametri URL
+  const [urlParamsRead, setUrlParamsRead] = useState(false);
+
   const auth = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -85,24 +88,44 @@ export default function InterventiPage() {
   // Status configurations for the filter dropdown
   const statusOptions = [
     { key: '', label: 'Tutti gli stati' },
-    { key: 'da assegnare', label: 'Da assegnare' },
-    { key: 'attesa preventivo', label: 'Attesa preventivo' },
-    { key: 'attesa ricambio', label: 'Attesa ricambio' },
-    { key: 'in carico', label: 'In carico' },
-    { key: 'da confermare', label: 'Da confermare' },
+    { key: 'da_assegnare', label: 'Da assegnare' },
+    { key: 'attesa_preventivo', label: 'Attesa preventivo' },
+    { key: 'attesa_ricambio', label: 'Attesa ricambio' },
+    { key: 'in_carico', label: 'In carico' },
+    { key: 'da_confermare', label: 'Da confermare' },
     { key: 'completato', label: 'Completato' },
-    { key: 'non completato', label: 'Non completato' },
+    { key: 'non_completato', label: 'Non completato' },
     { key: 'annullato', label: 'Annullato' },
     { key: 'fatturato', label: 'Fatturato' },
     { key: 'collocamento', label: 'Collocamento' },
   ];
 
+  // Funzione per mappare i valori degli stati ai corrispondenti ID numerici
+  const getStatusId = (statusKey: string): number | null => {
+    const statusMap: Record<string, number> = {
+      'da_assegnare': 1,
+      'attesa_preventivo': 2,
+      'attesa_ricambio': 3,
+      'in_carico': 4,
+      'da_confermare': 5,
+      'completato': 6,
+      'non_completato': 7,
+      'annullato': 8,
+      'fatturato': 9,
+      'collocamento': 10
+    };
+    return statusMap[statusKey] || null;
+  };
+
   // Effect to handle URL search parameters for status filtering
   useEffect(() => {
     const statusFromUrl = searchParams.get('status');
+    console.log('🔗 URL status parameter:', statusFromUrl);
     if (statusFromUrl) {
+      console.log('✅ Setting selectedStatus from URL:', statusFromUrl);
       setSelectedStatus(statusFromUrl);
     }
+    setUrlParamsRead(true);
   }, [searchParams]);
 
   // Funzione per gestire il click su una riga della tabella
@@ -154,9 +177,7 @@ export default function InterventiPage() {
       
       const params = new URLSearchParams({
         page: currentPage.toString(),
-        skip: pageSize.toString(),
-        order_by: 'date',
-        order_dir: 'desc'
+        skip: pageSize.toString()
       });
       
       if (searchTerm.trim()) {
@@ -175,6 +196,14 @@ export default function InterventiPage() {
         params.append('assigned_to_name', selectedTechnician);
       }
 
+      if (selectedStatus) {
+        const statusId = getStatusId(selectedStatus);
+        console.log(`🔄 Mapping status "${selectedStatus}" to ID: ${statusId}`);
+        params.append('status_id', statusId?.toString() || '');
+      }
+
+      console.log('🚀 API call with params:', params.toString());
+
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -189,7 +218,7 @@ export default function InterventiPage() {
       
       if (!response.ok) {
         if (response.status === 401) {
-          console.error('Sessione scaduta, effettuando logout');
+          console.error('Sessione scaduta, effettuando logout');    
           auth.logout();
           return;
         }
@@ -198,19 +227,8 @@ export default function InterventiPage() {
       
       const data: ApiResponse = await response.json();
       
-      // Apply client-side status filtering if selectedStatus is set
-      let filteredData = data.data;
-      if (selectedStatus) {
-        filteredData = data.data.filter(
-          intervention => intervention.status_label.toLowerCase() === selectedStatus.toLowerCase()
-        );
-      }
-      
-      setInterventionsData(filteredData);
-      setMeta({
-        ...data.meta,
-        total: filteredData.length // Update total to reflect filtered results
-      });
+      setInterventionsData(data.data);
+      setMeta(data.meta);
       console.log('✅ Interventi caricati:', data.meta);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -222,8 +240,15 @@ export default function InterventiPage() {
 
   // Effetto per caricare i dati iniziali e quando cambiano i filtri
   useEffect(() => {
+    // Non caricare i dati finché non abbiamo letto i parametri URL
+    if (!urlParamsRead) {
+      console.log('⏳ Waiting for URL params to be read...');
+      return;
+    }
+    
+    console.log('🔄 fetchInterventionsData triggered with selectedStatus:', selectedStatus);
     fetchInterventionsData();
-  }, [currentPage, searchTerm, selectedDate, selectedZone, selectedTechnician, selectedStatus, auth.token]);
+  }, [currentPage, searchTerm, selectedDate, selectedZone, selectedTechnician, selectedStatus, auth.token, urlParamsRead]);
 
   // Effetto per caricare le zone al mount del componente
   useEffect(() => {
@@ -368,13 +393,13 @@ export default function InterventiPage() {
             <div className="mt-1 flex items-center gap-2">
               <span className="text-sm text-gray-600">Filtrato per stato:</span>
               <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                statusOptions.find(s => s.key === selectedStatus)?.key === 'da assegnare' ? 'bg-orange-100 text-orange-800' :
-                statusOptions.find(s => s.key === selectedStatus)?.key === 'attesa preventivo' ? 'bg-yellow-100 text-yellow-800' :
-                statusOptions.find(s => s.key === selectedStatus)?.key === 'attesa ricambio' ? 'bg-blue-100 text-blue-800' :
-                statusOptions.find(s => s.key === selectedStatus)?.key === 'in carico' ? 'bg-teal-100 text-teal-800' :
-                statusOptions.find(s => s.key === selectedStatus)?.key === 'da confermare' ? 'bg-purple-100 text-purple-800' :
+                statusOptions.find(s => s.key === selectedStatus)?.key === 'da_assegnare' ? 'bg-orange-100 text-orange-800' :
+                statusOptions.find(s => s.key === selectedStatus)?.key === 'attesa_preventivo' ? 'bg-yellow-100 text-yellow-800' :
+                statusOptions.find(s => s.key === selectedStatus)?.key === 'attesa_ricambio' ? 'bg-blue-100 text-blue-800' :
+                statusOptions.find(s => s.key === selectedStatus)?.key === 'in_carico' ? 'bg-teal-100 text-teal-800' :
+                statusOptions.find(s => s.key === selectedStatus)?.key === 'da_confermare' ? 'bg-purple-100 text-purple-800' :
                 statusOptions.find(s => s.key === selectedStatus)?.key === 'completato' ? 'bg-green-100 text-green-800' :
-                statusOptions.find(s => s.key === selectedStatus)?.key === 'non completato' ? 'bg-gray-100 text-gray-800' :
+                statusOptions.find(s => s.key === selectedStatus)?.key === 'non_completato' ? 'bg-gray-100 text-gray-800' :
                 statusOptions.find(s => s.key === selectedStatus)?.key === 'annullato' ? 'bg-red-100 text-red-800' :
                 statusOptions.find(s => s.key === selectedStatus)?.key === 'fatturato' ? 'bg-emerald-100 text-emerald-800' :
                 statusOptions.find(s => s.key === selectedStatus)?.key === 'collocamento' ? 'bg-indigo-100 text-indigo-800' :

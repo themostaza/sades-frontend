@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, ChevronDown, Loader2, AlertCircle } from 'lucide-react';
 import { useEquipments } from '../../hooks/useEquipments';
+import { useFilters } from '../../hooks/useFilters';
 import { useAuth } from '../../contexts/AuthContext';
 import DettaglioApparecchiatura from './DettaglioApparecchiatura';
 
@@ -19,6 +20,15 @@ export default function ApparecchiaturePage() {
     refetch
   } = useEquipments();
 
+  // Filters hook
+  const {
+    deviceGroups,
+    deviceBrands,
+    deviceFamilies,
+    deviceSubfamilies,
+    fetchDeviceSubfamilies
+  } = useFilters();
+
   // Local state for UI
   const [searchTerm, setSearchTerm] = useState('');
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
@@ -27,6 +37,20 @@ export default function ApparecchiaturePage() {
   // Stati per la navigazione
   const [currentView, setCurrentView] = useState<'list' | 'detail'>('list');
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<number | null>(null);
+
+  // Filter states
+  const [selectedDeviceGroup, setSelectedDeviceGroup] = useState<string>('');
+  const [selectedBrand, setSelectedBrand] = useState<string>('');
+  const [selectedFamily, setSelectedFamily] = useState<string>('');
+  const [selectedSubfamily, setSelectedSubfamily] = useState<string>('');
+
+  // Dropdown open states
+  const [dropdownOpen, setDropdownOpen] = useState({
+    apparecchiatura: false,
+    marchio: false,
+    modello: false,
+    sottofamiglia: false,
+  });
 
   // Initial load
   useEffect(() => {
@@ -49,7 +73,11 @@ export default function ApparecchiaturePage() {
       fetchEquipments({
         page: '1',
         skip: itemsPerPage.toString(),
-        query: value.trim() || undefined
+        query: value.trim() || undefined,
+        group_id: selectedDeviceGroup || undefined,
+        brand_id: selectedBrand || undefined,
+        family_id: selectedFamily || undefined,
+        subfamily_id: selectedSubfamily || undefined,
       });
     }, 500);
 
@@ -62,7 +90,11 @@ export default function ApparecchiaturePage() {
       fetchEquipments({
         page: newPage.toString(),
         skip: itemsPerPage.toString(),
-        query: searchTerm.trim() || undefined
+        query: searchTerm.trim() || undefined,
+        group_id: selectedDeviceGroup || undefined,
+        brand_id: selectedBrand || undefined,
+        family_id: selectedFamily || undefined,
+        subfamily_id: selectedSubfamily || undefined,
       });
     }
   };
@@ -83,8 +115,91 @@ export default function ApparecchiaturePage() {
     fetchEquipments({
       page: currentPage.toString(),
       skip: itemsPerPage.toString(),
-      query: searchTerm.trim() || undefined
+      query: searchTerm.trim() || undefined,
+      group_id: selectedDeviceGroup || undefined,
+      brand_id: selectedBrand || undefined,
+      family_id: selectedFamily || undefined,
+      subfamily_id: selectedSubfamily || undefined,
     });
+  };
+
+  // Handle filter changes
+  const handleDeviceGroupChange = (groupId: string) => {
+    setSelectedDeviceGroup(groupId);
+    setDropdownOpen(prev => ({ ...prev, apparecchiatura: false }));
+    
+    // Trigger search with filters
+    fetchEquipments({
+      page: '1',
+      skip: itemsPerPage.toString(),
+      query: searchTerm.trim() || undefined,
+      group_id: groupId || undefined,
+      brand_id: selectedBrand || undefined,
+      family_id: selectedFamily || undefined,
+      subfamily_id: selectedSubfamily || undefined,
+    });
+  };
+
+  const handleBrandChange = (brandId: string) => {
+    setSelectedBrand(brandId);
+    setDropdownOpen(prev => ({ ...prev, marchio: false }));
+    
+    // Trigger search with filters
+    fetchEquipments({
+      page: '1',
+      skip: itemsPerPage.toString(),
+      query: searchTerm.trim() || undefined,
+      group_id: selectedDeviceGroup || undefined,
+      brand_id: brandId || undefined,
+      family_id: selectedFamily || undefined,
+      subfamily_id: selectedSubfamily || undefined,
+    });
+  };
+
+  const handleFamilyChange = (familyId: string) => {
+    setSelectedFamily(familyId);
+    setSelectedSubfamily(''); // Reset subfamily when family changes
+    setDropdownOpen(prev => ({ ...prev, modello: false }));
+    
+    // Fetch subfamilies for the selected family
+    if (familyId) {
+      fetchDeviceSubfamilies(familyId);
+    }
+    
+    // Trigger search with filters (subfamily reset to empty)
+    fetchEquipments({
+      page: '1',
+      skip: itemsPerPage.toString(),
+      query: searchTerm.trim() || undefined,
+      group_id: selectedDeviceGroup || undefined,
+      brand_id: selectedBrand || undefined,
+      family_id: familyId || undefined,
+      subfamily_id: undefined, // Reset subfamily
+    });
+  };
+
+  const handleSubfamilyChange = (subfamilyId: string) => {
+    setSelectedSubfamily(subfamilyId);
+    setDropdownOpen(prev => ({ ...prev, sottofamiglia: false }));
+    
+    // Trigger search with filters
+    fetchEquipments({
+      page: '1',
+      skip: itemsPerPage.toString(),
+      query: searchTerm.trim() || undefined,
+      group_id: selectedDeviceGroup || undefined,
+      brand_id: selectedBrand || undefined,
+      family_id: selectedFamily || undefined,
+      subfamily_id: subfamilyId || undefined,
+    });
+  };
+
+  // Toggle dropdown
+  const toggleDropdown = (dropdownName: keyof typeof dropdownOpen) => {
+    setDropdownOpen(prev => ({
+      ...prev,
+      [dropdownName]: !prev[dropdownName]
+    }));
   };
 
   // Format serial numbers display
@@ -151,44 +266,159 @@ export default function ApparecchiaturePage() {
               placeholder="Cerca seriale, marchio, categoria, modello o nome apparecchiatura"
               value={searchTerm}
               onChange={(e) => handleSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
             />
           </div>
           
-          {/* Filter buttons - For now, these are placeholders */}
+          {/* Apparecchiatura Filter */}
           <div className="relative">
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-              <span>Apparecchiatura</span>
+            <button 
+              onClick={() => toggleDropdown('apparecchiatura')}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
+            >
+              <span>
+                {selectedDeviceGroup 
+                  ? deviceGroups.find(g => g.id.toString() === selectedDeviceGroup)?.label || 'Apparecchiatura'
+                  : 'Apparecchiatura'
+                }
+              </span>
               <ChevronDown size={16} />
             </button>
+            {dropdownOpen.apparecchiatura && (
+              <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+                <div 
+                  className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
+                  onClick={() => handleDeviceGroupChange('')}
+                >
+                  Tutti
+                </div>
+                {deviceGroups.map((group) => (
+                  <div
+                    key={group.id}
+                    className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
+                    onClick={() => handleDeviceGroupChange(group.id.toString())}
+                  >
+                    {group.label}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           
+          {/* Proprietà Filter - Placeholder */}
           <div className="relative">
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700">
               <span>Proprietà</span>
               <ChevronDown size={16} />
             </button>
           </div>
           
+          {/* Marchio Filter */}
           <div className="relative">
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-              <span>Marchio</span>
+            <button 
+              onClick={() => toggleDropdown('marchio')}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
+            >
+              <span>
+                {selectedBrand 
+                  ? deviceBrands.find(b => b.id.toString() === selectedBrand)?.label || 'Marchio'
+                  : 'Marchio'
+                }
+              </span>
               <ChevronDown size={16} />
             </button>
+            {dropdownOpen.marchio && (
+              <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+                <div 
+                  className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
+                  onClick={() => handleBrandChange('')}
+                >
+                  Tutti
+                </div>
+                {deviceBrands.map((brand) => (
+                  <div
+                    key={brand.id}
+                    className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
+                    onClick={() => handleBrandChange(brand.id.toString())}
+                  >
+                    {brand.label}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           
+          {/* Modello Filter */}
           <div className="relative">
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-              <span>Modello</span>
+            <button 
+              onClick={() => toggleDropdown('modello')}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
+            >
+              <span>
+                {selectedFamily 
+                  ? deviceFamilies.find(f => f.id === selectedFamily)?.label || 'Famiglia'
+                  : 'Famiglia'
+                }
+              </span>
               <ChevronDown size={16} />
             </button>
+            {dropdownOpen.modello && (
+              <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+                <div 
+                  className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
+                  onClick={() => handleFamilyChange('')}
+                >
+                  Tutti
+                </div>
+                {deviceFamilies.map((family) => (
+                  <div
+                    key={family.id}
+                    className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
+                    onClick={() => handleFamilyChange(family.id)}
+                  >
+                    {family.label}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           
+          {/* Sottofamiglia Filter */}
           <div className="relative">
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-              <span>Sottofamiglia</span>
+            <button 
+              onClick={() => toggleDropdown('sottofamiglia')}
+              disabled={!selectedFamily}
+              className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 ${
+                !selectedFamily ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              <span>
+                {selectedSubfamily 
+                  ? deviceSubfamilies.find(s => s.id === selectedSubfamily)?.label || 'Sottofamiglia'
+                  : 'Sottofamiglia'
+                }
+              </span>
               <ChevronDown size={16} />
             </button>
+            {dropdownOpen.sottofamiglia && selectedFamily && (
+              <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+                <div 
+                  className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
+                  onClick={() => handleSubfamilyChange('')}
+                >
+                  Tutti
+                </div>
+                {deviceSubfamilies.map((subfamily) => (
+                  <div
+                    key={subfamily.id}
+                    className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
+                    onClick={() => handleSubfamilyChange(subfamily.id)}
+                  >
+                    {subfamily.label}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

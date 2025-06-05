@@ -95,6 +95,10 @@ export interface EquipmentQueryParams {
   customer_id?: string;
   customer_location_id?: string;
   query?: string;
+  group_id?: string;
+  brand_id?: string;
+  family_id?: string;
+  subfamily_id?: string;
 }
 
 // Complete request body for POST (create equipment)

@@ -63,6 +63,18 @@ export function useEquipments(): UseEquipmentsReturn {
       if (params.customer_location_id) {
         searchParams.append('customer_location_id', params.customer_location_id);
       }
+      if (params.group_id) {
+        searchParams.append('group_id', params.group_id);
+      }
+      if (params.brand_id) {
+        searchParams.append('brand_id', params.brand_id);
+      }
+      if (params.family_id) {
+        searchParams.append('family_id', params.family_id);
+      }
+      if (params.subfamily_id) {
+        searchParams.append('subfamily_id', params.subfamily_id);
+      }
 
       const response = await fetch(`/api/equipments?${searchParams.toString()}`, {
         headers: getAuthHeaders(),
@@ -111,4 +123,4 @@ export function useEquipments(): UseEquipmentsReturn {
     refetch,
     clearError,
   };
-} 
+}
