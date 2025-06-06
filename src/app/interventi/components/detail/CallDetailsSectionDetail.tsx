@@ -26,16 +26,16 @@ interface CallDetailsSectionDetailProps {
   setSelectedTechnician: (technician: User | null) => void;
   codiceChiamata: string;
   setCodiceChiamata: (value: string) => void;
+  dataCreazione: string;
 }
 
 export default function CallDetailsSectionDetail({
   nomeOperatore,
-  setNomeOperatore,
   ruoloOperatore,
-  setRuoloOperatore,
   selectedTechnician,
   setSelectedTechnician,
   codiceChiamata,
+  dataCreazione,
 }: CallDetailsSectionDetailProps) {
   const auth = useAuth();
 
@@ -115,45 +115,6 @@ export default function CallDetailsSectionDetail({
     }
   };
 
-  // Funzione per caricare i dati dell'utente corrente
-  const fetchCurrentUser = async () => {
-    try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      if (auth.token) {
-        headers['Authorization'] = `Bearer ${auth.token}`;
-      }
-
-      console.log('🔄 Fetching current user data...');
-
-      const response = await fetch('/api/auth/me', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({}), // Il backend richiede un body anche se vuoto
-      });
-
-      if (response.ok) {
-        const userData = await response.json();
-        console.log('✅ Current user data:', userData);
-        
-        // Compilo i campi nome operatore e ruolo operatore
-        const fullName = userData.surname 
-          ? `${userData.name} ${userData.surname}` 
-          : userData.name || '';
-        
-        setNomeOperatore(fullName);
-        setRuoloOperatore(userData.role || '');
-      } else {
-        const errorText = await response.text();
-        console.error('❌ Errore nel caricamento dati utente:', response.status, errorText);
-      }
-    } catch (error) {
-      console.error('💥 Errore nel caricamento dati utente:', error);
-    }
-  };
-
   // Gestisce il click fuori dal dropdown per chiuderlo
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -195,11 +156,6 @@ export default function CallDetailsSectionDetail({
       setTechnicianSearchQuery(fullName);
     }
   }, [selectedTechnician, technicianSearchQuery]);
-
-  // Carica i dati dell'utente quando il componente viene montato
-  useEffect(() => {
-    fetchCurrentUser();
-  }, []);
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-6">
@@ -289,7 +245,7 @@ export default function CallDetailsSectionDetail({
             <div className="relative">
               <input
                 type="text"
-                value={new Date().toLocaleDateString('it-IT')}
+                value={dataCreazione}
                 readOnly
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
               />

@@ -10,6 +10,7 @@ import { Equipment } from '../../types/equipment';
 import { ArticleListItem } from '../../types/article';
 import { AssistanceInterventionDetail, UpdateAssistanceInterventionRequest } from '../../types/assistance-interventions';
 import { fetchAssistanceInterventionDetail, updateAssistanceIntervention, downloadAssistanceInterventionPDF, downloadPDFFile } from '../../utils/assistance-interventions-api';
+import CreaRapportino from './CreaRapportino';
 
 interface DettaglioInterventoProps {
   isOpen: boolean;
@@ -34,6 +35,16 @@ interface User {
   disabled: boolean;
   status: string;
   role: string | null;
+}
+
+// Interfaccia per le informazioni utente corrente
+interface UserInfo {
+  id: string;
+  name: string;
+  surname: string;
+  email: string;
+  phone_number: string;
+  role: string;
 }
 
 // Definisco i tipi per il dialog di successo/errore
@@ -103,6 +114,9 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   const [nomeOperatore, setNomeOperatore] = useState('');
   const [ruoloOperatore, setRuoloOperatore] = useState('');
 
+  // Nuovi stati per i dati del creatore dell'intervento
+  const [dataCreazione, setDataCreazione] = useState('');
+
   // Nuovi stati per InterventionDetailsSection
   const [selectedEquipments, setSelectedEquipments] = useState<Equipment[]>([]);
   const [selectedArticles, setSelectedArticles] = useState<SelectedArticle[]>([]);
@@ -129,9 +143,25 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   // Flag per distinguere il caricamento iniziale dalle modifiche utente
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
+  // Stati per la gestione utente e ruoli
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [userLoading, setUserLoading] = useState(true);
+
+  // Stato per il componente CreaRapportino
+  const [showCreaRapportino, setShowCreaRapportino] = useState(false);
+
   // Funzione per calcolare lo status dinamicamente basandosi sui dati dell'intervento
-  const calculateDynamicStatus = (assignedTo: string | null | undefined, quotationPrice: number): string => {
-    console.log('🔄 Calculating dynamic status with:', { assignedTo, quotationPrice });
+  const calculateDynamicStatus = (assignedTo: string | null | undefined, quotationPrice: number | string): string => {
+    // Converto quotationPrice a numero per essere sicuro
+    const price = typeof quotationPrice === 'string' ? parseFloat(quotationPrice) : quotationPrice;
+    const normalizedPrice = isNaN(price) ? 0 : price;
+    
+    console.log('🔄 Calculating dynamic status with:', { 
+      assignedTo, 
+      quotationPrice, 
+      normalizedPrice,
+      originalType: typeof quotationPrice 
+    });
     
     // 1. Se assigned_to è vuoto → status è "da_assegnare"
     if (!assignedTo || assignedTo.trim() === '') {
@@ -140,7 +170,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     }
     
     // 2. Se quotation_price è 0 → status è "attesa_preventivo"
-    if (quotationPrice === 0) {
+    if (normalizedPrice === 0) {
       console.log('✅ Status calculated: attesa_preventivo (quotation_price is 0)');
       return 'attesa_preventivo';
     }
@@ -271,6 +301,67 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     }
   };
 
+  // Funzione per caricare i dati del creatore dell'intervento
+  const loadCreatorDetails = async (createdBy: string) => {
+    try {
+      console.log('🔄 Loading creator details for ID:', createdBy);
+      console.log('🔑 Auth token available:', !!auth.token);
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (auth.token) {
+        headers['Authorization'] = `Bearer ${auth.token}`;
+        console.log('🔑 Authorization header set');
+      }
+
+      console.log('📡 Making API call to:', `/api/users/${createdBy}`);
+      const response = await fetch(`/api/users/${createdBy}`, {
+        headers,
+      });
+
+      console.log('📡 Creator API response status:', response.status);
+
+      if (response.ok) {
+        const responseData = await response.json();
+        console.log('✅ Creator details loaded - FULL RESPONSE:', responseData);
+        
+        // Basandomi sulla struttura API fornita, la risposta è direttamente l'oggetto utente
+        const creatorData = responseData;
+        console.log('🔍 Creator data extracted:', creatorData);
+        
+        // Popola i campi dell'operatore creatore
+        const fullName = creatorData.surname 
+          ? `${creatorData.name} ${creatorData.surname}` 
+          : creatorData.name || '';
+        const role = creatorData.role || '';
+        
+        console.log('🔄 Setting creator fields:', {
+          nomeOperatore: fullName,
+          ruoloOperatore: role
+        });
+        
+        setNomeOperatore(fullName);
+        setRuoloOperatore(role);
+        
+        console.log('✅ Creator fields set successfully');
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Error loading creator details:', response.status, errorText);
+        // In caso di errore, lascia i campi vuoti
+        setNomeOperatore('');
+        setRuoloOperatore('');
+      }
+    } catch (error) {
+      console.error('❌ Error loading creator details:', error);
+      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      // In caso di errore, lascia i campi vuoti
+      setNomeOperatore('');
+      setRuoloOperatore('');
+    }
+  };
+
   // Funzione per caricare i dati dell'intervento
   const loadInterventionData = async () => {
     try {
@@ -287,6 +378,38 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       } else {
         console.warn('⚠️ No customer_id found in intervention data:', data);
       }
+
+      // Carica i dettagli del creatore dell'intervento
+      if (data.created_by) {
+        console.log('🔄 About to load creator details for created_by:', data.created_by);
+        await loadCreatorDetails(data.created_by);
+        console.log('✅ Creator details loading completed');
+      } else {
+        console.warn('⚠️ No created_by found in intervention data:', data);
+      }
+
+      // Gestione data di creazione
+      if (data.created_at) {
+        console.log('🗓️ Raw created_at from API:', data.created_at, 'Type:', typeof data.created_at);
+        
+        try {
+          const createdDate = new Date(data.created_at);
+          if (!isNaN(createdDate.getTime())) {
+            const formattedCreatedDate = createdDate.toLocaleDateString('it-IT');
+            console.log('🗓️ Formatted creation date:', formattedCreatedDate);
+            setDataCreazione(formattedCreatedDate);
+          } else {
+            console.error('❌ Invalid created_at date:', data.created_at);
+            setDataCreazione('');
+          }
+        } catch (error) {
+          console.error('❌ Error formatting created_at date:', error);
+          setDataCreazione('');
+        }
+      } else {
+        console.warn('⚠️ No created_at found in API response');
+        setDataCreazione('');
+      }
       
       // Popola tutti i campi con i dati ricevuti
       setSelectedStatus(calculateDynamicStatus(data.assigned_to, data.quotation_price));
@@ -297,7 +420,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       setDestinazione(data.customer_location_id || '');
       setServizioDomicilio(data.flg_home_service ? 'Si' : 'No');
       setScontoServizioDomicilio(data.flg_discount_home_service);
-      setPreventivo(data.quotation_price);
+      setPreventivo(parseFloat(String(data.quotation_price)) || 0);
       setOrarioApertura(data.opening_hours || '');
       setNoteInterne(data.internal_notes || '');
       console.log('📝 Setting noteInterne with value:', data.internal_notes);
@@ -700,6 +823,61 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     };
   }, [isOpen]);
 
+  // Funzione per recuperare le informazioni dell'utente
+  const fetchUserInfo = async () => {
+    try {
+      setUserLoading(true);
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (auth.token) {
+        headers['Authorization'] = `Bearer ${auth.token}`;
+      }
+
+      const response = await fetch('/api/auth/me', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.error('Sessione scaduta, effettuando logout');    
+          auth.logout();
+          return;
+        }
+        throw new Error('Failed to fetch user info');
+      }
+      
+      const userData: UserInfo = await response.json();
+      setUserInfo(userData);
+      console.log('✅ Informazioni utente caricate:', userData);
+    } catch (err) {
+      console.error('Error fetching user info:', err);
+    } finally {
+      setUserLoading(false);
+    }
+  };
+
+  // Funzione per determinare se l'utente è amministratore
+  const isAdmin = () => {
+    return userInfo?.role === 'amministrazione';
+  };
+
+  // Funzione per determinare se l'utente è tecnico
+  const isTechnician = () => {
+    return userInfo?.role === 'tecnico';
+  };
+
+  // Effect per caricare le informazioni utente al mount
+  useEffect(() => {
+    if (auth.token && isOpen) {
+      fetchUserInfo();
+    }
+  }, [auth.token, isOpen]);
+
   if (!isOpen) return null;
 
   if (isLoading) {
@@ -764,6 +942,21 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       </div>
       
       <div className="p-6 max-w-6xl mx-auto pb-8">
+        {/* Bottone Crea Rapporto - Solo per tecnici con status "in_carico" */}
+        {!userLoading && userInfo && isTechnician() && selectedStatus === 'in_carico' && (
+          <div className="flex justify-center mb-6">
+            <button
+              onClick={() => setShowCreaRapportino(true)}
+              className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium w-full justify-center"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Crea Rapporto
+            </button>
+          </div>
+        )}
+
         {/* Status badges */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-3">
@@ -856,16 +1049,19 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
           />
 
           {/* Call Details Section */}
-          <CallDetailsSectionDetail
-            nomeOperatore={nomeOperatore}
-            setNomeOperatore={setNomeOperatore}
-            ruoloOperatore={ruoloOperatore}
-            setRuoloOperatore={setRuoloOperatore}
-            selectedTechnician={selectedTechnician}
-            setSelectedTechnician={setSelectedTechnician}
-            codiceChiamata={codiceChiamata}
-            setCodiceChiamata={setCodiceChiamata}
-          />
+          {isAdmin() && (
+            <CallDetailsSectionDetail
+              nomeOperatore={nomeOperatore}
+              setNomeOperatore={setNomeOperatore}
+              ruoloOperatore={ruoloOperatore}
+              setRuoloOperatore={setRuoloOperatore}
+              selectedTechnician={selectedTechnician}
+              setSelectedTechnician={setSelectedTechnician}
+              codiceChiamata={codiceChiamata}
+              setCodiceChiamata={setCodiceChiamata}
+              dataCreazione={dataCreazione}
+            />
+          )}
 
           {/* Form sections completato - tutto viene salvato automaticamente */}
         </div>
@@ -906,6 +1102,15 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
             </div>
           </div>
         </div>
+      )}
+
+      {/* Componente Crea Rapportino */}
+      {showCreaRapportino && interventionData && (
+        <CreaRapportino
+          isOpen={showCreaRapportino}
+          onClose={() => setShowCreaRapportino(false)}
+          interventionData={interventionData}
+        />
       )}
     </div>
   );

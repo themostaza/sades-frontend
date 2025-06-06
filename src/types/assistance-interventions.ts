@@ -8,7 +8,7 @@ export interface ConnectedEquipment {
 }
 
 export interface ConnectedArticle {
-  id: number;
+  id: string;
   pnc_code: string;
   short_description: string;
   description: string;
@@ -52,7 +52,7 @@ export interface AssistanceInterventionDetail {
   address: string;
   flg_home_service: boolean;
   flg_discount_home_service: boolean;
-  quotation_price: number;
+  quotation_price: string;
   opening_hours: string;
   assigned_to: string;
   created_by: string;
@@ -60,6 +60,8 @@ export interface AssistanceInterventionDetail {
   internal_notes: string;
   status_id: number;
   type_label: string;
+  created_at: string;
+  updated_at: string;
   connected_equipment: ConnectedEquipment[];
   connected_articles: ConnectedArticle[];
 }
