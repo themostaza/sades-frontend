@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, InfoIcon, MapPin, X } from 'lucide-react';
+import { Search, Plus, InfoIcon, MapPin, X, Filter } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import NuovoIntervento from './NuovoIntervento';
 import DettaglioIntervento from './DettaglioIntervento';
 import CalendarioView from './CalendarioView';
+import RichiediAssenza from './RichiediAssenza';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 interface AssistanceIntervention {
@@ -48,6 +49,16 @@ interface InterventoCalendario {
   status: string;
 }
 
+// Interfaccia per le informazioni utente
+interface UserInfo {
+  id: string;
+  name: string;
+  surname: string;
+  email: string;
+  phone_number: string;
+  role: string;
+}
+
 export default function InterventiPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -70,6 +81,7 @@ export default function InterventiPage() {
   const [selectedZone, setSelectedZone] = useState('');
   const [selectedTechnician] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const [viewMode, setViewMode] = useState<'lista' | 'calendario'>('lista');
   const [showNuovoIntervento, setShowNuovoIntervento] = useState(false);
@@ -77,6 +89,11 @@ export default function InterventiPage() {
   // Stati per il dettaglio intervento
   const [showDettaglioIntervento, setShowDettaglioIntervento] = useState(false);
   const [selectedInterventionId, setSelectedInterventionId] = useState<number | null>(null);
+
+  // Stati per la gestione utente e ruoli
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [userLoading, setUserLoading] = useState(true);
+  const [showRichiediAssenza, setShowRichiediAssenza] = useState(false);
 
   // Stato per tracciare se abbiamo letto i parametri URL
   const [urlParamsRead, setUrlParamsRead] = useState(false);
@@ -117,6 +134,44 @@ export default function InterventiPage() {
     return statusMap[statusKey] || null;
   };
 
+  // Funzione per recuperare le informazioni dell'utente
+  const fetchUserInfo = async () => {
+    try {
+      setUserLoading(true);
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (auth.token) {
+        headers['Authorization'] = `Bearer ${auth.token}`;
+      }
+
+      const response = await fetch('/api/auth/me', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.error('Sessione scaduta, effettuando logout');    
+          auth.logout();
+          return;
+        }
+        throw new Error('Failed to fetch user info');
+      }
+      
+      const userData: UserInfo = await response.json();
+      setUserInfo(userData);
+      console.log('✅ Informazioni utente caricate:', userData);
+    } catch (err) {
+      console.error('Error fetching user info:', err);
+    } finally {
+      setUserLoading(false);
+    }
+  };
+
   // Effect to handle URL search parameters for status filtering
   useEffect(() => {
     const statusFromUrl = searchParams.get('status');
@@ -127,6 +182,13 @@ export default function InterventiPage() {
     }
     setUrlParamsRead(true);
   }, [searchParams]);
+
+  // Effect per caricare le informazioni utente al mount
+  useEffect(() => {
+    if (auth.token) {
+      fetchUserInfo();
+    }
+  }, [auth.token]);
 
   // Funzione per gestire il click su una riga della tabella
   const handleRowClick = (interventionId: number) => {
@@ -352,9 +414,14 @@ export default function InterventiPage() {
     }));
   };
 
+  // Funzione per determinare se l'utente è amministratore
+  const isAdmin = () => {
+    return userInfo?.role === 'amministrazione';
+  };
+
   if (loading && interventionsData.length === 0) {
     return (
-      <div className="p-6 bg-white min-h-screen">
+      <div className="p-4 sm:p-6 bg-white min-h-screen">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
@@ -367,7 +434,7 @@ export default function InterventiPage() {
 
   if (error) {
     return (
-      <div className="p-6 bg-white min-h-screen">
+      <div className="p-4 sm:p-6 bg-white min-h-screen">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <p className="text-red-600 mb-4">Errore nel caricamento degli interventi</p>
@@ -384,13 +451,13 @@ export default function InterventiPage() {
   }
 
   return (
-    <div className="p-6 bg-white min-h-screen">
+    <div className="p-4 sm:p-6 bg-white min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div className="flex flex-col">
-          <h1 className="text-2xl font-semibold text-gray-900">Interventi</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Interventi</h1>
           {selectedStatus && (
-            <div className="mt-1 flex items-center gap-2">
+            <div className="mt-1 flex items-center gap-2 flex-wrap">
               <span className="text-sm text-gray-600">Filtrato per stato:</span>
               <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
                 statusOptions.find(s => s.key === selectedStatus)?.key === 'da_assegnare' ? 'bg-orange-100 text-orange-800' :
@@ -417,26 +484,42 @@ export default function InterventiPage() {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <span>Totale: {meta.total}</span>
             <InfoIcon size={16} />
           </div>
-          <button 
-            onClick={() => setShowNuovoIntervento(true)}
-            className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-          >
-            <Plus size={16} />
-            Nuovo Intervento
-          </button>
+          
+          {/* Rendering condizionale del pulsante in base al ruolo */}
+          {!userLoading && userInfo && (
+            <>
+              {isAdmin() ? (
+                <button 
+                  onClick={() => setShowNuovoIntervento(true)}
+                  className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors w-full sm:w-auto justify-center"
+                >
+                  <Plus size={16} />
+                  Nuovo Intervento
+                </button>
+              ) : (
+                <button 
+                  onClick={() => setShowRichiediAssenza(true)}
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors w-full sm:w-auto justify-center"
+                >
+                  <Plus size={16} />
+                  Richiedi Assenza
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
 
       {/* Filters */}
       <div className="mb-6 space-y-4">
-        {/* Search and filters row */}
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-md">
+        {/* Search bar - always visible */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="relative flex-1 max-w-full sm:max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
@@ -447,58 +530,20 @@ export default function InterventiPage() {
             />
           </div>
           
-          <div className="relative">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="pl-10 pr-10 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 bg-white min-w-[180px] text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-              placeholder="Filtra per data"
-            />
-            {selectedDate && (
-              <button
-                onClick={() => setSelectedDate('')}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                type="button"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
-          
-          <div className="relative">
-            <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-            <select
-              value={selectedZone}
-              onChange={(e) => setSelectedZone(e.target.value)}
-              className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white min-w-[180px] text-gray-700"
-            >
-              <option value="" className="text-gray-700">Filtra per zona</option>
-              {zonesData.map(zone => (
-                <option key={zone.id} value={zone.id} className="text-gray-700">{zone.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="relative">
-            <select
-              value={selectedStatus}
-              onChange={(e) => handleStatusFilter(e.target.value)}
-              className="pl-3 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white min-w-[180px] text-gray-700"
-            >
-              {statusOptions.map(status => (
-                <option key={status.key} value={status.key} className="text-gray-700">
-                  {status.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Mobile filter toggle */}
+          <button
+            onClick={() => setShowMobileFilters(!showMobileFilters)}
+            className="sm:hidden flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+          >
+            <Filter size={16} />
+            Filtri
+          </button>
 
           {/* View mode toggle */}
-          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg w-full sm:w-fit">
             <button
               onClick={() => setViewMode('lista')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 viewMode === 'lista'
                   ? 'bg-teal-600 text-white'
                   : 'text-gray-700 hover:text-gray-900'
@@ -508,7 +553,7 @@ export default function InterventiPage() {
             </button>
             <button
               onClick={() => setViewMode('calendario')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 viewMode === 'calendario'
                   ? 'bg-teal-600 text-white'
                   : 'text-gray-700 hover:text-gray-900'
@@ -518,63 +563,141 @@ export default function InterventiPage() {
             </button>
           </div>
         </div>
+
+        {/* Desktop filters - always visible on desktop, collapsible on mobile */}
+        <div className={`${showMobileFilters ? 'block' : 'hidden'} sm:block`}>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1 sm:flex-none sm:min-w-[180px]">
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 bg-white text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                placeholder="Filtra per data"
+              />
+              {selectedDate && (
+                <button
+                  onClick={() => setSelectedDate('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  type="button"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+            
+            <div className="relative flex-1 sm:flex-none sm:min-w-[180px]">
+              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+              <select
+                value={selectedZone}
+                onChange={(e) => setSelectedZone(e.target.value)}
+                className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
+              >
+                <option value="" className="text-gray-700">Filtra per zona</option>
+                {zonesData.map(zone => (
+                  <option key={zone.id} value={zone.id} className="text-gray-700">{zone.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="relative flex-1 sm:flex-none sm:min-w-[180px]">
+              <select
+                value={selectedStatus}
+                onChange={(e) => handleStatusFilter(e.target.value)}
+                className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
+              >
+                {statusOptions.map(status => (
+                  <option key={status.key} value={status.key} className="text-gray-700">
+                    {status.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Table */}
       {viewMode === 'lista' && (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          {/* Top Pagination - Hidden on mobile, visible on tablet+ */}
+          <div className="hidden sm:flex px-3 sm:px-6 py-3 bg-gray-50 border-b border-gray-200 flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-sm text-gray-700 text-center sm:text-left">
+              Pagina {meta.page} di {meta.totalPages} - Totale: {meta.total} interventi
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage <= 1 || loading}
+                className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Indietro
+              </button>
+              <span className="px-3 py-1 text-sm text-gray-600 bg-white rounded border">
+                {currentPage}
+              </span>
+              <button 
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage >= meta.totalPages || loading}
+                className="px-3 py-1 text-sm text-teal-600 hover:text-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Avanti
+              </button>
+            </div>
+          </div>
+
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[800px]">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">
                     Azienda
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[80px]">
                     Data
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
                     Orario
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
                     Zona
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">
                     Tecnico
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
                     Tipologia
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[130px]">
                     Status
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {interventionsData.map((intervention) => (
-                  <tr key={intervention.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <tr key={intervention.id} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => handleRowClick(intervention.id)}>
+                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-900">
                       <div>
-                        <div className="font-medium">{intervention.company_name}</div>
+                        <div className="font-medium break-words">{intervention.company_name}</div>
                         <div className="text-xs text-gray-500">#{intervention.call_code} ({intervention.id})</div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                       {formatDate(intervention.date)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                       {intervention.time_slot}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {intervention.zone_label}
+                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-600">
+                      <div className="break-words">{intervention.zone_label}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {formatTechnician(intervention.assigned_to_name, intervention.assigned_to_surname)}
+                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-600">
+                      <div className="break-words">{formatTechnician(intervention.assigned_to_name, intervention.assigned_to_surname)}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {intervention.type_label}
+                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-600">
+                      <div className="break-words">{intervention.type_label}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       <span
                         className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(
                           intervention.status_color,
@@ -590,9 +713,9 @@ export default function InterventiPage() {
             </table>
           </div>
           
-          {/* Pagination */}
-          <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-            <div className="text-sm text-gray-700">
+          {/* Bottom Pagination */}
+          <div className="px-3 sm:px-6 py-3 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-sm text-gray-700 text-center sm:text-left">
               Pagina {meta.page} di {meta.totalPages} - Totale: {meta.total} interventi
             </div>
             <div className="flex items-center gap-2">
@@ -603,7 +726,7 @@ export default function InterventiPage() {
               >
                 Indietro
               </button>
-              <span className="px-3 py-1 text-sm text-gray-600">
+              <span className="px-3 py-1 text-sm text-gray-600 bg-white rounded border">
                 {currentPage}
               </span>
               <button 
@@ -620,17 +743,30 @@ export default function InterventiPage() {
 
       {/* Calendar view */}
       {viewMode === 'calendario' && (
-        <CalendarioView interventi={convertToCalendarioFormat(interventionsData)} />
+        <div className="w-full">
+          <CalendarioView interventi={convertToCalendarioFormat(interventionsData)} />
+        </div>
       )}
 
-      {/* Componente Nuovo Intervento */}
-      <NuovoIntervento
-        isOpen={showNuovoIntervento}
-        onClose={() => {
-          setShowNuovoIntervento(false);
-          fetchInterventionsData(); // Ricarica i dati dopo aver chiuso
-        }}
-      />
+      {/* Componente Nuovo Intervento - Solo per amministratori */}
+      {isAdmin() && (
+        <NuovoIntervento
+          isOpen={showNuovoIntervento}
+          onClose={() => {
+            setShowNuovoIntervento(false);
+            fetchInterventionsData(); // Ricarica i dati dopo aver chiuso
+          }}
+        />
+      )}
+
+      {/* Componente Richiedi Assenza - Solo per tecnici */}
+      {!isAdmin() && userInfo && (
+        <RichiediAssenza
+          isOpen={showRichiediAssenza}
+          onClose={() => setShowRichiediAssenza(false)}
+          userInfo={userInfo}
+        />
+      )}
 
       {/* Componente Dettaglio Intervento */}
       {selectedInterventionId && (

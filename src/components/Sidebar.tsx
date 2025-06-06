@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../contexts/AuthContext';
@@ -21,15 +21,24 @@ interface SidebarProps {
   onItemClick?: (item: string) => void;
 }
 
-const menuItems = [
-  { id: 'dashboard', icon: Home, label: 'Dashboard', route: '/dashboard' },
-  { id: 'interventi', icon: CheckSquare, label: 'Interventi', route: '/interventi' },
-  { id: 'team', icon: Users, label: 'Team', route: '/team' },
-  { id: 'clienti', icon: BriefcaseBusiness, label: 'Clienti', route: '/clienti' },
-  { id: 'apparecchiature', icon: Wrench, label: 'Apparecchiature', route: '/apparecchiature' },
-  { id: 'inventario', icon: Archive, label: 'Inventario', route: '/inventario' },
-  { id: 'notifiche', icon: Bell, label: 'Notifiche', route: '/notifiche' },
-  
+// Interfaccia per le informazioni utente
+interface UserInfo {
+  id: string;
+  name: string;
+  surname: string;
+  email: string;
+  phone_number: string;
+  role: string;
+}
+
+const allMenuItems = [
+  { id: 'dashboard', icon: Home, label: 'Dashboard', route: '/dashboard', roles: ['amministrazione'] },
+  { id: 'interventi', icon: CheckSquare, label: 'Interventi', route: '/interventi', roles: ['amministrazione', 'tecnico'] },
+  { id: 'team', icon: Users, label: 'Team', route: '/team', roles: ['amministrazione'] },
+  { id: 'clienti', icon: BriefcaseBusiness, label: 'Clienti', route: '/clienti', roles: ['amministrazione'] },
+  { id: 'apparecchiature', icon: Wrench, label: 'Apparecchiature', route: '/apparecchiature', roles: ['amministrazione'] },
+  { id: 'inventario', icon: Archive, label: 'Inventario', route: '/inventario', roles: ['amministrazione', 'tecnico'] },
+  { id: 'notifiche', icon: Bell, label: 'Notifiche', route: '/notifiche', roles: ['amministrazione', 'tecnico'] },
 ];
 
 const bottomItems = [
@@ -42,9 +51,66 @@ export default function Sidebar({
   onItemClick,
 }: SidebarProps) {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [userLoading, setUserLoading] = useState(true);
+  
   const router = useRouter();
   const pathname = usePathname();
-  const { logout } = useAuth();
+  const { logout, token } = useAuth();
+
+  // Funzione per recuperare le informazioni dell'utente
+  const fetchUserInfo = async () => {
+    try {
+      setUserLoading(true);
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch('/api/auth/me', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.error('Sessione scaduta, effettuando logout');    
+          logout();
+          return;
+        }
+        throw new Error('Failed to fetch user info');
+      }
+      
+      const userData: UserInfo = await response.json();
+      setUserInfo(userData);
+      console.log('✅ Informazioni utente caricate nella sidebar:', userData);
+    } catch (err) {
+      console.error('Error fetching user info in sidebar:', err);
+    } finally {
+      setUserLoading(false);
+    }
+  };
+
+  // Effect per caricare le informazioni utente al mount
+  useEffect(() => {
+    if (token) {
+      fetchUserInfo();
+    }
+  }, [token]);
+
+  // Funzione per filtrare i menu items in base al ruolo
+  const getFilteredMenuItems = () => {
+    if (!userInfo) return [];
+    
+    return allMenuItems.filter(item => 
+      item.roles.includes(userInfo.role)
+    );
+  };
 
   // Determina l'item attivo basandosi sul pathname se activeItem non è fornito
   const getActiveItem = () => {
@@ -60,10 +126,12 @@ export default function Sidebar({
     if (pathname === '/inventario') return 'inventario';
     if (pathname === '/help') return 'help';
     
-    return 'dashboard'; // default
+    // Default per amministratori è dashboard, per tecnici è interventi
+    return userInfo?.role === 'tecnico' ? 'interventi' : 'dashboard';
   };
 
   const currentActiveItem = getActiveItem();
+  const menuItems = getFilteredMenuItems();
 
   const handleItemClick = (itemId: string, route?: string) => {
     if (itemId === 'logout') {
@@ -104,9 +172,10 @@ export default function Sidebar({
           />
         
       </div>
+      
       {/* Menu Items */}
       <div className="flex flex-col gap-2">
-        {menuItems.map(({ id, icon: Icon, label, route }) => (
+        {!userLoading && menuItems.map(({ id, icon: Icon, label, route }) => (
           <button
             key={id}
             onClick={() => handleItemClick(id, route)}
@@ -129,9 +198,25 @@ export default function Sidebar({
             </div>
           </button>
         ))}
+        
+        {/* Loading skeleton per menu items */}
+        {userLoading && (
+          <>
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="p-3 rounded-lg bg-teal-600/50 animate-pulse"
+              >
+                <div className="w-5 h-5 bg-teal-400/50 rounded"></div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
+      
       {/* Spacer */}
       <div className="flex-1" />
+      
       {/* Bottom Items */}
       <div className="flex flex-col gap-2">
         {bottomItems.map(({ id, icon: Icon, label, route }) => (

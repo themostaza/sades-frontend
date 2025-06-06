@@ -44,7 +44,25 @@ export async function middleware(request: NextRequest) {
       return response;
     }
 
-    console.log('✅ Token validated successfully in middleware');
+    // Ottieni le informazioni dell'utente dalla risposta
+    const userData = await response.json();
+    console.log('✅ Token validated successfully in middleware, user:', userData);
+
+    // Se l'utente è un tecnico e sta cercando di accedere alla dashboard, reindirizzalo agli interventi
+    if (userData.role === 'tecnico' && pathname === '/dashboard') {
+      console.log('🔄 Redirecting technician from dashboard to interventi');
+      const interventiUrl = new URL('/interventi', request.url);
+      return NextResponse.redirect(interventiUrl);
+    }
+
+    // Controlla se l'utente sta cercando di accedere a pagine per cui non ha autorizzazione
+    const technicianAllowedPages = ['/interventi', '/inventario', '/notifiche'];
+    if (userData.role === 'tecnico' && !technicianAllowedPages.some(page => pathname.startsWith(page))) {
+      console.log('🚫 Technician trying to access unauthorized page:', pathname);
+      const interventiUrl = new URL('/interventi', request.url);
+      return NextResponse.redirect(interventiUrl);
+    }
+    
     // Se il token è valido, permetti l'accesso
     return NextResponse.next();
     
