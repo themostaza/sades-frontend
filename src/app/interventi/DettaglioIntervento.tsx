@@ -6,11 +6,13 @@ import { useAuth } from '../../contexts/AuthContext';
 import CustomerSectionDetail from './components/detail/CustomerSectionDetail';
 import InterventionDetailsSectionDetail from './components/detail/InterventionDetailsSectionDetail';
 import CallDetailsSectionDetail from './components/detail/CallDetailsSectionDetail';
+import InterventionStatusAndActions from './components/InterventionStatusAndActions';
 import { Equipment } from '../../types/equipment';
 import { ArticleListItem } from '../../types/article';
 import { AssistanceInterventionDetail, UpdateAssistanceInterventionRequest } from '../../types/assistance-interventions';
 import { fetchAssistanceInterventionDetail, updateAssistanceIntervention, downloadAssistanceInterventionPDF, downloadPDFFile } from '../../utils/assistance-interventions-api';
 import CreaRapportino from './CreaRapportino';
+import { InterventionReportSummary } from '../../types/intervention-reports';
 
 interface DettaglioInterventoProps {
   isOpen: boolean;
@@ -59,19 +61,6 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   console.log('🚀 DettaglioIntervento component loaded, isOpen:', isOpen, 'interventionId:', interventionId);
   
   const auth = useAuth();
-
-  const statusOptions = [
-    { id: 'da_assegnare', label: 'Da assegnare', color: 'bg-orange-100 text-orange-800' },
-    { id: 'attesa_preventivo', label: 'Attesa preventivo', color: 'bg-yellow-100 text-yellow-800' },
-    { id: 'attesa_ricambio', label: 'Attesa ricambio', color: 'bg-blue-100 text-blue-800' },
-    { id: 'in_carico', label: 'In carico', color: 'bg-teal-100 text-teal-800' },
-    { id: 'da_confermare', label: 'Da confermare', color: 'bg-purple-100 text-purple-800' },
-    { id: 'completato', label: 'Completato', color: 'bg-green-100 text-green-800' },
-    { id: 'non_completato', label: 'Non completato', color: 'bg-gray-100 text-gray-800' },
-    { id: 'annullato', label: 'Annullato', color: 'bg-red-100 text-red-800' },
-    { id: 'fatturato', label: 'Fatturato', color: 'bg-emerald-100 text-emerald-800' },
-    { id: 'collocamento', label: 'Collocamento', color: 'bg-indigo-100 text-indigo-800' }
-  ];
 
   // Stato per caricare i dati dell'intervento
   const [isLoading, setIsLoading] = useState(true);
@@ -150,8 +139,15 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   // Stato per il componente CreaRapportino
   const [showCreaRapportino, setShowCreaRapportino] = useState(false);
 
+  // Stato per il rapportino esistente
+  const [existingReport, setExistingReport] = useState<InterventionReportSummary | null>(null);
+  const [isCheckingReport, setIsCheckingReport] = useState(false);
+
+  // Stato per il caricamento visualizzazione rapporto
+  const [isLoadingReport, setIsLoadingReport] = useState(false);
+
   // Funzione per calcolare lo status dinamicamente basandosi sui dati dell'intervento
-  const calculateDynamicStatus = (assignedTo: string | null | undefined, quotationPrice: number | string): string => {
+  const calculateDynamicStatus = (assignedTo: string | null | undefined, quotationPrice: number | string, hasReport: boolean = false, currentStatus?: string): string => {
     // Converto quotationPrice a numero per essere sicuro
     const price = typeof quotationPrice === 'string' ? parseFloat(quotationPrice) : quotationPrice;
     const normalizedPrice = isNaN(price) ? 0 : price;
@@ -160,8 +156,17 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       assignedTo, 
       quotationPrice, 
       normalizedPrice,
+      hasReport,
+      currentStatus,
       originalType: typeof quotationPrice 
     });
+    
+    // Non ricalcolare se l'intervento è già in uno status finale
+    const finalStatuses = ['completato', 'non_completato', 'annullato', 'fatturato'];
+    if (currentStatus && finalStatuses.includes(currentStatus)) {
+      console.log('✅ Status not recalculated - already in final status:', currentStatus);
+      return currentStatus;
+    }
     
     // 1. Se assigned_to è vuoto → status è "da_assegnare"
     if (!assignedTo || assignedTo.trim() === '') {
@@ -175,8 +180,14 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       return 'attesa_preventivo';
     }
     
-    // 3. Se entrambi assigned_to e quotation_price sono compilati → status è "in_carico"
-    console.log('✅ Status calculated: in_carico (both assigned_to and quotation_price are set)');
+    // 3. Se c'è un rapportino → status è "da_confermare"
+    if (hasReport) {
+      console.log('✅ Status calculated: da_confermare (report exists)');
+      return 'da_confermare';
+    }
+    
+    // 4. Se entrambi assigned_to e quotation_price sono compilati ma non c'è rapportino → status è "in_carico"
+    console.log('✅ Status calculated: in_carico (both assigned_to and quotation_price are set, no report)');
     return 'in_carico';
   };
 
@@ -195,6 +206,23 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       'collocamento': 10
     };
     return statusMap[selectedStatus] || 1;
+  };
+
+  // Funzione per mappare status_id ai corrispondenti valori stringa
+  const getStatusFromId = (statusId: number): string => {
+    const idToStatusMap: Record<number, string> = {
+      1: 'da_assegnare',
+      2: 'attesa_preventivo',
+      3: 'attesa_ricambio',
+      4: 'in_carico',
+      5: 'da_confermare',
+      6: 'completato',
+      7: 'non_completato',
+      8: 'annullato',
+      9: 'fatturato',
+      10: 'collocamento'
+    };
+    return idToStatusMap[statusId] || 'da_assegnare';
   };
 
   // Funzione per caricare i dettagli del cliente
@@ -412,7 +440,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       }
       
       // Popola tutti i campi con i dati ricevuti
-      setSelectedStatus(calculateDynamicStatus(data.assigned_to, data.quotation_price));
+      setSelectedStatus(calculateDynamicStatus(data.assigned_to, data.quotation_price, !!existingReport, getStatusFromId(data.status_id)));
       setRagioneSociale(data.company_name);
       setTipologiaIntervento(data.type_id.toString());
       setZona(data.zone_id.toString());
@@ -573,14 +601,14 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     }
 
     // Recalcola lo status basandosi sui valori attuali
-    const newStatus = calculateDynamicStatus(selectedTechnician?.id, preventivo);
+    const newStatus = calculateDynamicStatus(selectedTechnician?.id, preventivo, !!existingReport, selectedStatus);
     
     // Aggiorna solo se lo status è davvero cambiato
     if (newStatus !== selectedStatus) {
       console.log('🔄 Status auto-updated from', selectedStatus, 'to', newStatus);
       setSelectedStatus(newStatus);
     }
-  }, [selectedTechnician?.id, preventivo, isInitialLoad, isLoading]);
+  }, [selectedTechnician?.id, preventivo, isInitialLoad, isLoading, existingReport, selectedStatus]);
 
   // AutoSave con debounce su tutti i campi modificabili
   useEffect(() => {
@@ -866,17 +894,272 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     return userInfo?.role === 'amministrazione';
   };
 
-  // Funzione per determinare se l'utente è tecnico
-  const isTechnician = () => {
-    return userInfo?.role === 'tecnico';
-  };
-
   // Effect per caricare le informazioni utente al mount
   useEffect(() => {
     if (auth.token && isOpen) {
       fetchUserInfo();
     }
   }, [auth.token, isOpen]);
+
+  // Funzione per verificare se esiste un rapportino per l'intervento
+  const checkExistingReport = async (interventionId: number) => {
+    try {
+      setIsCheckingReport(true);
+      console.log('🔍 Checking for existing report for intervention:', interventionId);
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (auth.token) {
+        headers['Authorization'] = `Bearer ${auth.token}`;
+      }
+
+      const response = await fetch(`/api/assistance-interventions/${interventionId}/reports`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (response.ok) {
+        const reportData = await response.json();
+        console.log('✅ Found existing report:', reportData);
+        setExistingReport(reportData);
+      } else if (response.status === 404) {
+        console.log('ℹ️ No existing report found (404)');
+        setExistingReport(null);
+      } else {
+        console.error('❌ Error checking for report:', response.status);
+        setExistingReport(null);
+      }
+    } catch (error) {
+      console.error('❌ Error checking for existing report:', error);
+      setExistingReport(null);
+    } finally {
+      setIsCheckingReport(false);
+    }
+  };
+
+  // Funzione per visualizzare il rapporto in una nuova tab
+  const visualizzaRapporto = async () => {
+    try {
+      setIsLoadingReport(true);
+      let reportId = existingReport?.id;
+      
+      // Se non abbiamo già l'ID del rapporto, chiamiamo l'API per ottenerlo
+      if (!reportId) {
+        console.log('🔍 Report ID not available, fetching from API...');
+        
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+
+        if (auth.token) {
+          headers['Authorization'] = `Bearer ${auth.token}`;
+        }
+
+        const response = await fetch(`/api/assistance-interventions/${interventionId}/reports`, {
+          method: 'GET',
+          headers,
+        });
+
+        if (response.ok) {
+          const reportData = await response.json();
+          console.log('✅ Found report:', reportData);
+          reportId = reportData.id;
+          
+          // Aggiorna anche lo stato locale del rapporto
+          setExistingReport(reportData);
+        } else if (response.status === 404) {
+          console.log('ℹ️ No report found (404)');
+          setDialog({
+            isOpen: true,
+            type: 'error',
+            title: 'Rapporto non trovato',
+            message: 'Non è stato trovato alcun rapporto per questo intervento.'
+          });
+          return;
+        } else {
+          throw new Error(`Failed to fetch report: ${response.status}`);
+        }
+      }
+      
+      if (reportId) {
+        console.log('🔄 Opening report in new tab:', reportId);
+        const url = `/interventi/rapportino/${reportId}`;
+        window.open(url, '_blank');
+      } else {
+        setDialog({
+          isOpen: true,
+          type: 'error',
+          title: 'Rapporto non disponibile',
+          message: 'Non è possibile visualizzare il rapporto in questo momento.'
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error fetching report:', error);
+      setDialog({
+        isOpen: true,
+        type: 'error',
+        title: 'Errore visualizzazione rapporto',
+        message: 'Si è verificato un errore durante il caricamento del rapporto. Riprova.'
+      });
+    } finally {
+      setIsLoadingReport(false);
+    }
+  };
+
+  // Funzione per confermare il rapporto (solo UI per ora)
+  const confermaRapporto = async () => {
+    try {
+      console.log('🔄 Conferma rapporto started');
+      console.log('📋 Existing report data:', existingReport);
+      
+      // Determina il nuovo status basandosi su is_failed
+      const isFailed = existingReport?.is_failed === true;
+      const newStatus = isFailed ? 'non_completato' : 'completato';
+      const newStatusId = isFailed ? 7 : 6;
+      
+      console.log(`🎯 Updating intervention to status: ${newStatus} (ID: ${newStatusId}), based on is_failed: ${isFailed}`);
+      
+      // Prepara i dati per l'aggiornamento mantenendo tutti i valori esistenti
+      const requestData: UpdateAssistanceInterventionRequest = {
+        customer_id: selectedCustomerId || 0,
+        type_id: parseInt(tipologiaIntervento) || 0,
+        zone_id: parseInt(zona) || 0,
+        customer_location_id: destinazione || '',
+        flg_home_service: servizioDomicilio === 'Si',
+        flg_discount_home_service: scontoServizioDomicilio,
+        date: data || null,
+        time_slot: orarioIntervento || null,
+        from_datetime: data && orarioIntervento ? buildDateTime(data, orarioIntervento, oraInizio) : null,
+        to_datetime: data && orarioIntervento 
+          ? (orarioIntervento === 'fascia_oraria' 
+              ? buildDateTime(data, orarioIntervento, oraFine) 
+              : buildEndDateTime(data, orarioIntervento))
+          : null,
+        quotation_price: preventivo,
+        opening_hours: orarioApertura,
+        assigned_to: selectedTechnician?.id || '',
+        call_code: codiceChiamata,
+        internal_notes: noteInterne,
+        status_id: newStatusId, // Questo è il cambio importante
+        equipments: selectedEquipments.map(eq => eq.id),
+        articles: selectedArticles.map(art => ({
+          article_id: art.article.id,
+          quantity: art.quantity
+        }))
+      };
+
+      console.log('📤 Sending update request:', requestData);
+      
+      // Chiamata API per aggiornare l'intervento
+      await updateAssistanceIntervention(interventionId, requestData, auth.token || '');
+      
+      // Aggiorna lo status locale
+      setSelectedStatus(newStatus);
+      
+      console.log('✅ Intervention status updated successfully');
+      
+      // Mostra messaggio di successo
+      setDialog({
+        isOpen: true,
+        type: 'success',
+        title: 'Rapporto confermato',
+        message: `Il rapporto è stato confermato con successo. L'intervento è ora ${newStatus === 'completato' ? 'completato' : 'non completato'}.`
+      });
+      
+      // Notifica il parent component dell'aggiornamento
+      if (onInterventionUpdated) {
+        onInterventionUpdated();
+      }
+      
+    } catch (error) {
+      console.error('❌ Error confirming report:', error);
+      setDialog({
+        isOpen: true,
+        type: 'error',
+        title: 'Errore conferma rapporto',
+        message: 'Si è verificato un errore durante la conferma del rapporto. Riprova.'
+      });
+    }
+  };
+
+  // Funzione per mandare in fatturazione
+  const mandaInFatturazione = async () => {
+    try {
+      console.log('🔄 Manda in fatturazione started');
+      
+      // Prepara i dati per l'aggiornamento mantenendo tutti i valori esistenti
+      const requestData: UpdateAssistanceInterventionRequest = {
+        customer_id: selectedCustomerId || 0,
+        type_id: parseInt(tipologiaIntervento) || 0,
+        zone_id: parseInt(zona) || 0,
+        customer_location_id: destinazione || '',
+        flg_home_service: servizioDomicilio === 'Si',
+        flg_discount_home_service: scontoServizioDomicilio,
+        date: data || null,
+        time_slot: orarioIntervento || null,
+        from_datetime: data && orarioIntervento ? buildDateTime(data, orarioIntervento, oraInizio) : null,
+        to_datetime: data && orarioIntervento 
+          ? (orarioIntervento === 'fascia_oraria' 
+              ? buildDateTime(data, orarioIntervento, oraFine) 
+              : buildEndDateTime(data, orarioIntervento))
+          : null,
+        quotation_price: preventivo,
+        opening_hours: orarioApertura,
+        assigned_to: selectedTechnician?.id || '',
+        call_code: codiceChiamata,
+        internal_notes: noteInterne,
+        status_id: 9, // Status "fatturato" ha ID 9
+        equipments: selectedEquipments.map(eq => eq.id),
+        articles: selectedArticles.map(art => ({
+          article_id: art.article.id,
+          quantity: art.quantity
+        }))
+      };
+
+      console.log('📤 Sending invoicing update request:', requestData);
+      
+      // Chiamata API per aggiornare l'intervento
+      await updateAssistanceIntervention(interventionId, requestData, auth.token || '');
+      
+      // Aggiorna lo status locale
+      setSelectedStatus('fatturato');
+      
+      console.log('✅ Intervention sent to invoicing successfully');
+      
+      // Mostra messaggio di successo
+      setDialog({
+        isOpen: true,
+        type: 'success',
+        title: 'Mandato in fatturazione',
+        message: 'L\'intervento è stato mandato in fatturazione con successo.'
+      });
+      
+      // Notifica il parent component dell'aggiornamento
+      if (onInterventionUpdated) {
+        onInterventionUpdated();
+      }
+      
+    } catch (error) {
+      console.error('❌ Error sending to invoicing:', error);
+      setDialog({
+        isOpen: true,
+        type: 'error',
+        title: 'Errore fatturazione',
+        message: 'Si è verificato un errore durante l\'invio in fatturazione. Riprova.'
+      });
+    }
+  };
+
+  // Effect per verificare se esiste un rapportino quando lo status mostra il pulsante "Visualizza rapporto"
+  useEffect(() => {
+    const statusesWithReportButton = ['in_carico', 'da_confermare', 'completato', 'fatturato'];
+    
+    if (statusesWithReportButton.includes(selectedStatus) && interventionId && !isInitialLoad) {
+      checkExistingReport(interventionId);
+    }
+  }, [selectedStatus, interventionId, isInitialLoad, auth.token]);
 
   if (!isOpen) return null;
 
@@ -942,62 +1225,24 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       </div>
       
       <div className="p-6 max-w-6xl mx-auto pb-8">
-        {/* Bottone Crea Rapporto - Solo per tecnici con status "in_carico" */}
-        {!userLoading && userInfo && isTechnician() && selectedStatus === 'in_carico' && (
-          <div className="flex justify-center mb-6">
-            <button
-              onClick={() => setShowCreaRapportino(true)}
-              className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium w-full justify-center"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Crea Rapporto
-            </button>
-          </div>
-        )}
-
-        {/* Status badges */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm font-medium text-gray-700">Status</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {statusOptions.map((status) => {
-              // Gli status automatici non possono essere selezionati manualmente
-              const isAutoStatus = ['da_assegnare', 'attesa_preventivo', 'in_carico'].includes(status.id);
-              const isDisabled = isAutoStatus && selectedStatus !== status.id;
-              
-              return (
-                <button
-                  key={status.id}
-                  onClick={() => {
-                    if (!isAutoStatus) {
-                      setSelectedStatus(status.id);
-                    }
-                  }}
-                  disabled={isDisabled}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                    selectedStatus === status.id 
-                      ? status.color + ' ring-2 ring-teal-500' 
-                      : status.color + ' opacity-70 hover:opacity-100'
-                  } ${isDisabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'} ${
-                    isAutoStatus && selectedStatus === status.id ? 'ring-2 ring-blue-500' : ''
-                  }`}
-                  title={isAutoStatus ? 'Status calcolato automaticamente' : 'Clicca per selezionare'}
-                >
-                  {status.label}
-                  {isAutoStatus && selectedStatus === status.id && (
-                    <span className="ml-1 text-xs">🤖</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {/* Status e pulsanti rapporto */}
+        <InterventionStatusAndActions
+          selectedStatus={selectedStatus}
+          setSelectedStatus={setSelectedStatus}
+          userInfo={userInfo}
+          userLoading={userLoading}
+          existingReport={existingReport}
+          isCheckingReport={isCheckingReport}
+          isLoadingReport={isLoadingReport}
+          interventionId={interventionId}
+          onCreateReport={() => setShowCreaRapportino(true)}
+          onViewReport={visualizzaRapporto}
+          onConfirmReport={confermaRapporto}
+          onSendToInvoicing={mandaInFatturazione}
+        />
 
         {/* Form sections */}
-        <div className="space-y-8">
+        <div className="space-y-8 mt-4">
           {/* Customer Section */}
           <CustomerSectionDetail
             ragioneSociale={ragioneSociale}
@@ -1017,6 +1262,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
             selectedCustomerId={selectedCustomerId}
             setSelectedCustomerId={setSelectedCustomerId}
             onCustomerLocationsLoaded={handleCustomerLocationsLoaded}
+            statusId={getStatusId()}
           />
 
           {/* Intervention Details Section */}
@@ -1046,6 +1292,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
             noteInterne={noteInterne}
             setNoteInterne={setNoteInterne}
             onCustomerLocationsLoaded={handleCustomerLocationsLoaded}
+            statusId={getStatusId()}
           />
 
           {/* Call Details Section */}
@@ -1060,6 +1307,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
               codiceChiamata={codiceChiamata}
               setCodiceChiamata={setCodiceChiamata}
               dataCreazione={dataCreazione}
+              statusId={getStatusId()}
             />
           )}
 

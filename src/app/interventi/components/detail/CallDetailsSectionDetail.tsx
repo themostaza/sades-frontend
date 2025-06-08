@@ -27,6 +27,7 @@ interface CallDetailsSectionDetailProps {
   codiceChiamata: string;
   setCodiceChiamata: (value: string) => void;
   dataCreazione: string;
+  statusId: number;
 }
 
 export default function CallDetailsSectionDetail({
@@ -36,8 +37,13 @@ export default function CallDetailsSectionDetail({
   setSelectedTechnician,
   codiceChiamata,
   dataCreazione,
+  statusId,
 }: CallDetailsSectionDetailProps) {
   const auth = useAuth();
+
+  // Determina se i campi devono essere disabilitati
+  // I campi sono modificabili solo fino al massimo allo status "in_carico" (ID 4)
+  const isFieldsDisabled = statusId > 4;
 
   // Stati per la ricerca tecnici
   const [technicianSearchQuery, setTechnicianSearchQuery] = useState('');
@@ -174,10 +180,17 @@ export default function CallDetailsSectionDetail({
                 value={technicianSearchQuery}
                 onChange={(e) => handleTechnicianSearchChange(e.target.value)}
                 onFocus={() => {
-                  loadAllTechnicians();
+                  if (!isFieldsDisabled) {
+                    loadAllTechnicians();
+                  }
                 }}
-                placeholder="Cerca tecnico..."
-                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900"
+                placeholder={isFieldsDisabled ? "Campo non modificabile per questo status" : "Cerca tecnico..."}
+                disabled={isFieldsDisabled}
+                className={`w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg ${
+                  isFieldsDisabled 
+                    ? 'bg-gray-50 text-gray-500 cursor-not-allowed' 
+                    : 'focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900'
+                }`}
               />
               <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
               {isSearchingTechnicians && (
@@ -188,7 +201,7 @@ export default function CallDetailsSectionDetail({
             </div>
             
             {/* Dropdown con risultati */}
-            {showTechnicianDropdown && users.length > 0 && (
+            {!isFieldsDisabled && showTechnicianDropdown && users.length > 0 && (
               <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                 {users.map((user) => (
                   <div

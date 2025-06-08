@@ -14,14 +14,33 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const pathname = usePathname();
   const { logout, token } = useAuth();
   
-  // Pagine che non devono mostrare la sidebar (pagine pubbliche)
+  // Pagine che non devono mostrare la sidebar (pagine pubbliche e specifiche)
   const pagesWithoutSidebar = ['/', '/login'];
-  const shouldShowSidebar = !pagesWithoutSidebar.includes(pathname);
+  
+  // Funzione per determinare se mostrare la sidebar
+  const shouldShowSidebar = () => {
+    // Pagine specifiche senza sidebar
+    if (pagesWithoutSidebar.includes(pathname)) {
+      return false;
+    }
+    
+    // Pagine di dettaglio rapportino senza sidebar (esperienza fullscreen)
+    if (pathname.startsWith('/interventi/rapportino/')) {
+      return false;
+    }
+    
+    return true;
+  };
+  
+  const showSidebar = shouldShowSidebar();
   
   // Controllo di autenticazione per pagine non pubbliche
   useEffect(() => {
     // Esegui il controllo solo per pagine che richiedono autenticazione
-    if (shouldShowSidebar) {
+    // (escludendo solo login e root, ma includendo rapportini che richiedono auth)
+    const isPublicPage = pagesWithoutSidebar.includes(pathname);
+    
+    if (!isPublicPage) {
       // Verifica sincronizzazione tra cookie e localStorage/sessionStorage
       const cookieToken = document.cookie
         .split('; ')
@@ -51,7 +70,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         hasContextToken: !!token
       });
     }
-  }, [pathname, token, shouldShowSidebar, logout]); // Controlla ad ogni cambio route
+  }, [pathname, token, logout]); // Controlla ad ogni cambio route
   
   // Determina l'item attivo dal pathname
   const getActiveItem = () => {
@@ -111,7 +130,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Sidebar fissa - solo se non siamo in login o root */}
-      {shouldShowSidebar && (
+      {showSidebar && (
         <div className="fixed top-0 left-0 z-50">
           <Sidebar 
             activeItem={activeItem}
@@ -121,7 +140,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       )}
       
       {/* Main content con margin condizionale per la sidebar */}
-      <main className={`min-h-screen ${shouldShowSidebar ? 'ml-16' : ''}`}>
+      <main className={`min-h-screen ${showSidebar ? 'ml-16' : ''}`}>
         {children}
       </main>
     </div>

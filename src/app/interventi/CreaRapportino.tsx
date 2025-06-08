@@ -1,8 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
-import { ArrowLeft, Clock, Upload, X, Plus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../../contexts/AuthContext';
+import { ArrowLeft, Clock, X, Plus, Eye, Download, Trash2 } from 'lucide-react';
+import Image from 'next/image';
 import { AssistanceInterventionDetail, ConnectedArticle, ConnectedEquipment } from '../../types/assistance-interventions';
+import { FileUploaderRegular } from "@uploadcare/react-uploader/next";
+import "@uploadcare/react-uploader/core.css";
+import { InterventionReportSummary } from '../../types/intervention-reports';
 
 interface CreaRapportinoProps {
   isOpen: boolean;
@@ -32,11 +38,12 @@ interface EquipmentItem {
   modelloCompressore: string;
   matricolaCompressore: string;
   numeroUnivoco: string;
-  serviziAggiuntivi: string;
+  serviziAggiuntivi: string[];
   tipologiaGasRecuperato: string;
   quantitaGasRecuperato: string;
   
   // Images for this equipment
+  hasImages: boolean;
   images: AttachedFile[];
 }
 
@@ -44,15 +51,40 @@ interface AttachedFile {
   id: string;
   name: string;
   uploadDate: string;
+  url: string;
+}
+
+interface GasCompressorType {
+  id: number;
+  name: string;
+  description?: string;
+}
+
+interface RechargeableGasType {
+  id: number;
+  name: string;
+  description?: string;
 }
 
 export default function CreaRapportino({ isOpen, onClose, interventionData }: CreaRapportinoProps) {
+  const router = useRouter();
+  const { token } = useAuth();
+  
   // Stati per ore di lavoro - ora sono number
   const [oreLavoro, setOreLavoro] = useState<number>(4);
   const [oreViaggio, setOreViaggio] = useState<number>(2);
   
   // Stati per note intervento cliente
-  const [noteCliente, setNoteCliente] = useState('*Notes about the repair that the client will read*');
+  const [noteCliente, setNoteCliente] = useState('');
+  
+  // Stati per tipi di gas e compressori
+  const [gasCompressorTypes, setGasCompressorTypes] = useState<GasCompressorType[]>([]);
+  const [rechargeableGasTypes, setRechargeableGasTypes] = useState<RechargeableGasType[]>([]);
+  const [isLoadingTypes, setIsLoadingTypes] = useState(false);
+  
+  // Stati per rapportino esistente
+  const [existingReport, setExistingReport] = useState<InterventionReportSummary | null>(null);
+  const [isLoadingExistingReport, setIsLoadingExistingReport] = useState(false);
   
   // Stati per gli items (ogni item = 1 apparecchiatura con tutto il resto)
   const [equipmentItems, setEquipmentItems] = useState<EquipmentItem[]>([
@@ -60,19 +92,20 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
       id: '1',
       selectedEquipment: null,
       selectedArticles: [],
-      notes: '*notes about reparing this machine*',
+      notes: '',
       hasGas: false,
-      tipologiaCompressore: 'Ermetico',
-      nuovaInstallazione: 'Sì',
-      tipologiaGasCaricato: 'R404A',
-      quantitaGasCaricato: '12',
-      caricaMax: '120',
-      modelloCompressore: '123123414',
-      matricolaCompressore: '123123414',
-      numeroUnivoco: '123123414',
-      serviziAggiuntivi: 'Nessuno',
-      tipologiaGasRecuperato: 'R404A',
-      quantitaGasRecuperato: '12',
+      tipologiaCompressore: 'ermetico',
+      nuovaInstallazione: '',
+      tipologiaGasCaricato: '',
+      quantitaGasCaricato: '',
+      caricaMax: '',
+      modelloCompressore: '',
+      matricolaCompressore: '',
+      numeroUnivoco: '',
+      serviziAggiuntivi: [],
+      tipologiaGasRecuperato: '',
+      quantitaGasRecuperato: '',
+      hasImages: false,
       images: []
     }
   ]);
@@ -87,6 +120,91 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
   const [apparecchiaturaInteressata, setApparecchiaturaInteressata] = useState('*Codice e Nome macchin..*');
   const [pezziRicambio, setPezziRicambio] = useState('*Codice e Nome ricambio*...');
   const [noteNuovaRichiesta, setNoteNuovaRichiesta] = useState('*notes*');
+
+  // Carica i tipi di gas e compressori quando il componente si monta
+  useEffect(() => {
+    if (isOpen && token) {
+      loadGasAndCompressorTypes();
+      checkExistingReport();
+    }
+  }, [isOpen, token]);
+
+  // Funzione per caricare i tipi di gas e compressori
+  const loadGasAndCompressorTypes = async () => {
+    setIsLoadingTypes(true);
+    try {
+      const headers: Record<string, string> = {
+        'Authorization': `Bearer ${token}`
+      };
+
+      const [gasCompressorResponse, rechargeableGasResponse] = await Promise.all([
+        fetch('/api/gas-compressor-types', { headers }),
+        fetch('/api/rechargeable-gas-types', { headers })
+      ]);
+
+      if (gasCompressorResponse.ok) {
+        const gasCompressorData = await gasCompressorResponse.json();
+        setGasCompressorTypes(gasCompressorData);
+      } else {
+        console.error('Errore nel caricamento dei tipi di compressore');
+      }
+
+      if (rechargeableGasResponse.ok) {
+        const rechargeableGasData = await rechargeableGasResponse.json();
+        setRechargeableGasTypes(rechargeableGasData);
+      } else {
+        console.error('Errore nel caricamento dei tipi di gas ricaricabile');
+      }
+    } catch (error) {
+      console.error('Errore nel caricamento dei dati:', error);
+    } finally {
+      setIsLoadingTypes(false);
+    }
+  };
+
+  // Funzione per verificare se esiste già un rapportino
+  const checkExistingReport = async () => {
+    setIsLoadingExistingReport(true);
+    try {
+      const headers: Record<string, string> = {
+        'Authorization': `Bearer ${token}`
+      };
+
+      const response = await fetch(`/api/assistance-interventions/${interventionData.id}/reports`, { headers });
+      
+      if (response.ok) {
+        const reportData = await response.json();
+        setExistingReport(reportData);
+        console.log('📋 Rapportino esistente trovato:', reportData);
+      } else if (response.status === 404) {
+        // Nessun rapportino esistente, va bene
+        setExistingReport(null);
+        console.log('📝 Nessun rapportino esistente per questo intervento');
+      } else {
+        console.error('Errore nel controllo del rapportino esistente');
+      }
+    } catch (error) {
+      console.error('Errore nel controllo del rapportino esistente:', error);
+    } finally {
+      setIsLoadingExistingReport(false);
+    }
+  };
+
+  // Helper function per mappare il nome del compressore al suo ID
+  const getGasCompressorTypeId = (typeName: string): number => {
+    const type = gasCompressorTypes.find(t => 
+      t.name.toLowerCase() === typeName.toLowerCase()
+    );
+    return type ? type.id : 0;
+  };
+
+  // Helper function per mappare il nome del gas al suo ID
+  const getRechargeableGasTypeId = (gasName: string): number => {
+    const type = rechargeableGasTypes.find(t => 
+      t.name.toLowerCase() === gasName.toLowerCase()
+    );
+    return type ? type.id : 0;
+  };
 
   // Funzione helper per determinare se un testo è un placeholder
   const isPlaceholderText = (text: string): boolean => {
@@ -106,7 +224,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
       selectedArticles: [],
       notes: '',
       hasGas: false,
-      tipologiaCompressore: 'Ermetico',
+      tipologiaCompressore: 'ermetico',
       nuovaInstallazione: 'Sì',
       tipologiaGasCaricato: 'R404A',
       quantitaGasCaricato: '12',
@@ -114,9 +232,10 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
       modelloCompressore: '',
       matricolaCompressore: '',
       numeroUnivoco: '',
-      serviziAggiuntivi: 'Nessuno',
+      serviziAggiuntivi: [],
       tipologiaGasRecuperato: 'R404A',
       quantitaGasRecuperato: '12',
+      hasImages: false,
       images: []
     };
     setEquipmentItems([...equipmentItems, newItem]);
@@ -152,48 +271,124 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
     );
   };
 
-  // Funzione per gestire il submit
-  const handleSubmit = () => {
-    // Preparazione dati per l'API secondo la struttura richiesta
-    const apiPayload = {
-      work_hours: oreLavoro,
-      travel_hours: oreViaggio,
-      customer_notes: noteCliente,
-      is_failed: interventoNonRiuscito,
-      failure_reason: motivoNonRiuscito || null,
-      status: "DRAFT", // Inizialmente sempre DRAFT
-      items: equipmentItems.map(item => ({
-        intervention_equipment_id: item.selectedEquipment?.id || 0,
-        note: item.notes,
-        fl_gas: item.hasGas,
-        gas_compressor_types_id: 0, // TODO: mappare da tipologiaCompressore
-        is_new_installation: item.nuovaInstallazione === 'Sì',
-        rechargeable_gas_types_id: 0, // TODO: mappare da tipologiaGasCaricato
-        qty_gas_recharged: parseInt(item.quantitaGasCaricato) || 0,
-        max_charge: parseInt(item.caricaMax) || 0,
-        compressor_model: item.modelloCompressore,
-        compressor_model_img_url: "", // TODO: implementare upload immagini
-        compressor_serial_num: item.matricolaCompressore,
-        compressor_serial_num_img_url: "", // TODO: implementare upload immagini
-        compressor_unique_num: item.numeroUnivoco,
-        compressor_unique_num_img_url: "", // TODO: implementare upload immagini
-        additional_services: item.serviziAggiuntivi,
-        recovered_rech_gas_types_id: 0, // TODO: mappare da tipologiaGasRecuperato
-        qty_gas_recovered: parseInt(item.quantitaGasRecuperato) || 0,
-        images: item.images.map(file => ({
-          file_name: file.name,
-          file_url: "" // TODO: implementare upload immagini
-        })),
-        articles: item.selectedArticles.map(article => ({
-          article_id: article.article.id,
-          quantity: article.quantity
-        }))
-      }))
-    };
+  // Funzione per gestire l'upload con Uploadcare per un equipmentItem specifico
+  const handleImageUpload = (itemId: string, fileInfo: { cdnUrl?: string; name?: string }) => {
+    console.log('Uploadcare success for item:', itemId, fileInfo);
+    if (fileInfo && fileInfo.cdnUrl) {
+      const item = equipmentItems.find(item => item.id === itemId);
+      if (item) {
+        const newImage: AttachedFile = {
+          id: Date.now().toString(),
+          name: fileInfo.name || `image_${Date.now()}.jpg`,
+          uploadDate: new Date().toLocaleDateString('it-IT'),
+          url: fileInfo.cdnUrl
+        };
+        
+        const updatedImages = [...item.images, newImage];
+        updateEquipmentItem(itemId, 'images', updatedImages);
+      }
+    }
+  };
 
-    console.log('Payload per API rapportino:', apiPayload);
-    // Qui sarà implementata la chiamata API
-    onClose();
+  // Funzione per rimuovere un'immagine da un equipment item
+  const removeImageFromItem = (itemId: string, imageId: string) => {
+    const item = equipmentItems.find(item => item.id === itemId);
+    if (item) {
+      const updatedImages = item.images.filter(img => img.id !== imageId);
+      updateEquipmentItem(itemId, 'images', updatedImages);
+    }
+  };
+
+  // Funzione per gestire la selezione multipla dei servizi aggiuntivi
+  const handleServiziAggiuntiviToggle = (itemId: string, servizio: string) => {
+    const item = equipmentItems.find(item => item.id === itemId);
+    if (item) {
+      const currentServizi = item.serviziAggiuntivi;
+      const updatedServizi = currentServizi.includes(servizio)
+        ? currentServizi.filter(s => s !== servizio)
+        : [...currentServizi, servizio];
+      
+      updateEquipmentItem(itemId, 'serviziAggiuntivi', updatedServizi);
+    }
+  };
+
+  // Funzione per gestire il submit
+  const handleSubmit = async () => {
+    try {
+      // Verifica che il token sia disponibile
+      if (!token) {
+        alert('Errore di autenticazione. Effettuare il login.');
+        return;
+      }
+
+      // Preparazione dati per l'API secondo la struttura richiesta
+      const apiPayload = {
+        work_hours: oreLavoro,
+        travel_hours: oreViaggio,
+        customer_notes: noteCliente,
+        is_failed: interventoNonRiuscito,
+        failure_reason: interventoNonRiuscito ? motivoNonRiuscito : undefined,
+        status: "DRAFT" as const, // Inizialmente sempre DRAFT
+        items: equipmentItems.map(item => ({
+          intervention_equipment_id: item.selectedEquipment?.id || 0,
+          note: item.notes,
+          fl_gas: item.hasGas,
+          gas_compressor_types_id: getGasCompressorTypeId(item.tipologiaCompressore),
+          is_new_installation: item.nuovaInstallazione === 'Sì',
+          rechargeable_gas_types_id: getRechargeableGasTypeId(item.tipologiaGasCaricato),
+          qty_gas_recharged: parseInt(item.quantitaGasCaricato) || 0,
+          max_charge: parseInt(item.caricaMax) || 0,
+          compressor_model: item.modelloCompressore,
+          compressor_model_img_url: "", // TODO: implementare upload immagini
+          compressor_serial_num: item.matricolaCompressore,
+          compressor_serial_num_img_url: "", // TODO: implementare upload immagini
+          compressor_unique_num: item.numeroUnivoco,
+          compressor_unique_num_img_url: "", // TODO: implementare upload immagini
+          additional_services: item.serviziAggiuntivi.join(', '), // Converti array in stringa
+          recovered_rech_gas_types_id: getRechargeableGasTypeId(item.tipologiaGasRecuperato),
+          qty_gas_recovered: parseInt(item.quantitaGasRecuperato) || 0,
+          images: item.images.map(file => ({
+            file_name: file.name,
+            file_url: file.url
+          })),
+          articles: item.selectedArticles.map(article => ({
+            article_id: article.article.id,
+            quantity: article.quantity
+          }))
+        }))
+      };
+
+      console.log('📤 Payload per API rapportino:', apiPayload);
+      console.log('🔑 Token disponibile:', !!token);
+      
+      // Chiamata API per creare il rapportino
+      const response = await fetch(`/api/assistance-interventions/${interventionData.id}/reports`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(apiPayload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Errore durante la creazione del rapportino');
+      }
+
+      const reportData = await response.json();
+      console.log('✅ Rapportino creato con successo:', reportData);
+      
+      onClose();
+      
+      // Reindirizza alla pagina di dettaglio rapportino
+      if (reportData.id) {
+        router.push(`/interventi/rapportino/${reportData.id}`);
+      }
+    } catch (error) {
+      console.error('💥 Errore durante la creazione del rapportino:', error);
+      alert(`Errore durante la creazione del rapportino: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
+    }
   };
 
   if (!isOpen) return null;
@@ -216,13 +411,46 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
       </div>
 
       <div className="max-w-4xl mx-auto p-4 md:p-6 pb-8">
+        {/* Indicatore di caricamento */}
+        {(isLoadingTypes || isLoadingExistingReport || !token) && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <span className="text-blue-800">
+                {!token ? 'Autenticazione in corso...' : 'Caricamento dati...'}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Messaggio rapportino esistente */}
+        {existingReport && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-yellow-800">Rapportino già esistente</h3>
+                <p className="mt-1 text-sm text-yellow-700">
+                  Esiste già un rapportino per questo intervento (ID: {existingReport.id}, Stato: {existingReport.status}).
+                  Procedendo con la creazione di un nuovo rapportino, quello esistente potrebbe essere sovrascritto.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Bottone Conferma e procedi */}
         <div className="mb-6">
           <button
             onClick={handleSubmit}
-            className="w-full bg-teal-600 hover:bg-teal-700 text-white py-3 px-4 rounded-lg font-medium transition-colors"
+            disabled={isLoadingTypes || isLoadingExistingReport || !token}
+            className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-3 px-4 rounded-lg font-medium transition-colors"
           >
-            Conferma e procedi
+            {existingReport ? 'Aggiorna rapportino esistente' : 'Conferma e invia rapportino'}
           </button>
         </div>
 
@@ -431,9 +659,8 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                           onChange={(e) => updateEquipmentItem(item.id, 'tipologiaCompressore', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
                         >
-                          <option value="Ermetico">Ermetico</option>
-                          <option value="Semi-ermetico">Semi-ermetico</option>
-                          <option value="Aperto">Aperto</option>
+                          <option value="ermetico">Ermetico</option>
+                          <option value="semiermetico">Semiermetico</option>
                         </select>
                       </div>
                       <div>
@@ -463,7 +690,12 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                         >
                           <option value="R404A">R404A</option>
                           <option value="R134A">R134A</option>
-                          <option value="R507A">R507A</option>
+                          <option value="R422A">R422A (BASSA) vedi R427A</option>
+                          <option value="R422D">R422D (ALTA)</option>
+                          <option value="R452A">R452A</option>
+                          <option value="R437A">R437A</option>
+                          <option value="R290">R290</option>
+                          <option value="R427A">R427A</option>
                         </select>
                       </div>
                       <div>
@@ -507,9 +739,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                           onChange={(e) => updateEquipmentItem(item.id, 'modelloCompressore', e.target.value)}
                           className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${getTextColorClass(item.modelloCompressore)}`}
                         />
-                        <button className="text-teal-600 hover:text-teal-700 text-sm mt-1 transition-colors">
-                          Carica foto
-                        </button>
+
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -521,9 +751,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                           onChange={(e) => updateEquipmentItem(item.id, 'matricolaCompressore', e.target.value)}
                           className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${getTextColorClass(item.matricolaCompressore)}`}
                         />
-                        <button className="text-teal-600 hover:text-teal-700 text-sm mt-1 transition-colors">
-                          Carica foto
-                        </button>
+
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -535,9 +763,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                           onChange={(e) => updateEquipmentItem(item.id, 'numeroUnivoco', e.target.value)}
                           className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${getTextColorClass(item.numeroUnivoco)}`}
                         />
-                        <button className="text-teal-600 hover:text-teal-700 text-sm mt-1 transition-colors">
-                          Carica foto
-                        </button>
+
                       </div>
                     </div>
                     
@@ -545,15 +771,28 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Servizi aggiuntivi
                       </label>
-                      <select
-                        value={item.serviziAggiuntivi}
-                        onChange={(e) => updateEquipmentItem(item.id, 'serviziAggiuntivi', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
-                      >
-                        <option value="Nessuno">Nessuno</option>
-                        <option value="Pulizia">Pulizia</option>
-                        <option value="Manutenzione">Manutenzione</option>
-                      </select>
+                      <div className="space-y-2">
+                        {[
+                          'Ricerca perdite',
+                          'Smaltimento compressore',
+                          'Smaltimento gas',
+                          'Smantellamento',
+                          'Recupero gas'
+                        ].map((servizio) => (
+                          <label key={servizio} className="flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={item.serviziAggiuntivi.includes(servizio)}
+                              onChange={() => handleServiziAggiuntiviToggle(item.id, servizio)}
+                              className="rounded border-gray-300 text-teal-600 shadow-sm focus:border-teal-500 focus:ring focus:ring-teal-200 focus:ring-opacity-50"
+                            />
+                            <span className="ml-2 text-sm text-gray-700">{servizio}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {item.serviziAggiuntivi.length === 0 && (
+                        <p className="text-sm text-gray-500 mt-1">Nessun servizio aggiuntivo selezionato</p>
+                      )}
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -568,7 +807,12 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                         >
                           <option value="R404A">R404A</option>
                           <option value="R134A">R134A</option>
-                          <option value="R507A">R507A</option>
+                          <option value="R422A">R422A (BASSA) vedi R427A</option>
+                          <option value="R422D">R422D (ALTA)</option>
+                          <option value="R452A">R452A</option>
+                          <option value="R437A">R437A</option>
+                          <option value="R290">R290</option>
+                          <option value="R427A">R427A</option>
                         </select>
                       </div>
                       <div>
@@ -597,45 +841,102 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={item.images.length > 0}
-                      onChange={(e) => updateEquipmentItem(item.id, 'images', e.target.checked ? [
-                        { id: Date.now().toString(), name: 'img_1.png', uploadDate: '01/10/2024' },
-                        { id: (Date.now() + 1).toString(), name: 'img_2.png', uploadDate: '01/10/2024' }
-                      ] : [])}
+                      checked={item.hasImages}
+                      onChange={(e) => updateEquipmentItem(item.id, 'hasImages', e.target.checked)}
                       className="sr-only peer"
                     />
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-teal-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
                   </label>
                 </div>
                 
-                {item.images.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm font-medium text-gray-700 border-b pb-2">
-                        <span>File</span>
-                        <span>Data di caricamento</span>
-                      </div>
-                      {item.images.map((file) => (
-                        <div key={file.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
-                          <span className="text-sm text-gray-900">{file.name}</span>
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm text-gray-500">{file.uploadDate}</span>
-                            <button
-                              onClick={() => updateEquipmentItem(item.id, 'images', item.images.filter(img => img.id !== file.id))}
-                              className="text-gray-400 hover:text-red-500 transition-colors"
-                            >
-                              <X size={16} />
-                            </button>
+                {item.hasImages && (
+                  <>
+                    {/* Griglia delle immagini caricate */}
+                    {item.images.length > 0 && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        {item.images.map((image) => (
+                          <div key={image.id} className="border border-gray-200 rounded-lg p-3 bg-white">
+                            {/* Preview dell'immagine */}
+                            <div className="mb-3">
+                              <Image 
+                                src={image.url} 
+                                alt={image.name}
+                                width={200}
+                                height={150}
+                                className="w-full h-32 object-cover rounded-lg bg-gray-100"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                }}
+                              />
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <div className="text-sm text-gray-600 truncate" title={image.name}>
+                                {image.name}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {image.uploadDate}
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <button 
+                                    className="text-blue-600 hover:text-blue-700 p-1"
+                                    onClick={() => window.open(image.url, '_blank')}
+                                    title="Visualizza immagine"
+                                  >
+                                    <Eye size={14} />
+                                  </button>
+                                  <button 
+                                    className="text-green-600 hover:text-green-700 p-1"
+                                    onClick={() => {
+                                      const link = document.createElement('a');
+                                      link.href = image.url;
+                                      link.download = image.name;
+                                      link.click();
+                                    }}
+                                    title="Scarica immagine"
+                                  >
+                                    <Download size={14} />
+                                  </button>
+                                </div>
+                                <button
+                                  onClick={() => removeImageFromItem(item.id, image.id)}
+                                  className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
+                                  title="Rimuovi immagine"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Uploader per aggiungere nuove immagini */}
+                    <div>
+                      <FileUploaderRegular
+                        pubkey={process.env.NEXT_PUBLIC_UPLOADER_PUBLIC_KEY || ''}
+                        onFileUploadSuccess={(fileInfo: { cdnUrl?: string; name?: string }) => 
+                          handleImageUpload(item.id, fileInfo)
+                        }
+                        onFileUploadFailed={(e: { status: string; [key: string]: unknown }) => {
+                          console.error('Error uploading equipment image:', e);
+                          alert('Errore durante il caricamento dell\'immagine dell\'apparecchiatura');
+                        }}
+                        imgOnly={true}
+                        multiple={true}
+                        sourceList="local,url,camera,dropbox,gdrive"
+                      />
                     </div>
                     
-                    <button className="bg-teal-100 hover:bg-teal-200 text-teal-700 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
-                      <Upload size={16} />
-                      Aggiungi immagine
-                    </button>
-                  </div>
+                    {item.images.length === 0 && (
+                      <div className="text-center py-4 text-gray-500 text-sm">
+                        Nessuna immagine caricata per questa apparecchiatura
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -768,9 +1069,10 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
         <div className="bg-gray-50 border-t border-gray-200 -mx-4 md:-mx-6 px-4 md:px-6 py-4">
           <button
             onClick={handleSubmit}
-            className="w-full bg-teal-600 hover:bg-teal-700 text-white py-3 px-4 rounded-lg font-medium transition-colors"
+            disabled={isLoadingTypes || isLoadingExistingReport || !token}
+            className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-3 px-4 rounded-lg font-medium transition-colors"
           >
-            Conferma e invia rapportino
+            {existingReport ? 'Aggiorna rapportino esistente' : 'Conferma e invia rapportino'}
           </button>
         </div>
       </div>

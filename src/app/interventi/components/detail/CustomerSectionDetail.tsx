@@ -33,6 +33,7 @@ interface CustomerSectionDetailProps {
   selectedCustomerId: number | null;
   setSelectedCustomerId: (value: number | null) => void;
   onCustomerLocationsLoaded?: (hasLocations: boolean) => void;
+  statusId: number;
 }
 
 interface InterventionType {
@@ -59,7 +60,8 @@ export default function CustomerSectionDetail({
   numeroCellulare,
   setNumeroCellulare,
   selectedCustomerId,
-  onCustomerLocationsLoaded
+  onCustomerLocationsLoaded,
+  statusId
 }: CustomerSectionDetailProps) {
   console.log('🏗️ CustomerSectionDetail render with props:', {
     ragioneSociale,
@@ -67,10 +69,15 @@ export default function CustomerSectionDetail({
     codiceCliente,
     telefonoFisso,
     numeroCellulare,
-    selectedCustomerId
+    selectedCustomerId,
+    statusId
   });
   
   const auth = useAuth();
+
+  // Determina se i campi devono essere disabilitati
+  // I campi sono modificabili solo fino al massimo allo status "in_carico" (ID 4)
+  const isFieldsDisabled = statusId > 4;
 
   // Stati per le destinazioni del cliente
   const [customerLocations, setCustomerLocations] = useState<CustomerLocation[]>([]);
@@ -243,11 +250,17 @@ export default function CustomerSectionDetail({
             <select 
               value={destinazione}
               onChange={(e) => setDestinazione(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 appearance-none bg-white text-gray-900"
-              disabled={!selectedCustomerId || loadingLocations || customerLocations.length === 0}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-lg appearance-none ${
+                isFieldsDisabled || loadingLocations || customerLocations.length === 0
+                  ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
+                  : 'focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white text-gray-900'
+              }`}
+              disabled={isFieldsDisabled || loadingLocations || customerLocations.length === 0}
             >
               <option value="">
-                {!selectedCustomerId 
+                {isFieldsDisabled
+                  ? 'Campo non modificabile per questo status'
+                  : !selectedCustomerId 
                   ? 'Prima seleziona una ragione sociale' 
                   : loadingLocations 
                   ? 'Caricamento destinazioni...' 
@@ -269,12 +282,17 @@ export default function CustomerSectionDetail({
               </div>
             )}
           </div>
-          {!selectedCustomerId && (
+          {!selectedCustomerId && !isFieldsDisabled && (
             <p className="mt-1 text-xs text-gray-500">
               💡 Seleziona prima una ragione sociale per vedere le destinazioni disponibili
             </p>
           )}
-          {selectedCustomerId && customerLocations.length === 0 && !loadingLocations && (
+          {isFieldsDisabled && (
+            <p className="mt-1 text-xs text-gray-500">
+              🔒 Campo non modificabile per questo status
+            </p>
+          )}
+          {selectedCustomerId && customerLocations.length === 0 && !loadingLocations && !isFieldsDisabled && (
             <p className="mt-1 text-xs text-amber-600">
               ⚠️ Nessuna destinazione configurata per questo cliente
             </p>
@@ -292,11 +310,20 @@ export default function CustomerSectionDetail({
             <select 
               value={tipologiaIntervento}
               onChange={(e) => setTipologiaIntervento(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 appearance-none bg-white text-gray-900"
-              disabled={loadingInterventionTypes}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-lg appearance-none ${
+                isFieldsDisabled || loadingInterventionTypes
+                  ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
+                  : 'focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white text-gray-900'
+              }`}
+              disabled={isFieldsDisabled || loadingInterventionTypes}
             >
               <option value="">
-                {loadingInterventionTypes ? 'Caricamento...' : 'Seleziona tipologia'}
+                {isFieldsDisabled
+                  ? 'Campo non modificabile per questo status'
+                  : loadingInterventionTypes 
+                  ? 'Caricamento...' 
+                  : 'Seleziona tipologia'
+                }
               </option>
               {interventionTypes.map((type) => (
                 <option key={type.id} value={type.id.toString()}>
@@ -320,11 +347,20 @@ export default function CustomerSectionDetail({
             <select 
               value={zona}
               onChange={(e) => setZona(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 appearance-none bg-white text-gray-900"
-              disabled={loadingZones}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-lg appearance-none ${
+                isFieldsDisabled || loadingZones
+                  ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
+                  : 'focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white text-gray-900'
+              }`}
+              disabled={isFieldsDisabled || loadingZones}
             >
               <option value="">
-                {loadingZones ? 'Caricamento zone...' : 'Seleziona zona'}
+                {isFieldsDisabled
+                  ? 'Campo non modificabile per questo status'
+                  : loadingZones 
+                  ? 'Caricamento zone...' 
+                  : 'Seleziona zona'
+                }
               </option>
               {zones.map((zone) => (
                 <option key={zone.id} value={zone.id.toString()}>
@@ -364,9 +400,21 @@ export default function CustomerSectionDetail({
               type="text"
               value={telefonoFisso}
               onChange={(e) => setTelefonoFisso(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-l-lg bg-gray-50 text-gray-500"
+              className={`flex-1 px-3 py-2 border border-gray-300 rounded-l-lg ${
+                isFieldsDisabled 
+                  ? 'bg-gray-50 text-gray-500 cursor-not-allowed' 
+                  : 'bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'
+              }`}
+              disabled={isFieldsDisabled}
             />
-            <button className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded-r-lg flex items-center gap-1">
+            <button 
+              disabled={isFieldsDisabled || !telefonoFisso}
+              className={`px-3 py-2 rounded-r-lg flex items-center gap-1 ${
+                isFieldsDisabled || !telefonoFisso 
+                  ? 'bg-gray-400 cursor-not-allowed text-gray-600' 
+                  : 'bg-teal-600 hover:bg-teal-700 text-white'
+              }`}
+            >
               <Phone size={14} />
             </button>
           </div>
@@ -380,9 +428,21 @@ export default function CustomerSectionDetail({
               type="text"
               value={numeroCellulare}
               onChange={(e) => setNumeroCellulare(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-l-lg bg-gray-50 text-gray-500"
+              className={`flex-1 px-3 py-2 border border-gray-300 rounded-l-lg ${
+                isFieldsDisabled 
+                  ? 'bg-gray-50 text-gray-500 cursor-not-allowed' 
+                  : 'bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'
+              }`}
+              disabled={isFieldsDisabled}
             />
-            <button className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded-r-lg flex items-center gap-1">
+            <button 
+              disabled={isFieldsDisabled || !numeroCellulare}
+              className={`px-3 py-2 rounded-r-lg flex items-center gap-1 ${
+                isFieldsDisabled || !numeroCellulare 
+                  ? 'bg-gray-400 cursor-not-allowed text-gray-600' 
+                  : 'bg-teal-600 hover:bg-teal-700 text-white'
+              }`}
+            >
               <Phone size={14} />
             </button>
           </div>

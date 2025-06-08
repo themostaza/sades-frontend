@@ -32,6 +32,7 @@ interface InterventionDetailsSectionDetailProps {
   noteInterne: string;
   setNoteInterne: (value: string) => void;
   onCustomerLocationsLoaded?: (hasLocations: boolean) => void;
+  statusId: number;
 }
 
 interface SelectedArticle {
@@ -64,8 +65,13 @@ export default function InterventionDetailsSectionDetail({
   setOrarioApertura,
   noteInterne,
   setNoteInterne,
+  statusId,
 }: InterventionDetailsSectionDetailProps) {
   const auth = useAuth();
+
+  // Determina se i campi devono essere disabilitati
+  // I campi sono modificabili solo fino al massimo allo status "in_carico" (ID 4)
+  const isFieldsDisabled = statusId > 4;
 
   // Stati per la ricerca equipaggiamenti
   const [equipmentSearchQuery, setEquipmentSearchQuery] = useState('');
@@ -81,6 +87,9 @@ export default function InterventionDetailsSectionDetail({
 
   // Funzione per verificare se la ricerca apparecchiature è abilitata
   const isEquipmentSearchEnabled = () => {
+    // Se i campi sono disabilitati per status, non permettere la ricerca
+    if (isFieldsDisabled) return false;
+    
     // Deve esserci un cliente selezionato
     if (!selectedCustomerId) return false;
     
@@ -335,17 +344,22 @@ export default function InterventionDetailsSectionDetail({
     <div className="bg-white border border-gray-200 rounded-lg p-6">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Dettagli Intervento</h2>
       
-      {/* Note */}
+      {/* Note interne */}
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Note
+          Note interne
         </label>
-        <textarea 
+        <textarea
           value={noteInterne}
           onChange={(e) => setNoteInterne(e.target.value)}
           rows={4}
-          placeholder="Inserisci note per l'intervento..."
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900 resize-vertical"
+          placeholder={isFieldsDisabled ? "Campo non modificabile per questo status" : "Inserisci note per l'intervento..."}
+          disabled={isFieldsDisabled}
+          className={`w-full px-3 py-2 border border-gray-300 rounded-lg resize-vertical ${
+            isFieldsDisabled 
+              ? 'bg-gray-50 text-gray-500 cursor-not-allowed' 
+              : 'focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900'
+          }`}
         />
       </div>
 
@@ -359,7 +373,12 @@ export default function InterventionDetailsSectionDetail({
             <select 
               value={servizioDomicilio}
               onChange={(e) => setServizioDomicilio(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 appearance-none bg-white text-gray-900"
+              disabled={isFieldsDisabled}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-lg appearance-none ${
+                isFieldsDisabled 
+                  ? 'bg-gray-50 text-gray-500 cursor-not-allowed' 
+                  : 'focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white text-gray-900'
+              }`}
             >
               <option value="Si">Si</option>
               <option value="No">No</option>
@@ -372,9 +391,12 @@ export default function InterventionDetailsSectionDetail({
                 type="checkbox" 
                 checked={scontoServizioDomicilio}
                 onChange={(e) => setScontoServizioDomicilio(e.target.checked)}
-                className="mr-2" 
+                disabled={isFieldsDisabled}
+                className={`mr-2 ${isFieldsDisabled ? 'cursor-not-allowed' : ''}`}
               />
-              <span className="text-sm text-gray-600">Sconto sul servizio domicilio</span>
+              <span className={`text-sm ${isFieldsDisabled ? 'text-gray-400' : 'text-gray-600'}`}>
+                Sconto sul servizio domicilio
+              </span>
             </label>
           </div>
         </div>
@@ -394,7 +416,12 @@ export default function InterventionDetailsSectionDetail({
                 setOraFine('');
               }
             }}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900"
+            disabled={isFieldsDisabled}
+            className={`w-full px-3 py-2 border border-gray-300 rounded-lg ${
+              isFieldsDisabled 
+                ? 'bg-gray-50 text-gray-500 cursor-not-allowed' 
+                : 'focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900'
+            }`}
           />
         </div>
         <div>
@@ -412,9 +439,9 @@ export default function InterventionDetailsSectionDetail({
                   setOraFine('');
                 }
               }}
-              disabled={!data}
-              className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 appearance-none bg-white text-gray-900 ${
-                !data ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
+              disabled={isFieldsDisabled || !data}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 appearance-none ${
+                isFieldsDisabled || !data ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : 'bg-white text-gray-900'
               }`}
             >
               <option value="">Seleziona orario</option>
@@ -427,9 +454,14 @@ export default function InterventionDetailsSectionDetail({
           </div>
           
           {/* Messaggio informativo */}
-          {!data && (
+          {!data && !isFieldsDisabled && (
             <p className="mt-1 text-xs text-gray-500">
               💡 Seleziona prima una data per abilitare la scelta dell&apos;orario
+            </p>
+          )}
+          {isFieldsDisabled && (
+            <p className="mt-1 text-xs text-gray-500">
+              🔒 Campo non modificabile per questo status
             </p>
           )}
           
@@ -444,7 +476,12 @@ export default function InterventionDetailsSectionDetail({
                   type="time"
                   value={oraInizio}
                   onChange={(e) => setOraInizio(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900"
+                  disabled={isFieldsDisabled}
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-lg ${
+                    isFieldsDisabled 
+                      ? 'bg-gray-50 text-gray-500 cursor-not-allowed' 
+                      : 'focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900'
+                  }`}
                 />
               </div>
               <div>
@@ -455,7 +492,12 @@ export default function InterventionDetailsSectionDetail({
                   type="time"
                   value={oraFine}
                   onChange={(e) => setOraFine(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900"
+                  disabled={isFieldsDisabled}
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-lg ${
+                    isFieldsDisabled 
+                      ? 'bg-gray-50 text-gray-500 cursor-not-allowed' 
+                      : 'focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900'
+                  }`}
                 />
               </div>
             </div>
@@ -476,7 +518,12 @@ export default function InterventionDetailsSectionDetail({
               min="0"
               value={preventivo}
               onChange={(e) => setPreventivo(Number(e.target.value))}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900"
+              disabled={isFieldsDisabled}
+              className={`flex-1 px-3 py-2 border border-gray-300 rounded-l-lg ${
+                isFieldsDisabled 
+                  ? 'bg-gray-50 text-gray-500 cursor-not-allowed' 
+                  : 'focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900'
+              }`}
             />
             <span className="bg-gray-100 border border-l-0 border-gray-300 px-3 py-2 rounded-r-lg text-gray-600">
               EUR
@@ -491,8 +538,13 @@ export default function InterventionDetailsSectionDetail({
             type="text"
             value={orarioApertura}
             onChange={(e) => setOrarioApertura(e.target.value)}
-            placeholder="Orario apertura"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900"
+            placeholder={isFieldsDisabled ? "Campo non modificabile per questo status" : "Orario apertura"}
+            disabled={isFieldsDisabled}
+            className={`w-full px-3 py-2 border border-gray-300 rounded-lg ${
+              isFieldsDisabled 
+                ? 'bg-gray-50 text-gray-500 cursor-not-allowed' 
+                : 'focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900'
+            }`}
           />
         </div>
       </div>
@@ -521,7 +573,9 @@ export default function InterventionDetailsSectionDetail({
                 }
               }}
               placeholder={
-                !selectedCustomerId 
+                isFieldsDisabled
+                  ? "Campo non modificabile per questo status"
+                  : !selectedCustomerId 
                   ? "Prima seleziona una ragione sociale..." 
                   : "Cerca apparecchiatura..."
               }
@@ -559,9 +613,14 @@ export default function InterventionDetailsSectionDetail({
         </div>
 
         {/* Messaggi informativi */}
-        {!selectedCustomerId && (
+        {!selectedCustomerId && !isFieldsDisabled && (
           <p className="mt-1 text-xs text-gray-500">
             💡 Seleziona prima una ragione sociale per cercare le apparecchiature
+          </p>
+        )}
+        {isFieldsDisabled && (
+          <p className="mt-1 text-xs text-gray-500">
+            🔒 Campo non modificabile per questo status
           </p>
         )}
 
@@ -580,7 +639,12 @@ export default function InterventionDetailsSectionDetail({
                   </div>
                   <button
                     onClick={() => removeEquipment(equipment.id)}
-                    className="text-red-500 hover:text-red-700 p-1"
+                    disabled={isFieldsDisabled}
+                    className={`p-1 ${
+                      isFieldsDisabled 
+                        ? 'text-gray-400 cursor-not-allowed' 
+                        : 'text-red-500 hover:text-red-700'
+                    }`}
                   >
                     <X size={16} />
                   </button>
@@ -605,15 +669,18 @@ export default function InterventionDetailsSectionDetail({
               value={articleSearchQuery}
               onChange={(e) => setArticleSearchQuery(e.target.value)}
               onFocus={() => {
-                // Se ci sono già risultati, mostra il dropdown, altrimenti fai una ricerca
-                if (articles.length > 0) {
-                  setShowArticleDropdown(true);
-                } else {
-                  searchArticles(articleSearchQuery);
+                if (!isFieldsDisabled) {
+                  // Se ci sono già risultati, mostra il dropdown, altrimenti fai una ricerca
+                  if (articles.length > 0) {
+                    setShowArticleDropdown(true);
+                  } else {
+                    searchArticles(articleSearchQuery);
+                  }
                 }
               }}
-              placeholder="Cerca ricambi..."
-              className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900"
+              placeholder={isFieldsDisabled ? "Campo non modificabile per questo status" : "Cerca ricambi..."}
+              disabled={isFieldsDisabled}
+              className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
             />
             <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
             {isSearchingArticles && (
@@ -665,11 +732,13 @@ export default function InterventionDetailsSectionDetail({
                       min="1"
                       value={selectedArticle.quantity}
                       onChange={(e) => updateArticleQuantity(selectedArticle.article.id, Number(e.target.value))}
-                      className="w-16 px-2 py-1 border border-gray-300 rounded text-center text-sm"
+                      className="w-16 px-2 py-1 border border-gray-300 rounded text-center text-sm text-gray-700"
+                      disabled={isFieldsDisabled}
                     />
                     <button
                       onClick={() => removeArticle(selectedArticle.article.id)}
-                      className="text-red-500 hover:text-red-700 p-1"
+                      className={`text-red-500 hover:text-red-700 p-1 ${isFieldsDisabled ? 'cursor-not-allowed' : ''}`}
+                      disabled={isFieldsDisabled}
                     >
                       <X size={16} />
                     </button>
@@ -682,4 +751,4 @@ export default function InterventionDetailsSectionDetail({
       </div>
     </div>
   );
-} 
+}
