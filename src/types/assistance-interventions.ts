@@ -9,9 +9,10 @@ export interface ConnectedEquipment {
 
 export interface ConnectedArticle {
   id: string;
-  pnc_code: string;
+  pnc_code: string | null;
   short_description: string;
   description: string;
+  quantity: number;
 }
 
 export interface AssistanceIntervention {
@@ -22,15 +23,28 @@ export interface AssistanceIntervention {
   to_datetime: string;
   customer_location_id: string;
   call_code: string;
+  approved_at: string | null;
+  cancelled_by: string | null;
+  cancelled_at: string | null;
+  invoiced_by: string | null;
+  invoiced_at: string | null;
   company_name: string;
   assigned_to_name: string;
   assigned_to_surname: string | null;
+  approved_by_name: string | null;
+  approved_by_surname: string | null;
+  cancelled_by_name: string | null;
+  cancelled_by_surname: string | null;
+  invoiced_by_name: string | null;
+  invoiced_by_surname: string | null;
   zone_label: string;
   status_label: string;
   status_color: string;
   location_address: string;
   location_city: string;
   type_label: string;
+  report_id: number | null;
+  report_is_failed: boolean | null;
 }
 
 export interface AssistanceInterventionDetail {
@@ -49,7 +63,7 @@ export interface AssistanceInterventionDetail {
   customer_location_id: string;
   type_id: number;
   zone_id: number;
-  address: string;
+  address: string | null;
   flg_home_service: boolean;
   flg_discount_home_service: boolean;
   quotation_price: string;
@@ -62,6 +76,19 @@ export interface AssistanceInterventionDetail {
   type_label: string;
   created_at: string;
   updated_at: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  cancelled_by: string | null;
+  cancelled_at: string | null;
+  invoiced_by: string | null;
+  invoiced_at: string | null;
+  location_address: string | null;
+  location_city: string | null;
+  location_cap: string | null;
+  location_state: string | null;
+  location_company_name: string | null;
+  report_id: number | null;
+  report_is_failed: boolean | null;
   connected_equipment: ConnectedEquipment[];
   connected_articles: ConnectedArticle[];
 }
@@ -107,6 +134,12 @@ export interface UpdateAssistanceInterventionRequest {
   call_code: string;
   internal_notes: string;
   status_id: number;
+  approved_by?: string;
+  approved_at?: string;
+  cancelled_by?: string;
+  cancelled_at?: string;
+  invoiced_by?: string;
+  invoiced_at?: string;
   equipments: number[];
   articles: Array<{
     article_id: string;

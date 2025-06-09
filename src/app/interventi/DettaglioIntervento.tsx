@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Check, AlertCircle, Download } from 'lucide-react';
+import { ArrowLeft, Check, AlertCircle, Download, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import CustomerSectionDetail from './components/detail/CustomerSectionDetail';
 import InterventionDetailsSectionDetail from './components/detail/InterventionDetailsSectionDetail';
@@ -12,7 +12,6 @@ import { ArticleListItem } from '../../types/article';
 import { AssistanceInterventionDetail, UpdateAssistanceInterventionRequest } from '../../types/assistance-interventions';
 import { fetchAssistanceInterventionDetail, updateAssistanceIntervention, downloadAssistanceInterventionPDF, downloadPDFFile } from '../../utils/assistance-interventions-api';
 import CreaRapportino from './CreaRapportino';
-import { InterventionReportSummary } from '../../types/intervention-reports';
 
 interface DettaglioInterventoProps {
   isOpen: boolean;
@@ -55,6 +54,12 @@ interface DialogState {
   type: 'success' | 'error';
   title: string;
   message: string;
+}
+
+// Tipo semplificato per il report esistente basato sui dati dal payload
+interface SimpleReport {
+  id: number;
+  is_failed: boolean;
 }
 
 export default function DettaglioIntervento({ isOpen, onClose, interventionId, onInterventionUpdated }: DettaglioInterventoProps) {
@@ -139,56 +144,60 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   // Stato per il componente CreaRapportino
   const [showCreaRapportino, setShowCreaRapportino] = useState(false);
 
-  // Stato per il rapportino esistente
-  const [existingReport, setExistingReport] = useState<InterventionReportSummary | null>(null);
-  const [isCheckingReport, setIsCheckingReport] = useState(false);
+  // Stato per il rapportino esistente - uso tipo semplificato
+  const [existingReport, setExistingReport] = useState<SimpleReport | null>(null);
+  const [isCheckingReport] = useState(false);
 
   // Stato per il caricamento visualizzazione rapporto
   const [isLoadingReport, setIsLoadingReport] = useState(false);
 
-  // Funzione per calcolare lo status dinamicamente basandosi sui dati dell'intervento
-  const calculateDynamicStatus = (assignedTo: string | null | undefined, quotationPrice: number | string, hasReport: boolean = false, currentStatus?: string): string => {
-    // Converto quotationPrice a numero per essere sicuro
-    const price = typeof quotationPrice === 'string' ? parseFloat(quotationPrice) : quotationPrice;
-    const normalizedPrice = isNaN(price) ? 0 : price;
-    
-    console.log('🔄 Calculating dynamic status with:', { 
-      assignedTo, 
-      quotationPrice, 
-      normalizedPrice,
-      hasReport,
-      currentStatus,
-      originalType: typeof quotationPrice 
-    });
-    
-    // Non ricalcolare se l'intervento è già in uno status finale
-    const finalStatuses = ['completato', 'non_completato', 'annullato', 'fatturato'];
-    if (currentStatus && finalStatuses.includes(currentStatus)) {
-      console.log('✅ Status not recalculated - already in final status:', currentStatus);
-      return currentStatus;
+  // Stato per il refresh dei dati
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Funzione per calcolare lo stato corretto basato sulla logica frontend (stessa di page.tsx)
+  const calculateStatus = (interventionData: AssistanceInterventionDetail): { label: string; key: string } => {
+    // Priorità massima: se invoiced_by è valorizzato → fatturato
+    if (interventionData.invoiced_by) {
+      return { label: 'Fatturato', key: 'fatturato' };
     }
     
-    // 1. Se assigned_to è vuoto → status è "da_assegnare"
-    if (!assignedTo || assignedTo.trim() === '') {
-      console.log('✅ Status calculated: da_assegnare (no assigned_to)');
-      return 'da_assegnare';
+    // Priorità alta: se cancelled_by è valorizzato → annullato
+    if (interventionData.cancelled_by) {
+      return { label: 'Annullato', key: 'annullato' };
     }
     
-    // 2. Se quotation_price è 0 → status è "attesa_preventivo"
-    if (normalizedPrice === 0) {
-      console.log('✅ Status calculated: attesa_preventivo (quotation_price is 0)');
-      return 'attesa_preventivo';
+    // Controllo dei campi obbligatori per l'assegnazione
+    const requiredFields = [
+      interventionData.assigned_to,
+      interventionData.date,
+      interventionData.time_slot,
+      interventionData.from_datetime,
+      interventionData.to_datetime
+    ];
+    
+    // Se uno dei campi obbligatori non è valorizzato → da_assegnare
+    if (requiredFields.some(field => !field || field.trim() === '')) {
+      return { label: 'Da assegnare', key: 'da_assegnare' };
     }
     
-    // 3. Se c'è un rapportino → status è "da_confermare"
-    if (hasReport) {
-      console.log('✅ Status calculated: da_confermare (report exists)');
-      return 'da_confermare';
+    // Tutti i campi obbligatori sono valorizzati → in_carico
+    let currentStatus = { label: 'In carico', key: 'in_carico' };
+    
+    // Se c'è un report_id → da_confermare
+    if (interventionData.report_id !== null) {
+      currentStatus = { label: 'Da confermare', key: 'da_confermare' };
+      
+      // Se c'è anche approved_by → controllo report_is_failed
+      if (interventionData.approved_by) {
+        if (interventionData.report_is_failed === true) {
+          currentStatus = { label: 'Non completato', key: 'non_completato' };
+        } else if (interventionData.report_is_failed === false || interventionData.report_is_failed === null) {
+          currentStatus = { label: 'Completato', key: 'completato' };
+        }
+      }
     }
     
-    // 4. Se entrambi assigned_to e quotation_price sono compilati ma non c'è rapportino → status è "in_carico"
-    console.log('✅ Status calculated: in_carico (both assigned_to and quotation_price are set, no report)');
-    return 'in_carico';
+    return currentStatus;
   };
 
   // Funzione per mappare i valori degli stati ai corrispondenti ID
@@ -206,23 +215,6 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       'collocamento': 10
     };
     return statusMap[selectedStatus] || 1;
-  };
-
-  // Funzione per mappare status_id ai corrispondenti valori stringa
-  const getStatusFromId = (statusId: number): string => {
-    const idToStatusMap: Record<number, string> = {
-      1: 'da_assegnare',
-      2: 'attesa_preventivo',
-      3: 'attesa_ricambio',
-      4: 'in_carico',
-      5: 'da_confermare',
-      6: 'completato',
-      7: 'non_completato',
-      8: 'annullato',
-      9: 'fatturato',
-      10: 'collocamento'
-    };
-    return idToStatusMap[statusId] || 'da_assegnare';
   };
 
   // Funzione per caricare i dettagli del cliente
@@ -440,7 +432,8 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       }
       
       // Popola tutti i campi con i dati ricevuti
-      setSelectedStatus(calculateDynamicStatus(data.assigned_to, data.quotation_price, !!existingReport, getStatusFromId(data.status_id)));
+      const statusInfo = calculateStatus(data);
+      setSelectedStatus(statusInfo.key);
       setRagioneSociale(data.company_name);
       setTipologiaIntervento(data.type_id.toString());
       setZona(data.zone_id.toString());
@@ -596,19 +589,19 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   // useEffect per recalcolare lo status dinamicamente quando cambiano i valori correlati
   useEffect(() => {
     // Non calcolare durante il caricamento iniziale per evitare modifiche non necessarie
-    if (isInitialLoad || isLoading) {
+    if (isInitialLoad || isLoading || !interventionData) {
       return;
     }
 
     // Recalcola lo status basandosi sui valori attuali
-    const newStatus = calculateDynamicStatus(selectedTechnician?.id, preventivo, !!existingReport, selectedStatus);
+    const newStatus = calculateStatus(interventionData);
     
     // Aggiorna solo se lo status è davvero cambiato
-    if (newStatus !== selectedStatus) {
-      console.log('🔄 Status auto-updated from', selectedStatus, 'to', newStatus);
-      setSelectedStatus(newStatus);
+    if (newStatus.key !== selectedStatus) {
+      console.log('🔄 Status auto-updated from', selectedStatus, 'to', newStatus.key);
+      setSelectedStatus(newStatus.key);
     }
-  }, [selectedTechnician?.id, preventivo, isInitialLoad, isLoading, existingReport, selectedStatus]);
+  }, [selectedStatus, isInitialLoad, isLoading, interventionData]);
 
   // AutoSave con debounce su tutti i campi modificabili
   useEffect(() => {
@@ -634,7 +627,6 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     return () => clearTimeout(timer);
   }, [
     // Campi modificabili che devono triggerare autosave
-    // selectedStatus, // Rimosso perché ora è calcolato automaticamente basandosi su assigned_to e quotation_price
     destinazione,
     tipologiaIntervento,
     zona,
@@ -653,8 +645,8 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     // Dipendenze per autoSave
     isOpen,
     interventionData,
-    isLoading,
-    isInitialLoad // Aggiungo anche questo per re-triggerare quando diventa false
+    isLoading
+    // Rimosso isInitialLoad dalle dipendenze per evitare autosave all'apertura
   ]);
 
   // Funzione per verificare se tutti i campi obbligatori sono compilati
@@ -791,6 +783,31 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       await updateAssistanceIntervention(interventionId, requestData, auth.token || '');
       console.log('✅ AutoSave: Success');
       
+      // 🆕 Ricarica i dati dell'intervento per aggiornare l'UI con eventuali modifiche server-side
+      console.log('🔄 AutoSave: Reloading intervention data to sync UI...');
+      setIsInitialLoad(true); // Previeni ulteriori autosave durante il reload
+      
+      try {
+        const updatedData = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
+        setInterventionData(updatedData);
+        
+        // Aggiorna lo status calcolato con i nuovi dati
+        const newStatusInfo = calculateStatus(updatedData);
+        if (newStatusInfo.key !== selectedStatus) {
+          console.log('🔄 Status updated after autosave:', selectedStatus, '->', newStatusInfo.key);
+          setSelectedStatus(newStatusInfo.key);
+        }
+        
+        console.log('✅ AutoSave: UI synchronized with server data');
+      } catch (reloadError) {
+        console.error('❌ AutoSave: Error reloading data:', reloadError);
+        // Non blocchiamo l'operazione se il reload fallisce
+      } finally {
+        // Riattiva gli autosave dopo un breve delay
+        setTimeout(() => {
+          setIsInitialLoad(false);
+        }, 500);
+      }
 
       // Notifica il parent component dell'aggiornamento
       if (onInterventionUpdated) {
@@ -901,41 +918,23 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     }
   }, [auth.token, isOpen]);
 
-  // Funzione per verificare se esiste un rapportino per l'intervento
-  const checkExistingReport = async (interventionId: number) => {
+  // Funzione per aggiornare i dati dell'intervento
+  const handleRefresh = async () => {
     try {
-      setIsCheckingReport(true);
-      console.log('🔍 Checking for existing report for intervention:', interventionId);
-      
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      if (auth.token) {
-        headers['Authorization'] = `Bearer ${auth.token}`;
-      }
-
-      const response = await fetch(`/api/assistance-interventions/${interventionId}/reports`, {
-        method: 'GET',
-        headers,
-      });
-
-      if (response.ok) {
-        const reportData = await response.json();
-        console.log('✅ Found existing report:', reportData);
-        setExistingReport(reportData);
-      } else if (response.status === 404) {
-        console.log('ℹ️ No existing report found (404)');
-        setExistingReport(null);
-      } else {
-        console.error('❌ Error checking for report:', response.status);
-        setExistingReport(null);
-      }
+      setIsRefreshing(true);
+      console.log('🔄 Refreshing intervention data...');
+      await loadInterventionData();
+      console.log('✅ Intervention data refreshed successfully');
     } catch (error) {
-      console.error('❌ Error checking for existing report:', error);
-      setExistingReport(null);
+      console.error('❌ Error refreshing intervention data:', error);
+      setDialog({
+        isOpen: true,
+        type: 'error',
+        title: 'Errore aggiornamento',
+        message: 'Impossibile aggiornare i dati dell\'intervento. Riprova.'
+      });
     } finally {
-      setIsCheckingReport(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -943,45 +942,9 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   const visualizzaRapporto = async () => {
     try {
       setIsLoadingReport(true);
-      let reportId = existingReport?.id;
       
-      // Se non abbiamo già l'ID del rapporto, chiamiamo l'API per ottenerlo
-      if (!reportId) {
-        console.log('🔍 Report ID not available, fetching from API...');
-        
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-        };
-
-        if (auth.token) {
-          headers['Authorization'] = `Bearer ${auth.token}`;
-        }
-
-        const response = await fetch(`/api/assistance-interventions/${interventionId}/reports`, {
-          method: 'GET',
-          headers,
-        });
-
-        if (response.ok) {
-          const reportData = await response.json();
-          console.log('✅ Found report:', reportData);
-          reportId = reportData.id;
-          
-          // Aggiorna anche lo stato locale del rapporto
-          setExistingReport(reportData);
-        } else if (response.status === 404) {
-          console.log('ℹ️ No report found (404)');
-          setDialog({
-            isOpen: true,
-            type: 'error',
-            title: 'Rapporto non trovato',
-            message: 'Non è stato trovato alcun rapporto per questo intervento.'
-          });
-          return;
-        } else {
-          throw new Error(`Failed to fetch report: ${response.status}`);
-        }
-      }
+      // Usa il report_id dal payload invece di fare chiamate API
+      const reportId = interventionData?.report_id;
       
       if (reportId) {
         console.log('🔄 Opening report in new tab:', reportId);
@@ -996,19 +959,34 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         });
       }
     } catch (error) {
-      console.error('❌ Error fetching report:', error);
+      console.error('❌ Error opening report:', error);
       setDialog({
         isOpen: true,
         type: 'error',
         title: 'Errore visualizzazione rapporto',
-        message: 'Si è verificato un errore durante il caricamento del rapporto. Riprova.'
+        message: 'Si è verificato un errore durante l\'apertura del rapporto. Riprova.'
       });
     } finally {
       setIsLoadingReport(false);
     }
   };
 
-  // Funzione per confermare il rapporto (solo UI per ora)
+  // Effect per impostare existingReport basandosi sui dati dal payload
+  useEffect(() => {
+    if (interventionData && !isInitialLoad) {
+      if (interventionData.report_id) {
+        // Creo un oggetto report dal payload
+        setExistingReport({
+          id: interventionData.report_id,
+          is_failed: interventionData.report_is_failed || false
+        });
+      } else {
+        setExistingReport(null);
+      }
+    }
+  }, [interventionData, isInitialLoad]);
+
+  // Funzione per confermare il rapporto
   const confermaRapporto = async () => {
     try {
       console.log('🔄 Conferma rapporto started');
@@ -1055,8 +1033,22 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       // Chiamata API per aggiornare l'intervento
       await updateAssistanceIntervention(interventionId, requestData, auth.token || '');
       
-      // Aggiorna lo status locale
-      setSelectedStatus(newStatus);
+      // 🆕 Ricarica i dati dell'intervento per sincronizzare l'UI
+      console.log('🔄 Conferma rapporto: Reloading intervention data to sync UI...');
+      try {
+        const updatedData = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
+        setInterventionData(updatedData);
+        
+        // Aggiorna lo status calcolato con i nuovi dati
+        const newStatusInfo = calculateStatus(updatedData);
+        setSelectedStatus(newStatusInfo.key);
+        
+        console.log('✅ Conferma rapporto: UI synchronized with server data');
+      } catch (reloadError) {
+        console.error('❌ Conferma rapporto: Error reloading data:', reloadError);
+        // Fallback: aggiorna almeno lo status locale
+        setSelectedStatus(newStatus);
+      }
       
       console.log('✅ Intervention status updated successfully');
       
@@ -1123,8 +1115,22 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       // Chiamata API per aggiornare l'intervento
       await updateAssistanceIntervention(interventionId, requestData, auth.token || '');
       
-      // Aggiorna lo status locale
-      setSelectedStatus('fatturato');
+      // 🆕 Ricarica i dati dell'intervento per sincronizzare l'UI
+      console.log('🔄 Manda in fatturazione: Reloading intervention data to sync UI...');
+      try {
+        const updatedData = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
+        setInterventionData(updatedData);
+        
+        // Aggiorna lo status calcolato con i nuovi dati
+        const newStatusInfo = calculateStatus(updatedData);
+        setSelectedStatus(newStatusInfo.key);
+        
+        console.log('✅ Manda in fatturazione: UI synchronized with server data');
+      } catch (reloadError) {
+        console.error('❌ Manda in fatturazione: Error reloading data:', reloadError);
+        // Fallback: aggiorna almeno lo status locale
+        setSelectedStatus('fatturato');
+      }
       
       console.log('✅ Intervention sent to invoicing successfully');
       
@@ -1151,15 +1157,6 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       });
     }
   };
-
-  // Effect per verificare se esiste un rapportino quando lo status mostra il pulsante "Visualizza rapporto"
-  useEffect(() => {
-    const statusesWithReportButton = ['in_carico', 'da_confermare', 'completato', 'fatturato'];
-    
-    if (statusesWithReportButton.includes(selectedStatus) && interventionId && !isInitialLoad) {
-      checkExistingReport(interventionId);
-    }
-  }, [selectedStatus, interventionId, isInitialLoad, auth.token]);
 
   if (!isOpen) return null;
 
@@ -1212,15 +1209,28 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
             </div>
           </div>
           
-          {/* Pulsante download PDF */}
-          <button
-            onClick={downloadPDF}
-            disabled={isDownloadingPDF}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            <Download size={16} />
-            {isDownloadingPDF ? 'Download...' : 'Scarica PDF'}
-          </button>
+          {/* Pulsanti azioni */}
+          <div className="flex items-center gap-3">
+            {/* Pulsante aggiorna dati */}
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
+              title="Aggiorna dati intervento"
+            >
+              <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+            </button>
+            
+            {/* Pulsante download PDF */}
+            <button
+              onClick={downloadPDF}
+              disabled={isDownloadingPDF}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              <Download size={16} />
+              {isDownloadingPDF ? 'Download...' : 'Scarica PDF'}
+            </button>
+          </div>
         </div>
       </div>
       

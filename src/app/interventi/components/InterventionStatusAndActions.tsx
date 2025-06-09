@@ -2,7 +2,12 @@
 
 import React, { useState } from 'react';
 import { Check, AlertCircle } from 'lucide-react';
-import { InterventionReportSummary } from '../../../types/intervention-reports';
+
+// Tipo semplificato per il report esistente
+interface SimpleReport {
+  id: number;
+  is_failed: boolean;
+}
 
 interface StatusOption {
   id: string;
@@ -27,7 +32,7 @@ interface InterventionStatusAndActionsProps {
   // Report related props
   userInfo: UserInfo | null;
   userLoading: boolean;
-  existingReport: InterventionReportSummary | null;
+  existingReport: SimpleReport | null;
   isCheckingReport: boolean;
   isLoadingReport: boolean;
   interventionId: number;
@@ -63,7 +68,6 @@ const statusOptions: StatusOption[] = [
 
 export default function InterventionStatusAndActions({
   selectedStatus,
-  setSelectedStatus,
   userInfo,
   userLoading,
   existingReport,
@@ -248,38 +252,24 @@ export default function InterventionStatusAndActions({
 
       {/* Status badges */}
       <div>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-sm font-medium text-gray-700">Status</span>
-        </div>
         <div className="flex flex-wrap gap-2">
           {statusOptions.map((status) => {
-            // Gli status automatici non possono essere selezionati manualmente
-            const isAutoStatus = ['da_assegnare', 'attesa_preventivo', 'in_carico'].includes(status.id);
-            const isDisabled = isAutoStatus && selectedStatus !== status.id;
-            
+            const isSelected = selectedStatus === status.id;
             return (
-              <button
+              <div
                 key={status.id}
-                onClick={() => {
-                  if (!isAutoStatus) {
-                    setSelectedStatus(status.id);
-                  }
-                }}
-                disabled={isDisabled}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                  selectedStatus === status.id 
-                    ? status.color + ' ring-2 ring-teal-500' 
-                    : status.color + ' opacity-70 hover:opacity-100'
-                } ${isDisabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'} ${
-                  isAutoStatus && selectedStatus === status.id ? 'ring-2 ring-blue-500' : ''
-                }`}
-                title={isAutoStatus ? 'Status calcolato automaticamente' : 'Clicca per selezionare'}
+                className={`${
+                  isSelected 
+                    ? 'px-4 py-2 rounded-md text-sm font-bold ring-2 ring-blue-500' 
+                    : 'px-3 py-1 rounded-full text-xs font-medium opacity-40'
+                } ${status.color} transition-all cursor-default`}
+                title="Status calcolato automaticamente"
               >
                 {status.label}
-                {isAutoStatus && selectedStatus === status.id && (
-                  <span className="ml-1 text-xs">🤖</span>
+                {isSelected && (
+                  <span className="ml-1 text-xs">👍</span>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>

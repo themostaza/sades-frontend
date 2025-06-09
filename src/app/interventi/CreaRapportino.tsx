@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
-import { ArrowLeft, Clock, X, Plus, Eye, Download, Trash2 } from 'lucide-react';
+import { ArrowLeft, Clock, X, Plus, Eye, Download, Trash2, AlertTriangle } from 'lucide-react';
 import Image from 'next/image';
 import { AssistanceInterventionDetail, ConnectedArticle, ConnectedEquipment } from '../../types/assistance-interventions';
 import { FileUploaderRegular } from "@uploadcare/react-uploader/next";
@@ -67,7 +66,6 @@ interface RechargeableGasType {
 }
 
 export default function CreaRapportino({ isOpen, onClose, interventionData }: CreaRapportinoProps) {
-  const router = useRouter();
   const { token } = useAuth();
   
   // Stati per ore di lavoro - ora sono number
@@ -113,14 +111,10 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
   // Stati per intervento non riuscito (globali)
   const [interventoNonRiuscito, setInterventoNonRiuscito] = useState(false);
   const [motivoNonRiuscito, setMotivoNonRiuscito] = useState('');
-  
-  // Stati per nuova richiesta intervento (globali)
-  const [creaNuovaRichiesta, setCreaNuovaRichiesta] = useState(false);
-  const [risoltoNellImmediato, setRisoltoNellImmediato] = useState('Sì');
-  const [apparecchiaturaInteressata, setApparecchiaturaInteressata] = useState('*Codice e Nome macchin..*');
-  const [pezziRicambio, setPezziRicambio] = useState('*Codice e Nome ricambio*...');
-  const [noteNuovaRichiesta, setNoteNuovaRichiesta] = useState('*notes*');
 
+  // Stato per il dialog di conferma uscita
+  const [showExitConfirmDialog, setShowExitConfirmDialog] = useState(false);
+  
   // Carica i tipi di gas e compressori quando il componente si monta
   useEffect(() => {
     if (isOpen && token) {
@@ -192,16 +186,26 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
 
   // Helper function per mappare il nome del compressore al suo ID
   const getGasCompressorTypeId = (typeName: string): number => {
+    // Controlli di sicurezza
+    if (!gasCompressorTypes || gasCompressorTypes.length === 0 || !typeName) {
+      return 0;
+    }
+    
     const type = gasCompressorTypes.find(t => 
-      t.name.toLowerCase() === typeName.toLowerCase()
+      t && t.name && t.name.toLowerCase() === typeName.toLowerCase()
     );
     return type ? type.id : 0;
   };
 
   // Helper function per mappare il nome del gas al suo ID
   const getRechargeableGasTypeId = (gasName: string): number => {
+    // Controlli di sicurezza
+    if (!rechargeableGasTypes || rechargeableGasTypes.length === 0 || !gasName) {
+      return 0;
+    }
+    
     const type = rechargeableGasTypes.find(t => 
-      t.name.toLowerCase() === gasName.toLowerCase()
+      t && t.name && t.name.toLowerCase() === gasName.toLowerCase()
     );
     return type ? type.id : 0;
   };
@@ -214,6 +218,53 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
   // Funzione helper per ottenere la classe CSS del testo
   const getTextColorClass = (text: string): string => {
     return isPlaceholderText(text) ? 'text-gray-500' : 'text-gray-700';
+  };
+
+  // Funzione per gestire il click del pulsante indietro
+  const handleBackClick = () => {
+    setShowExitConfirmDialog(true);
+  };
+
+  // Funzione per confermare l'uscita (perdendo i dati)
+  const confirmExit = () => {
+    setShowExitConfirmDialog(false);
+    onClose();
+  };
+
+  // Funzione per annullare l'uscita
+  const cancelExit = () => {
+    setShowExitConfirmDialog(false);
+  };
+
+  // Funzione per validare il form
+  const isFormValid = (): boolean => {
+    // Se l'intervento è marcato come non riuscito, deve essere selezionato un motivo
+    if (interventoNonRiuscito && !motivoNonRiuscito) {
+      return false;
+    }
+    
+    // Se l'intervento NON è fallito, deve avere almeno un item valido
+    if (!interventoNonRiuscito && getValidItems().length === 0) {
+      return false;
+    }
+    
+    return true;
+  };
+
+  // Funzione per determinare se un item è vuoto/inutile
+  const isItemEmpty = (item: EquipmentItem): boolean => {
+    return (
+      !item.selectedEquipment &&           // Nessuna apparecchiatura selezionata
+      item.selectedArticles.length === 0 &&  // Nessun articolo selezionato
+      !item.notes.trim() &&                  // Nessuna nota
+      !item.hasGas &&                        // Nessuna gestione gas
+      !item.hasImages                        // Nessuna immagine
+    );
+  };
+
+  // Funzione per filtrare gli items validi
+  const getValidItems = (): EquipmentItem[] => {
+    return equipmentItems.filter(item => !isItemEmpty(item));
   };
 
   // Funzione per aggiungere un nuovo item (apparecchiatura completa)
@@ -322,30 +373,35 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
       }
 
       // Preparazione dati per l'API secondo la struttura richiesta
+      const validItems = getValidItems();
+      console.log('📋 Items originali:', equipmentItems.length);
+      console.log('📋 Items validi dopo filtro:', validItems.length);
+      console.log('📋 Items filtrati:', equipmentItems.filter(item => isItemEmpty(item)).length);
+      
       const apiPayload = {
         work_hours: oreLavoro,
         travel_hours: oreViaggio,
         customer_notes: noteCliente,
         is_failed: interventoNonRiuscito,
-        failure_reason: interventoNonRiuscito ? motivoNonRiuscito : undefined,
+        failure_reason: interventoNonRiuscito ? motivoNonRiuscito : null,
         status: "DRAFT" as const, // Inizialmente sempre DRAFT
-        items: equipmentItems.map(item => ({
+        items: validItems.map(item => ({
           intervention_equipment_id: item.selectedEquipment?.id || 0,
           note: item.notes,
           fl_gas: item.hasGas,
-          gas_compressor_types_id: getGasCompressorTypeId(item.tipologiaCompressore),
+          gas_compressor_types_id: item.hasGas ? (getGasCompressorTypeId(item.tipologiaCompressore) || null) : null,
           is_new_installation: item.nuovaInstallazione === 'Sì',
-          rechargeable_gas_types_id: getRechargeableGasTypeId(item.tipologiaGasCaricato),
+          rechargeable_gas_types_id: item.hasGas ? (getRechargeableGasTypeId(item.tipologiaGasCaricato) || null) : null,
           qty_gas_recharged: parseInt(item.quantitaGasCaricato) || 0,
           max_charge: parseInt(item.caricaMax) || 0,
-          compressor_model: item.modelloCompressore,
-          compressor_model_img_url: "", // TODO: implementare upload immagini
-          compressor_serial_num: item.matricolaCompressore,
-          compressor_serial_num_img_url: "", // TODO: implementare upload immagini
-          compressor_unique_num: item.numeroUnivoco,
-          compressor_unique_num_img_url: "", // TODO: implementare upload immagini
-          additional_services: item.serviziAggiuntivi.join(', '), // Converti array in stringa
-          recovered_rech_gas_types_id: getRechargeableGasTypeId(item.tipologiaGasRecuperato),
+          compressor_model: item.modelloCompressore || null,
+          compressor_model_img_url: null, // TODO: implementare upload immagini
+          compressor_serial_num: item.matricolaCompressore || null,
+          compressor_serial_num_img_url: null, // TODO: implementare upload immagini
+          compressor_unique_num: item.numeroUnivoco || null,
+          compressor_unique_num_img_url: null, // TODO: implementare upload immagini
+          additional_services: item.serviziAggiuntivi.length > 0 ? item.serviziAggiuntivi.join(', ') : null,
+          recovered_rech_gas_types_id: item.hasGas ? (getRechargeableGasTypeId(item.tipologiaGasRecuperato) || null) : null,
           qty_gas_recovered: parseInt(item.quantitaGasRecuperato) || 0,
           images: item.images.map(file => ({
             file_name: file.name,
@@ -381,9 +437,11 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
       
       onClose();
       
-      // Reindirizza alla pagina di dettaglio rapportino
+      // Apri il rapportino in una nuova tab invece di navigare nella stessa pagina
       if (reportData.id) {
-        router.push(`/interventi/rapportino/${reportData.id}`);
+        const reportUrl = `/interventi/rapportino/${reportData.id}`;
+        window.open(reportUrl, '_blank');
+        console.log('🔗 Rapportino aperto in nuova tab:', reportUrl);
       }
     } catch (error) {
       console.error('💥 Errore durante la creazione del rapportino:', error);
@@ -399,7 +457,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
       <div className="bg-teal-600 text-white px-4 md:px-6 py-4">
         <div className="flex items-center gap-4 max-w-4xl mx-auto">
           <button 
-            onClick={onClose}
+            onClick={handleBackClick}
             className="flex items-center text-white hover:text-gray-200 transition-colors"
           >
             <ArrowLeft size={20} />
@@ -447,11 +505,45 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
         <div className="mb-6">
           <button
             onClick={handleSubmit}
-            disabled={isLoadingTypes || isLoadingExistingReport || !token}
+            disabled={isLoadingTypes || isLoadingExistingReport || !token || !isFormValid()}
             className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-3 px-4 rounded-lg font-medium transition-colors"
           >
             {existingReport ? 'Aggiorna rapportino esistente' : 'Conferma e invia rapportino'}
           </button>
+          
+          {/* Messaggio di validazione */}
+          {interventoNonRiuscito && !motivoNonRiuscito && (
+            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm text-yellow-800 font-medium">
+                    Seleziona un motivo per l&apos;intervento non riuscito
+                  </p>
+                  <p className="text-xs text-yellow-700 mt-1">
+                    È necessario specificare il motivo per cui l&apos;intervento non è riuscito prima di poter creare il rapportino.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Messaggio di validazione per apparecchiature */}
+          {!interventoNonRiuscito && getValidItems().length === 0 && (
+            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm text-yellow-800 font-medium">
+                    Aggiungi almeno un&apos;apparecchiatura o attività
+                  </p>
+                  <p className="text-xs text-yellow-700 mt-1">
+                    Per un intervento riuscito è necessario specificare almeno un&apos;apparecchiatura, un articolo utilizzato, delle note o altre attività svolte.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Ore di lavoro e viaggio */}
@@ -504,7 +596,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
             onChange={(e) => setNoteCliente(e.target.value)}
             rows={4}
             className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-none ${getTextColorClass(noteCliente)}`}
-            placeholder="*Notes about the repair that the client will read*"
+            placeholder="*Note che saranno leggibili dal cliente"
           />
         </div>
 
@@ -628,7 +720,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                   onChange={(e) => updateEquipmentItem(item.id, 'notes', e.target.value)}
                   rows={3}
                   className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-none ${getTextColorClass(item.notes)}`}
-                  placeholder="*notes about reparing this machine*"
+                  placeholder="*Note che saranno leggibili dal cliente"
                 />
               </div>
 
@@ -992,7 +1084,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
         </div>
 
         {/* Crea nuova richiesta intervento */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 mb-6">
+        {/* <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Crea nuova richiesta intervento</h3>
             <label className="relative inline-flex items-center cursor-pointer">
@@ -1063,19 +1155,91 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
               </div>
             </div>
           )}
-        </div>
+        </div> */}
 
         {/* Bottom actions */}
         <div className="bg-gray-50 border-t border-gray-200 -mx-4 md:-mx-6 px-4 md:px-6 py-4">
           <button
             onClick={handleSubmit}
-            disabled={isLoadingTypes || isLoadingExistingReport || !token}
+            disabled={isLoadingTypes || isLoadingExistingReport || !token || !isFormValid()}
             className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-3 px-4 rounded-lg font-medium transition-colors"
           >
             {existingReport ? 'Aggiorna rapportino esistente' : 'Conferma e invia rapportino'}
           </button>
+          
+          {/* Messaggio di validazione */}
+          {interventoNonRiuscito && !motivoNonRiuscito && (
+            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm text-yellow-800 font-medium">
+                    Seleziona un motivo per l&apos;intervento non riuscito
+                  </p>
+                  <p className="text-xs text-yellow-700 mt-1">
+                    È necessario specificare il motivo per cui l&apos;intervento non è riuscito prima di poter creare il rapportino.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Messaggio di validazione per apparecchiature */}
+          {!interventoNonRiuscito && getValidItems().length === 0 && (
+            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm text-yellow-800 font-medium">
+                    Aggiungi almeno un&apos;apparecchiatura o attività
+                  </p>
+                  <p className="text-xs text-yellow-700 mt-1">
+                    Per un intervento riuscito è necessario specificare almeno un&apos;apparecchiatura, un articolo utilizzato, delle note o altre attività svolte.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Dialog di conferma uscita */}
+      {showExitConfirmDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-yellow-600" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Attenzione: dati non salvati
+                </h3>
+              </div>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-gray-500">
+                Se torni indietro ora, tutti i dati inseriti andranno persi. 
+                Sei sicuro di voler uscire senza salvare il rapportino?
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={cancelExit}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={confirmExit}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Torna indietro comunque
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

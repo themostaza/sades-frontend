@@ -44,20 +44,8 @@ interface DialogState {
 export default function NuovoIntervento({ isOpen, onClose }: NuovoInterventoProps) {
   const auth = useAuth();
 
-  const statusOptions = [
-    { id: 'da_assegnare', label: 'Da assegnare', color: 'bg-orange-100 text-orange-800' },
-    { id: 'attesa_preventivo', label: 'Attesa preventivo', color: 'bg-yellow-100 text-yellow-800' },
-    { id: 'attesa_ricambio', label: 'Attesa ricambio', color: 'bg-blue-100 text-blue-800' },
-    { id: 'in_carico', label: 'In carico', color: 'bg-teal-100 text-teal-800' },
-    { id: 'da_confermare', label: 'Da confermare', color: 'bg-purple-100 text-purple-800' },
-    { id: 'completato', label: 'Completato', color: 'bg-green-100 text-green-800' },
-    { id: 'non_completato', label: 'Non completato', color: 'bg-gray-100 text-gray-800' },
-    { id: 'annullato', label: 'Annullato', color: 'bg-red-100 text-red-800' },
-    { id: 'fatturato', label: 'Fatturato', color: 'bg-emerald-100 text-emerald-800' },
-    { id: 'collocamento', label: 'Collocamento', color: 'bg-indigo-100 text-indigo-800' }
-  ];
-
-  const [selectedStatus, setSelectedStatus] = useState('da_assegnare');
+  // Status fisso per nuovi interventi - sempre "da_assegnare"
+  const selectedStatus = 'da_assegnare';
   
   // Stati per i campi obbligatori
   const [ragioneSociale, setRagioneSociale] = useState('');
@@ -374,7 +362,6 @@ export default function NuovoIntervento({ isOpen, onClose }: NuovoInterventoProp
 
   // Funzione per resettare il form
   const resetForm = () => {
-    setSelectedStatus('da_assegnare');
     setRagioneSociale('');
     setDestinazione('');
     setTipologiaIntervento('');
@@ -444,7 +431,7 @@ export default function NuovoIntervento({ isOpen, onClose }: NuovoInterventoProp
       </div>
       
       <div className="p-6 max-w-6xl mx-auto pb-8">
-        {/* Pulsante di conferma sopra gli status */}
+        {/* Pulsante di conferma sopra il form */}
         <div className="mb-6 flex justify-end">
           <button 
             onClick={createIntervention}
@@ -457,28 +444,6 @@ export default function NuovoIntervento({ isOpen, onClose }: NuovoInterventoProp
           >
             {isCreating ? 'Creazione in corso...' : 'Inserisci nuovo intervento'}
           </button>
-        </div>
-
-        {/* Status badges */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm font-medium text-gray-700">Status</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {statusOptions.map((status) => (
-              <button
-                key={status.id}
-                onClick={() => setSelectedStatus(status.id)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                  selectedStatus === status.id 
-                    ? status.color + ' ring-2 ring-teal-500' 
-                    : status.color + ' opacity-70 hover:opacity-100'
-                }`}
-              >
-                {status.label}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Form sections */}

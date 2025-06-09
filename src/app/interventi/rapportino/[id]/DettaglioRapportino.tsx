@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Clock, Eye, Download, CheckCircle, XCircle, AlertCircle, PenTool, RotateCcw } from 'lucide-react';
+import { Clock, Eye, Download, CheckCircle, XCircle, PenTool, RotateCcw, Trash2 } from 'lucide-react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../../../../contexts/AuthContext';
 import { InterventionReportDetail } from '../../../../types/intervention-reports';
 
 // Interfaccia per il tipo SignatureCanvas
@@ -35,6 +37,14 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
   const [signatureData, setSignatureData] = useState<string | null>(null);
   const [signatureRef, setSignatureRef] = useState<SignatureCanvasRef | null>(null);
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showResultDialog, setShowResultDialog] = useState(false);
+  const [resultDialogType, setResultDialogType] = useState<'success' | 'error'>('success');
+  const [resultDialogMessage, setResultDialogMessage] = useState('');
+  const [shouldRedirectOnClose, setShouldRedirectOnClose] = useState(false);
+  const router = useRouter();
+  const { token } = useAuth();
 
   // Helper function per formattare la data
   const formatDate = (dateString: string) => {
@@ -45,26 +55,6 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
-
-  // Helper function per il badge di stato
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      'DRAFT': { color: 'bg-gray-100 text-gray-800', icon: AlertCircle, label: 'Bozza' },
-      'PENDING': { color: 'bg-yellow-100 text-yellow-800', icon: Clock, label: 'In attesa' },
-      'APPROVED': { color: 'bg-green-100 text-green-800', icon: CheckCircle, label: 'Approvato' },
-      'REJECTED': { color: 'bg-red-100 text-red-800', icon: XCircle, label: 'Rifiutato' }
-    };
-    
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.DRAFT;
-    const Icon = config.icon;
-    
-    return (
-      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${config.color}`}>
-        <Icon size={16} />
-        {config.label}
-      </span>
-    );
   };
 
   // Helper function per formattare i servizi aggiuntivi
@@ -87,9 +77,13 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
       setSignatureData(signature);
       setShowSignatureDialog(false);
       console.log('Firma salvata:', signature);
-      alert('Firma salvata con successo!');
+      setResultDialogType('success');
+      setResultDialogMessage('Firma salvata con successo!');
+      setShowResultDialog(true);
     } else {
-      alert('Per favore, inserisci una firma prima di salvare.');
+      setResultDialogType('error');
+      setResultDialogMessage('Per favore, inserisci una firma prima di salvare.');
+      setShowResultDialog(true);
     }
   };
 
@@ -97,14 +91,72 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
     setShowSignatureDialog(true);
   };
 
+  const handleDelete = async () => {
+    try {
+      setIsDeleting(true);
+      
+      // Verifica che il token sia disponibile
+      if (!token) {
+        setResultDialogType('error');
+        setResultDialogMessage('Errore di autenticazione. Effettuare il login.');
+        setShowResultDialog(true);
+        return;
+      }
+
+      const response = await fetch(`/api/intervention-reports/${reportData.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'accept': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        setResultDialogType('success');
+        setResultDialogMessage('Rapportino eliminato con successo!');
+        setShowResultDialog(true);
+        setShouldRedirectOnClose(true);
+        console.log('✅ Eliminazione riuscita - flag redirect impostato a true');
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || 'Errore durante l\'eliminazione del rapportino.';
+        setResultDialogType('error');
+        setResultDialogMessage(errorMessage);
+        setShowResultDialog(true);
+        console.error('❌ Error deleting report:', response.status, errorData);
+      }
+    } catch (error) {
+      console.error('❌ Errore durante la richiesta di eliminazione:', error);
+      setResultDialogType('error');
+      setResultDialogMessage('Errore durante la richiesta di eliminazione.');
+      setShowResultDialog(true);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+      if (!showResultDialog) {
+        setShouldRedirectOnClose(false);
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-teal-600 text-white px-4 md:px-6 py-6">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-xl md:text-2xl font-bold">
-            Rapportino Intervento #{reportData.id}
-          </h1>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <h1 className="text-xl md:text-2xl font-bold">
+              Rapportino Intervento #{reportData.id}
+            </h1>
+            
+            {/* Badge Intervento Fallito */}
+            {reportData.is_failed && (
+              <div className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg border-2 border-red-400 shadow-lg">
+                <XCircle size={20} className="text-red-200" />
+                <span className="font-bold text-sm md:text-base">INTERVENTO FALLITO</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -144,7 +196,7 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Informazioni Generali</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div className="bg-gray-50 p-4 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="text-teal-600" size={20} />
@@ -170,13 +222,6 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
               </div>
               <div className="text-2xl font-bold text-gray-900">#{reportData.intervention_id}</div>
               <div className="text-sm text-gray-600">ID Intervento</div>
-            </div>
-            
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="font-medium text-gray-700">Stato</span>
-              </div>
-              <div className="text-sm">{getStatusBadge(reportData.status)}</div>
             </div>
           </div>
 
@@ -460,6 +505,13 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
           >
             Stampa rapportino
           </button>
+          <button
+            onClick={() => setShowDeleteDialog(true)}
+            className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+          >
+            <Trash2 size={16} />
+            Elimina rapportino
+          </button>
         </div>
       </div>
 
@@ -517,6 +569,93 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
                 >
                   <PenTool size={16} />
                   Salva Firma
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog Conferma Eliminazione */}
+      {showDeleteDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                  <Trash2 size={24} className="text-red-600" />
+                  Conferma Eliminazione
+                </h2>
+              </div>
+              
+              <p className="text-gray-600 mb-6">
+                Sei sicuro di voler eliminare definitivamente questo rapportino? 
+                <br />
+                <strong>Questa azione non può essere annullata.</strong>
+              </p>
+              
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowDeleteDialog(false)}
+                  disabled={isDeleting}
+                  className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Annulla
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="flex items-center gap-2 px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDeleting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Eliminazione...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={16} />
+                      Elimina Definitivamente
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog Risultato */}
+      {showResultDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                  {resultDialogType === 'success' ? (
+                    <CheckCircle size={24} className="text-green-600" />
+                  ) : (
+                    <XCircle size={24} className="text-red-600" />
+                  )}
+                  {resultDialogMessage}
+                </h2>
+              </div>
+              
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    console.log('🔄 Chiusura dialog risultato - shouldRedirectOnClose:', shouldRedirectOnClose);
+                    setShowResultDialog(false);
+                    if (shouldRedirectOnClose) {
+                      console.log('✅ Reindirizzamento a /interventi...');
+                      router.push('/interventi');
+                    } else {
+                      console.log('⏸️ Nessun redirect necessario');
+                    }
+                  }}
+                  className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  Chiudi
                 </button>
               </div>
             </div>

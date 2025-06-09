@@ -8,35 +8,7 @@ import DettaglioIntervento from './DettaglioIntervento';
 import CalendarioView from './CalendarioView';
 import RichiediAssenza from './RichiediAssenza';
 import { useRouter, useSearchParams } from 'next/navigation';
-
-interface AssistanceIntervention {
-  id: number;
-  date: string;
-  time_slot: string;
-  from_datetime: string;
-  to_datetime: string;
-  customer_location_id: string;
-  call_code: string;
-  company_name: string;
-  assigned_to_name: string;
-  assigned_to_surname: string | null;
-  zone_label: string;
-  status_label: string;
-  status_color: string;
-  location_address: string;
-  location_city: string;
-  type_label: string;
-}
-
-interface ApiResponse {
-  data: AssistanceIntervention[];
-  meta: {
-    total: number;
-    page: number;
-    skip: number;
-    totalPages: number;
-  };
-}
+import { AssistanceIntervention, AssistanceInterventionsApiResponse } from '../../types/assistance-interventions';
 
 // Interfaccia per compatibilità con CalendarioView
 interface InterventoCalendario {
@@ -287,7 +259,7 @@ export default function InterventiPage() {
         throw new Error('Failed to fetch interventions data');
       }
       
-      const data: ApiResponse = await response.json();
+      const data: AssistanceInterventionsApiResponse = await response.json();
       
       setInterventionsData(data.data);
       setMeta(data.meta);
@@ -317,23 +289,69 @@ export default function InterventiPage() {
     fetchZonesData();
   }, [auth.token]);
 
-  // Funzione per mappare i colori dello status
-  const getStatusColor = (statusColor: string, statusLabel: string) => {
-    // Mappatura basata sul label usando gli stessi colori di NuovoIntervento.tsx
-    switch (statusLabel.toLowerCase()) {
-      case 'da assegnare':
+  // Funzione per calcolare lo stato corretto basato sulla logica frontend
+  const calculateStatus = (intervention: AssistanceIntervention): { label: string; key: string } => {
+    // Priorità massima: se invoiced_by è valorizzato → fatturato
+    if (intervention.invoiced_by) {
+      return { label: 'Fatturato', key: 'fatturato' };
+    }
+    
+    // Priorità alta: se cancelled_by è valorizzato → annullato
+    if (intervention.cancelled_by) {
+      return { label: 'Annullato', key: 'annullato' };
+    }
+    
+    // Controllo dei campi obbligatori per l'assegnazione
+    const requiredFields = [
+      intervention.assigned_to_name,
+      intervention.date,
+      intervention.time_slot,
+      intervention.from_datetime,
+      intervention.to_datetime
+    ];
+    
+    // Se uno dei campi obbligatori non è valorizzato → da_assegnare
+    if (requiredFields.some(field => !field || field.trim() === '')) {
+      return { label: 'Da assegnare', key: 'da_assegnare' };
+    }
+    
+    // Tutti i campi obbligatori sono valorizzati → in_carico
+    let currentStatus = { label: 'In carico', key: 'in_carico' };
+    
+    // Se c'è un report_id → da_confermare
+    if (intervention.report_id !== null) {
+      currentStatus = { label: 'Da confermare', key: 'da_confermare' };
+      
+      // Se c'è anche approved_by → controllo report_is_failed
+      if (intervention.approved_by_name) {
+        if (intervention.report_is_failed === true) {
+          currentStatus = { label: 'Non completato', key: 'non_completato' };
+        } else if (intervention.report_is_failed === false || intervention.report_is_failed === null) {
+          currentStatus = { label: 'Completato', key: 'completato' };
+        }
+      }
+    }
+    
+    return currentStatus;
+  };
+
+  // Funzione per mappare i colori dello status basato sul status calcolato
+  const getStatusColor = (statusKey: string) => {
+    // Mappatura basata sulla chiave del status calcolato
+    switch (statusKey) {
+      case 'da_assegnare':
         return 'bg-orange-100 text-orange-800';
-      case 'attesa preventivo':
+      case 'attesa_preventivo':
         return 'bg-yellow-100 text-yellow-800';
-      case 'attesa ricambio':
+      case 'attesa_ricambio':
         return 'bg-blue-100 text-blue-800';
-      case 'in carico':
+      case 'in_carico':
         return 'bg-teal-100 text-teal-800';
-      case 'da confermare':
+      case 'da_confermare':
         return 'bg-purple-100 text-purple-800';
       case 'completato':
         return 'bg-green-100 text-green-800';
-      case 'non completato':
+      case 'non_completato':
         return 'bg-gray-100 text-gray-800';
       case 'annullato':
         return 'bg-red-100 text-red-800';
@@ -699,12 +717,9 @@ export default function InterventiPage() {
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       <span
-                        className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(
-                          intervention.status_color,
-                          intervention.status_label
-                        )}`}
+                        className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(calculateStatus(intervention).key)}`}
                       >
-                        {intervention.status_label}
+                        {calculateStatus(intervention).label}
                       </span>
                     </td>
                   </tr>
