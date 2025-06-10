@@ -1021,6 +1021,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         call_code: codiceChiamata,
         internal_notes: noteInterne,
         status_id: newStatusId, // Questo è il cambio importante
+        approved_by: userInfo?.id || '', // Aggiunto campo approved_by con ID utente corrente
         equipments: selectedEquipments.map(eq => eq.id),
         articles: selectedArticles.map(art => ({
           article_id: art.article.id,
@@ -1103,6 +1104,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         call_code: codiceChiamata,
         internal_notes: noteInterne,
         status_id: 9, // Status "fatturato" ha ID 9
+        invoiced_by: userInfo?.id || '', // Aggiunto campo invoiced_by con ID utente corrente
         equipments: selectedEquipments.map(eq => eq.id),
         articles: selectedArticles.map(art => ({
           article_id: art.article.id,

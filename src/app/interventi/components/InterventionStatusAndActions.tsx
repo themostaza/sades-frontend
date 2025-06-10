@@ -127,8 +127,8 @@ export default function InterventionStatusAndActions({
 
   return (
     <div className="space-y-6">
-      {/* Report Actions - Solo per status "in_carico", "da_confermare", "completato" o "fatturato" */}
-      {!userLoading && userInfo && (selectedStatus === 'in_carico' || selectedStatus === 'da_confermare' || selectedStatus === 'completato' || selectedStatus === 'fatturato') && (
+      {/* Report Actions - Solo per status "in_carico", "da_confermare", "completato", "non_completato" o "fatturato" */}
+      {!userLoading && userInfo && (selectedStatus === 'in_carico' || selectedStatus === 'da_confermare' || selectedStatus === 'completato' || selectedStatus === 'non_completato' || selectedStatus === 'fatturato') && (
         <div className="flex justify-center">
           {selectedStatus === 'fatturato' ? (
             // Pulsante per status "fatturato" - solo visualizza rapporto a full width
@@ -156,8 +156,8 @@ export default function InterventionStatusAndActions({
                 </>
               )}
             </button>
-          ) : selectedStatus === 'completato' ? (
-            // Pulsanti per status "completato"
+          ) : (selectedStatus === 'completato' || selectedStatus === 'non_completato') ? (
+            // Pulsanti per status "completato" e "non_completato"
             <div className="flex gap-4 w-full">
               <button
                 onClick={onViewReport}
