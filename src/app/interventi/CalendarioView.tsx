@@ -99,14 +99,96 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
 
   const auth = useAuth();
 
+  // Genera solo i giorni lavorativi della settimana corrente (Lunedì-Venerdì)
+  const getWeekDays = (date: Date) => {
+    const week = [];
+    const startOfWeek = new Date(date);
+    const day = startOfWeek.getDay();
+    const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // Lunedì come primo giorno
+    startOfWeek.setDate(diff);
+
+    // Solo 5 giorni lavorativi (Lunedì-Venerdì)
+    for (let i = 0; i < 5; i++) {
+      const day = new Date(startOfWeek);
+      day.setDate(startOfWeek.getDate() + i);
+      week.push(day);
+    }
+    return week;
+  };
+
+  // Funzione helper per parsare la stringa di assegnazione
+  const parseAssignmentString = (assignment: string) => {
+    // Format: "15/01/2024 - Mattina (8:00 - 13:00)" o "15/01/2024 dalle 10:00 alle 15:00"
+    console.log('🔍 Parsing assignment:', assignment);
+    
+    // Estrai la data
+    const dateMatch = assignment.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if (!dateMatch) {
+      throw new Error('Formato data non valido');
+    }
+    
+    const [, day, month, year] = dateMatch;
+    const date = `${year}-${month}-${day}`;
+    
+    let time_slot = '';
+    let from_datetime = '';
+    let to_datetime = '';
+    
+    // Determina il tipo di orario e i datetime
+    if (assignment.includes('Mattina')) {
+      time_slot = 'mattina';
+      from_datetime = `${date}T08:00:00.000Z`;
+      to_datetime = `${date}T13:00:00.000Z`;
+    } else if (assignment.includes('Pomeriggio')) {
+      time_slot = 'pomeriggio';
+      from_datetime = `${date}T14:00:00.000Z`;
+      to_datetime = `${date}T18:00:00.000Z`;
+    } else if (assignment.includes('Tutto il giorno')) {
+      time_slot = 'tutto_il_giorno';
+      from_datetime = `${date}T08:00:00.000Z`;
+      to_datetime = `${date}T18:00:00.000Z`;
+    } else {
+      // Fascia oraria personalizzata: "dalle 10:00 alle 15:00"
+      const timeMatch = assignment.match(/dalle (\d{2}:\d{2}) alle (\d{2}:\d{2})/);
+      if (timeMatch) {
+        time_slot = 'fascia_oraria';
+        const [, startTime, endTime] = timeMatch;
+        from_datetime = `${date}T${startTime}:00.000Z`;
+        to_datetime = `${date}T${endTime}:00.000Z`;
+      }
+    }
+    
+    console.log('📋 Parsed data:', { date, time_slot, from_datetime, to_datetime });
+    
+    return {
+      date,
+      time_slot,
+      from_datetime,
+      to_datetime
+    };
+  };
+
   // Funzione per fetchare gli interventi del calendario
   const fetchInterventiCalendario = useCallback(async () => {
     try {
       
+      // Calcola le date di inizio e fine della settimana corrente
+      const weekDays = getWeekDays(currentWeek);
+      const startDate = weekDays[0]; // Lunedì
+      const endDate = weekDays[4]; // Venerdì
+      
+      // Formatta le date in YYYY-MM-DD per l'API
+      const fromDate = startDate.toISOString().split('T')[0];
+      const toDate = endDate.toISOString().split('T')[0];
+      
       const params = new URLSearchParams({
-        skip: '500', // Numero elevato per evitare paginazione
+        skip: '100', // Numero più ragionevole dato che filtriamo per data
         page: '1',
+        from_date: fromDate,
+        to_date: toDate
       });
+
+      console.log(`📅 Fetching interventi per settimana: ${fromDate} -> ${toDate}`);
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -131,7 +213,7 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
       
       const data: ApiResponse<InterventionFromApi> = await response.json();
       
-      // Converte nel formato atteso dal calendario (tutti gli interventi)
+      // Converte nel formato atteso dal calendario (tutti gli interventi della settimana)
       const convertedInterventi: Intervento[] = data.data.map((intervention: InterventionFromApi) => ({
         id: intervention.id.toString(),
         ragioneSociale: intervention.company_name,
@@ -154,13 +236,13 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
       }));
       
       setInterventiCalendario(convertedInterventi);
-      console.log('✅ Interventi calendario refreshati:', convertedInterventi.length);
+      console.log(`✅ Interventi calendario refreshati per settimana ${fromDate}-${toDate}:`, convertedInterventi.length);
       
     } catch (err) {
       console.error('Error fetching calendar interventions:', err);
     } finally {
     }
-  }, [auth.token, auth.logout]);
+  }, [auth.token, auth.logout, currentWeek]);
 
   // Funzione per cercare i tecnici nel dialog
   const searchTechnicians = useCallback(async (query: string) => {
@@ -317,6 +399,11 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
   useEffect(() => {
     fetchInterventiDaAssegnare();
   }, [fetchInterventiDaAssegnare]);
+
+  // Hook per ricaricare gli interventi del calendario quando cambia la settimana
+  useEffect(() => {
+    fetchInterventiCalendario();
+  }, [fetchInterventiCalendario]);
 
   // Sincronizza interventiCalendario con la prop interventi
   useEffect(() => {
@@ -645,20 +732,59 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
   const getInterventiForTimeSlot = (day: Date, timeSlot: string): Intervento[] => {
     const dayString = day.getDate().toString();
     
-    // DEBUG: Versione più permissiva - mostra tutti gli interventi del giorno nel primo slot
-    if (timeSlot === '08:00') {
-      const allDayInterventions = interventiCalendario.filter(intervento => {
-        const matchesDay = intervento.data.includes(dayString);
-        if (matchesDay) {
-          console.log(`🔍 DEBUG: Intervento ${intervento.id} trovato per giorno ${dayString}:`, intervento);
+    return interventiCalendario.filter(intervento => {
+      // Prima verifica se l'intervento è nel giorno corretto
+      const matchesDay = intervento.data.includes(dayString);
+      if (!matchesDay) return false;
+      
+      // Calcola l'ora di inizio dell'intervento
+      let interventoStartTime = '';
+      
+      if (intervento.from_datetime) {
+        // Usa from_datetime se disponibile
+        try {
+          const startDate = new Date(intervento.from_datetime);
+          interventoStartTime = startDate.toTimeString().substring(0, 5); // Format: "HH:MM"
+        } catch {
+          interventoStartTime = '';
         }
-        return matchesDay;
-      });
-      console.log(`📊 DEBUG: Totale interventi per giorno ${dayString}:`, allDayInterventions.length);
-      return allDayInterventions;
-    }
-    
-    return []; // Per ora mostra solo nel primo slot per debug
+      } else {
+        // Fallback basato sul time_slot
+        switch (intervento.orario) {
+          case 'mattina':
+            interventoStartTime = '08:00';
+            break;
+          case 'pomeriggio':
+            interventoStartTime = '14:00';
+            break;
+          case 'tutto_il_giorno':
+            interventoStartTime = '08:00';
+            break;
+          default:
+            // Prova a estrarre l'ora dall'orario se è in formato "HH:MM - HH:MM"
+            const timeMatch = intervento.orario.match(/(\d{2}:\d{2})/);
+            if (timeMatch) {
+              interventoStartTime = timeMatch[1];
+            } else {
+              interventoStartTime = '08:00'; // Fallback
+            }
+        }
+      }
+      
+      // Verifica se l'intervento inizia in questo slot orario
+      const slotMatches = interventoStartTime === timeSlot;
+      
+      if (slotMatches) {
+        console.log(`🎯 Intervento ${intervento.id} posizionato nel slot ${timeSlot}:`, {
+          ragioneSociale: intervento.ragioneSociale,
+          orarioInizio: interventoStartTime,
+          from_datetime: intervento.from_datetime,
+          orario: intervento.orario
+        });
+      }
+      
+      return slotMatches;
+    });
   };
 
   // Funzione per calcolare la durata in ore di un intervento
@@ -686,23 +812,6 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
   const getBlockHeight = (intervento: Intervento): number => {
     const hours = getInterventoDurationInHours(intervento);
     return hours * 80; // 80px per ogni slot orario
-  };
-
-  // Genera solo i giorni lavorativi della settimana corrente (Lunedì-Venerdì)
-  const getWeekDays = (date: Date) => {
-    const week = [];
-    const startOfWeek = new Date(date);
-    const day = startOfWeek.getDay();
-    const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // Lunedì come primo giorno
-    startOfWeek.setDate(diff);
-
-    // Solo 5 giorni lavorativi (Lunedì-Venerdì)
-    for (let i = 0; i < 5; i++) {
-      const day = new Date(startOfWeek);
-      day.setDate(startOfWeek.getDate() + i);
-      week.push(day);
-    }
-    return week;
   };
 
   const weekDays = getWeekDays(currentWeek);
@@ -751,58 +860,6 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
       'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
     ];
     return `${months[currentWeek.getMonth()]} ${currentWeek.getFullYear()}`;
-  };
-
-  // Funzione helper per parsare la stringa di assegnazione
-  const parseAssignmentString = (assignment: string) => {
-    // Format: "15/01/2024 - Mattina (8:00 - 13:00)" o "15/01/2024 dalle 10:00 alle 15:00"
-    console.log('🔍 Parsing assignment:', assignment);
-    
-    // Estrai la data
-    const dateMatch = assignment.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-    if (!dateMatch) {
-      throw new Error('Formato data non valido');
-    }
-    
-    const [, day, month, year] = dateMatch;
-    const date = `${year}-${month}-${day}`;
-    
-    let time_slot = '';
-    let from_datetime = '';
-    let to_datetime = '';
-    
-    // Determina il tipo di orario e i datetime
-    if (assignment.includes('Mattina')) {
-      time_slot = 'mattina';
-      from_datetime = `${date}T08:00:00.000Z`;
-      to_datetime = `${date}T13:00:00.000Z`;
-    } else if (assignment.includes('Pomeriggio')) {
-      time_slot = 'pomeriggio';
-      from_datetime = `${date}T14:00:00.000Z`;
-      to_datetime = `${date}T18:00:00.000Z`;
-    } else if (assignment.includes('Tutto il giorno')) {
-      time_slot = 'tutto_il_giorno';
-      from_datetime = `${date}T08:00:00.000Z`;
-      to_datetime = `${date}T18:00:00.000Z`;
-    } else {
-      // Fascia oraria personalizzata: "dalle 10:00 alle 15:00"
-      const timeMatch = assignment.match(/dalle (\d{2}:\d{2}) alle (\d{2}:\d{2})/);
-      if (timeMatch) {
-        time_slot = 'fascia_oraria';
-        const [, startTime, endTime] = timeMatch;
-        from_datetime = `${date}T${startTime}:00.000Z`;
-        to_datetime = `${date}T${endTime}:00.000Z`;
-      }
-    }
-    
-    console.log('📋 Parsed data:', { date, time_slot, from_datetime, to_datetime });
-    
-    return {
-      date,
-      time_slot,
-      from_datetime,
-      to_datetime
-    };
   };
 
   return (
