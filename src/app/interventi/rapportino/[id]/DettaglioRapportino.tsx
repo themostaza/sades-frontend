@@ -29,12 +29,52 @@ const SignatureCanvas = dynamic(() => import('react-signature-canvas'), {
   };
 }>;
 
+// Interface per la PUT request - compatibile con i tipi esistenti
+interface UpdateInterventionReportRequest {
+  work_hours: number;
+  travel_hours: number;
+  customer_notes: string;
+  is_failed: boolean;
+  failure_reason: string;
+  status: string;
+  signature_url: string;
+  items: Array<{
+    id: number;
+    intervention_equipment_id: number;
+    note: string;
+    fl_gas: boolean;
+    gas_compressor_types_id: number;
+    is_new_installation: boolean;
+    rechargeable_gas_types_id: number;
+    qty_gas_recharged: number;
+    max_charge: number;
+    compressor_model: string;
+    compressor_model_img_url: string;
+    compressor_serial_num: string;
+    compressor_serial_num_img_url: string;
+    compressor_unique_num: string;
+    compressor_unique_num_img_url: string;
+    additional_services: string;
+    recovered_rech_gas_types_id: number;
+    qty_gas_recovered: number;
+    images: Array<{
+      id: number;
+      file_name: string;
+      file_url: string;
+    }>;
+    articles: Array<{
+      id: number;
+      article_id: string;
+      quantity: number;
+    }>;
+  }>;
+}
+
 interface DettaglioRapportinoProps {
   reportData: InterventionReportDetail;
 }
 
 export default function DettaglioRapportino({ reportData }: DettaglioRapportinoProps) {
-  const [signatureData, setSignatureData] = useState<string | null>(null);
   const [signatureRef, setSignatureRef] = useState<SignatureCanvasRef | null>(null);
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -43,6 +83,8 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
   const [resultDialogType, setResultDialogType] = useState<'success' | 'error'>('success');
   const [resultDialogMessage, setResultDialogMessage] = useState('');
   const [shouldRedirectOnClose, setShouldRedirectOnClose] = useState(false);
+  const [isSavingSignature, setIsSavingSignature] = useState(false);
+  const [updatedReportData, setUpdatedReportData] = useState<InterventionReportDetail>(reportData);
   const router = useRouter();
   const { token } = useAuth();
 
@@ -63,27 +105,196 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
     return services.split(',').map(s => s.trim()).filter(s => s).join(', ');
   };
 
+  // Funzione per convertire canvas in blob
+  const canvasToBlob = (canvas: HTMLCanvasElement): Promise<Blob> => {
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        resolve(blob!);
+      }, 'image/png');
+    });
+  };
+
+  // Funzione per upload automatico tramite Uploadcare
+  const uploadSignatureToUploadcare = async (signatureBlob: Blob): Promise<string> => {
+    const formData = new FormData();
+    formData.append('UPLOADCARE_PUB_KEY', process.env.NEXT_PUBLIC_UPLOADER_PUBLIC_KEY || '');
+    formData.append('file', signatureBlob, 'signature.png');
+
+    const response = await fetch('https://upload.uploadcare.com/base/', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error('Upload failed');
+    }
+
+    const result = await response.json();
+    return `https://ucarecdn.com/${result.file}/`;
+  };
+
+  // Funzione per costruire il payload completo della PUT
+  const buildCompletePayload = (signatureUrl: string): UpdateInterventionReportRequest => {
+    return {
+      work_hours: updatedReportData.work_hours,
+      travel_hours: updatedReportData.travel_hours,
+      customer_notes: updatedReportData.customer_notes || '',
+      is_failed: updatedReportData.is_failed,
+      failure_reason: updatedReportData.failure_reason || '',
+      status: updatedReportData.status,
+      signature_url: signatureUrl,
+      items: updatedReportData.items?.map(item => ({
+        id: item.id,
+        intervention_equipment_id: item.intervention_equipment_id,
+        note: item.note || '',
+        fl_gas: item.fl_gas,
+        gas_compressor_types_id: item.gas_compressor_types_id || 0,
+        is_new_installation: item.is_new_installation,
+        rechargeable_gas_types_id: item.rechargeable_gas_types_id || 0,
+        qty_gas_recharged: item.qty_gas_recharged || 0,
+        max_charge: item.max_charge || 0,
+        compressor_model: item.compressor_model || '',
+        compressor_model_img_url: item.compressor_model_img_url || '',
+        compressor_serial_num: item.compressor_serial_num || '',
+        compressor_serial_num_img_url: item.compressor_serial_num_img_url || '',
+        compressor_unique_num: item.compressor_unique_num || '',
+        compressor_unique_num_img_url: item.compressor_unique_num_img_url || '',
+        additional_services: item.additional_services || '',
+        recovered_rech_gas_types_id: item.recovered_rech_gas_types_id || 0,
+        qty_gas_recovered: item.qty_gas_recovered || 0,
+        images: item.images?.map(img => ({
+          id: img.id || 0,
+          file_name: img.file_name,
+          file_url: img.file_url
+        })) || [],
+        articles: item.articles?.map(art => ({
+          id: parseInt(art.id) || 0,
+          article_id: art.article_id,
+          quantity: art.quantity
+        })) || []
+      })) || []
+    };
+  };
+
+  // Funzione per aggiornare il rapportino tramite PUT
+  const updateInterventionReport = async (payload: UpdateInterventionReportRequest) => {
+    if (!token) {
+      throw new Error('Token di autenticazione non disponibile');
+    }
+
+    const response = await fetch(`/api/intervention-reports/${updatedReportData.id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Errore durante l\'aggiornamento del rapportino');
+    }
+
+    return await response.json();
+  };
+
+  // Funzione per ricaricare i dati del rapportino dal server
+  const reloadReportData = async () => {
+    if (!token) {
+      throw new Error('Token di autenticazione non disponibile');
+    }
+
+    const response = await fetch(`/api/intervention-reports/${updatedReportData.id}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Errore durante il ricaricamento dei dati');
+    }
+
+    return await response.json();
+  };
+
   // Funzioni per gestire la firma
   const clearSignature = () => {
     if (signatureRef && signatureRef.clear) {
       signatureRef.clear();
-      setSignatureData(null);
     }
   };
 
-  const saveSignature = () => {
-    if (signatureRef && signatureRef.toDataURL && !signatureRef.isEmpty()) {
-      const signature = signatureRef.toDataURL();
-      setSignatureData(signature);
-      setShowSignatureDialog(false);
-      console.log('Firma salvata:', signature);
-      setResultDialogType('success');
-      setResultDialogMessage('Firma salvata con successo!');
-      setShowResultDialog(true);
-    } else {
+  const saveSignature = async () => {
+    if (!signatureRef || signatureRef.isEmpty()) {
       setResultDialogType('error');
       setResultDialogMessage('Per favore, inserisci una firma prima di salvare.');
       setShowResultDialog(true);
+      return;
+    }
+
+    try {
+      setIsSavingSignature(true);
+
+      // 1. Converti canvas in blob
+      const signatureDataURL = signatureRef.toDataURL();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      if (!ctx) {
+        throw new Error('Impossibile ottenere il context del canvas');
+      }
+      
+      const img = document.createElement('img');
+      
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Errore caricamento immagine'));
+        img.src = signatureDataURL;
+      });
+
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+      
+      const signatureBlob = await canvasToBlob(canvas);
+
+      // 2. Upload automatico tramite Uploadcare
+      console.log('🔄 Uploading signature to Uploadcare...');
+      const uploadedSignatureUrl = await uploadSignatureToUploadcare(signatureBlob);
+      console.log('✅ Signature uploaded:', uploadedSignatureUrl);
+
+      // 3. Costruisci payload completo
+      const payload = buildCompletePayload(uploadedSignatureUrl);
+      console.log('📤 Updating intervention report with signature...');
+
+      // 4. Chiama PUT per aggiornare il rapportino
+      await updateInterventionReport(payload);
+      console.log('✅ Report updated successfully');
+
+      // 5. Ricarica i dati freschi dal server per aggiornare il componente
+      console.log('🔄 Reloading fresh data from server...');
+      const freshReportData = await reloadReportData();
+      console.log('✅ Fresh data loaded:', freshReportData);
+      
+      // 6. Aggiorna lo stato locale con i dati freschi
+      setUpdatedReportData(freshReportData);
+      setShowSignatureDialog(false);
+
+      setResultDialogType('success');
+      setResultDialogMessage('Firma salvata con successo!');
+      setShowResultDialog(true);
+
+    } catch (error) {
+      console.error('❌ Error saving signature:', error);
+      setResultDialogType('error');
+      setResultDialogMessage(error instanceof Error ? error.message : 'Errore durante il salvataggio della firma.');
+      setShowResultDialog(true);
+    } finally {
+      setIsSavingSignature(false);
     }
   };
 
@@ -103,7 +314,7 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
         return;
       }
 
-      const response = await fetch(`/api/intervention-reports/${reportData.id}`, {
+      const response = await fetch(`/api/intervention-reports/${updatedReportData.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -146,11 +357,11 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
         <div className="max-w-4xl mx-auto">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <h1 className="text-xl md:text-2xl font-bold">
-              Rapportino Intervento #{reportData.id}
+              Rapportino Intervento #{updatedReportData.id}
             </h1>
             
             {/* Badge Intervento Fallito */}
-            {reportData.is_failed && (
+            {updatedReportData.is_failed && (
               <div className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg border-2 border-red-400 shadow-lg">
                 <XCircle size={20} className="text-red-200" />
                 <span className="font-bold text-sm md:text-base">INTERVENTO FALLITO</span>
@@ -164,33 +375,68 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
         {/* Data di creazione sotto al titolo */}
         <div className="mb-6">
           <p className="text-gray-600 text-sm">
-            Creato il {formatDate(reportData.created_at)}
+            Creato il {formatDate(updatedReportData.created_at)}
           </p>
         </div>
 
-        {/* Pulsante Firma - Solo per rapportini in DRAFT */}
-        {reportData.status === 'DRAFT' && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
-                  <PenTool size={20} className="text-teal-600" />
-                  Firma Cliente
-                </h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  {signatureData ? 'Firma acquisita ✓' : 'Clicca per raccogliere la firma del cliente'}
-                </p>
-              </div>
+        {/* Sezione Firma Cliente */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                <PenTool size={20} className="text-teal-600" />
+                Firma Cliente
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                {updatedReportData.signature_url 
+                  ? 'Firma acquisita ✓' 
+                  : updatedReportData.status === 'DRAFT' 
+                    ? 'Clicca per raccogliere la firma del cliente'
+                    : 'Nessuna firma disponibile'
+                }
+              </p>
+            </div>
+            {updatedReportData.status === 'DRAFT' && (
               <button
                 onClick={openSignatureDialog}
-                className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+                disabled={isSavingSignature}
+                className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                <PenTool size={16} />
-                {signatureData ? 'Modifica Firma' : 'Firma'}
+                {isSavingSignature ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <PenTool size={16} />
+                    {updatedReportData.signature_url ? 'Modifica Firma' : 'Firma'}
+                  </>
+                )}
               </button>
-            </div>
+            )}
           </div>
-        )}
+          
+          {/* Mostra la firma esistente se presente */}
+          {updatedReportData.signature_url && (
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <div className="text-sm font-medium text-gray-600 mb-2">Firma del cliente:</div>
+              <div className="bg-white rounded border p-4">
+                <Image
+                  src={updatedReportData.signature_url}
+                  alt="Firma del cliente"
+                  width={400}
+                  height={200}
+                  className="max-w-full h-auto"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Informazioni principali */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -202,7 +448,7 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
                 <Clock className="text-teal-600" size={20} />
                 <span className="font-medium text-gray-700">Ore Lavoro</span>
               </div>
-              <div className="text-2xl font-bold text-gray-900">{reportData.work_hours}h</div>
+              <div className="text-2xl font-bold text-gray-900">{updatedReportData.work_hours}h</div>
               <div className="text-sm text-gray-600">Ore effettive</div>
             </div>
             
@@ -211,7 +457,7 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
                 <Clock className="text-orange-600" size={20} />
                 <span className="font-medium text-gray-700">Ore Viaggio</span>
               </div>
-              <div className="text-2xl font-bold text-gray-900">{reportData.travel_hours}h</div>
+              <div className="text-2xl font-bold text-gray-900">{updatedReportData.travel_hours}h</div>
               <div className="text-sm text-gray-600">Ore trasferimento</div>
             </div>
             
@@ -220,27 +466,27 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
                 <Clock className="text-blue-600" size={20} />
                 <span className="font-medium text-gray-700">Intervento</span>
               </div>
-              <div className="text-2xl font-bold text-gray-900">#{reportData.intervention_id}</div>
+              <div className="text-2xl font-bold text-gray-900">#{updatedReportData.intervention_id}</div>
               <div className="text-sm text-gray-600">ID Intervento</div>
             </div>
           </div>
 
           {/* Note per il cliente */}
-          {reportData.customer_notes && (
+          {updatedReportData.customer_notes && (
             <div>
               <h3 className="font-medium text-gray-700 mb-2">Note per il cliente</h3>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-gray-800">{reportData.customer_notes}</p>
+                <p className="text-gray-800">{updatedReportData.customer_notes}</p>
               </div>
             </div>
           )}
 
           {/* Intervento fallito */}
-          {reportData.is_failed && reportData.failure_reason && (
+          {updatedReportData.is_failed && updatedReportData.failure_reason && (
             <div className="mt-6">
               <h3 className="font-medium text-gray-700 mb-2">Motivo del fallimento</h3>
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-800">{reportData.failure_reason}</p>
+                <p className="text-red-800">{updatedReportData.failure_reason}</p>
               </div>
             </div>
           )}
@@ -250,9 +496,9 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-6">Apparecchiature e Interventi</h2>
           
-          {reportData.items && reportData.items.length > 0 ? (
+          {updatedReportData.items && updatedReportData.items.length > 0 ? (
             <div className="space-y-6">
-              {reportData.items.map((item) => (
+              {updatedReportData.items.map((item) => (
                 <div key={item.id} className="border border-gray-200 rounded-lg p-6 bg-gray-50">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-medium text-gray-900">
@@ -490,13 +736,23 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
 
         {/* Pulsanti azione */}
         <div className="mt-6 flex justify-end gap-3">
-          {reportData.status === 'DRAFT' && (
+          {updatedReportData.status === 'DRAFT' && (
             <button
               onClick={openSignatureDialog}
-              className="flex items-center gap-2 px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+              disabled={isSavingSignature}
+              className="flex items-center gap-2 px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              <PenTool size={16} />
-              {signatureData ? 'Modifica Firma' : 'Firma'}
+              {isSavingSignature ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <PenTool size={16} />
+                  {updatedReportData.signature_url ? 'Modifica Firma' : 'Firma'}
+                </>
+              )}
             </button>
           )}
           <button
@@ -527,7 +783,8 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
                 </h2>
                 <button
                   onClick={() => setShowSignatureDialog(false)}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  disabled={isSavingSignature}
+                  className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
                 >
                   <XCircle size={24} />
                 </button>
@@ -552,23 +809,35 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={clearSignature}
-                  className="flex items-center gap-2 px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  disabled={isSavingSignature}
+                  className="flex items-center gap-2 px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
                 >
                   <RotateCcw size={16} />
                   Cancella
                 </button>
                 <button
                   onClick={() => setShowSignatureDialog(false)}
-                  className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  disabled={isSavingSignature}
+                  className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
                 >
                   Annulla
                 </button>
                 <button
                   onClick={saveSignature}
-                  className="flex items-center gap-2 px-4 py-2 text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors"
+                  disabled={isSavingSignature}
+                  className="flex items-center gap-2 px-4 py-2 text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
-                  <PenTool size={16} />
-                  Salva Firma
+                  {isSavingSignature ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <PenTool size={16} />
+                      Salva Firma
+                    </>
+                  )}
                 </button>
               </div>
             </div>

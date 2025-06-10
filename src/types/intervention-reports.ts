@@ -33,6 +33,7 @@ export interface CreateInterventionReportItem {
 }
 
 export interface InterventionReportImage {
+  id?: number;
   file_name: string;
   file_url: string;
 }
@@ -51,14 +52,15 @@ export interface InterventionReportSummary {
   is_failed: boolean;
   failure_reason?: string;
   status: string;
+  signature_url?: string;
   created_at: string;
   created_by: string;
   updated_by: string;
 }
 
 export interface InterventionReportDetail extends InterventionReportSummary {
-  work_hours: string;
-  travel_hours: string;
+  work_hours: number;
+  travel_hours: number;
   items: InterventionReportItemDetail[];
 }
 
