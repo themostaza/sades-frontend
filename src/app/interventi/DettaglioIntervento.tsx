@@ -438,7 +438,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
             warehouse_description: null,
             suppliers: null
           },
-          quantity: 1 // La quantità non viene fornita dall'API detail, impostiamo 1 come default
+          quantity: art.quantity || 1 // Usa la quantità dall'API, fallback a 1 se non presente
         }));
         setSelectedArticles(articles);
       }

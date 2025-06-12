@@ -40,6 +40,7 @@ export default function InterventiPage() {
   const [interventionsData, setInterventionsData] = useState<AssistanceIntervention[]>([]);
   const [zonesData, setZonesData] = useState<{id: number, label: string}[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [meta, setMeta] = useState({
     total: 0,
@@ -269,6 +270,7 @@ export default function InterventiPage() {
       console.error('Error fetching interventions data:', err);
     } finally {
       setLoading(false);
+      setInitialLoading(false); // Imposta il caricamento iniziale come completato
     }
   };
 
@@ -437,7 +439,7 @@ export default function InterventiPage() {
     return userInfo?.role === 'amministrazione';
   };
 
-  if (loading && interventionsData.length === 0) {
+  if (initialLoading && interventionsData.length === 0) {
     return (
       <div className="p-4 sm:p-6 bg-white min-h-screen">
         <div className="flex items-center justify-center h-64">
@@ -642,6 +644,11 @@ export default function InterventiPage() {
           <div className="hidden sm:flex px-3 sm:px-6 py-3 bg-gray-50 border-b border-gray-200 flex-col sm:flex-row items-center justify-between gap-3">
             <div className="text-sm text-gray-700 text-center sm:text-left">
               Pagina {meta.page} di {meta.totalPages} - Totale: {meta.total} interventi
+              {loading && !initialLoading && (
+                <span className="ml-2 text-teal-600">
+                  <div className="inline-block w-3 h-3 border border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <button 
@@ -652,7 +659,7 @@ export default function InterventiPage() {
                 Indietro
               </button>
               <span className="px-3 py-1 text-sm text-gray-600 bg-white rounded border">
-                {currentPage}
+                {loading ? '...' : currentPage}
               </span>
               <button 
                 onClick={() => handlePageChange(currentPage + 1)}
@@ -692,38 +699,55 @@ export default function InterventiPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {interventionsData.map((intervention) => (
-                  <tr key={intervention.id} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => handleRowClick(intervention.id)}>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-900">
-                      <div>
-                        <div className="font-medium break-words">{intervention.company_name}</div>
-                        <div className="text-xs text-gray-500">#{intervention.call_code} ({intervention.id})</div>
+                {loading && !initialLoading ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-8 text-center">
+                      <div className="flex flex-col items-center">
+                        <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+                        <p className="text-sm text-gray-600">Aggiornamento in corso...</p>
                       </div>
                     </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {formatDate(intervention.date)}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {intervention.time_slot}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-600">
-                      <div className="break-words">{intervention.zone_label}</div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-600">
-                      <div className="break-words">{formatTechnician(intervention.assigned_to_name, intervention.assigned_to_surname)}</div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-600">
-                      <div className="break-words">{intervention.type_label}</div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(calculateStatus(intervention).key)}`}
-                      >
-                        {calculateStatus(intervention).label}
-                      </span>
+                  </tr>
+                ) : interventionsData.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                      Nessun intervento trovato
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  interventionsData.map((intervention) => (
+                    <tr key={intervention.id} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => handleRowClick(intervention.id)}>
+                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-900">
+                        <div>
+                          <div className="font-medium break-words">{intervention.company_name}</div>
+                          <div className="text-xs text-gray-500">#{intervention.call_code} ({intervention.id})</div>
+                        </div>
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {formatDate(intervention.date)}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {intervention.time_slot}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-600">
+                        <div className="break-words">{intervention.zone_label}</div>
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-600">
+                        <div className="break-words">{formatTechnician(intervention.assigned_to_name, intervention.assigned_to_surname)}</div>
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-600">
+                        <div className="break-words">{intervention.type_label}</div>
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(calculateStatus(intervention).key)}`}
+                        >
+                          {calculateStatus(intervention).label}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
