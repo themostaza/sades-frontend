@@ -93,8 +93,9 @@ export default function InterventionDetailsSectionDetail({
     // Deve esserci un cliente selezionato
     if (!selectedCustomerId) return false;
     
-    // Per ora assumiamo che se c'è una destinazione specificata, deve essere usata nel filtro
-    // Se non c'è destinazione, possiamo comunque cercare (cliente senza location specifiche)
+    // OBBLIGATORIO: deve esserci una destinazione per poter cercare equipaggiamenti
+    if (!destinazione) return false;
+    
     return true;
   };
 
@@ -119,11 +120,8 @@ export default function InterventionDetailsSectionDetail({
           headers['Authorization'] = `Bearer ${auth.token}`;
         }
 
-        // Costruisci l'URL con i parametri appropriati
-        let apiUrl = `/api/equipments?customer_id=${selectedCustomerId}`;
-        if (destinazione) {
-          apiUrl += `&customer_location_id=${encodeURIComponent(destinazione)}`;
-        }
+        // Costruisci l'URL con i parametri obbligatori
+        const apiUrl = `/api/equipments?customer_id=${selectedCustomerId}&customer_location_id=${encodeURIComponent(destinazione)}`;
 
         const response = await fetch(apiUrl, { headers });
 
@@ -169,11 +167,8 @@ export default function InterventionDetailsSectionDetail({
         headers['Authorization'] = `Bearer ${auth.token}`;
       }
 
-      // Costruisci l'URL con i parametri appropriati
-      let apiUrl = `/api/equipments?customer_id=${selectedCustomerId}&query=${encodeURIComponent(query)}`;
-      if (destinazione) {
-        apiUrl += `&customer_location_id=${encodeURIComponent(destinazione)}`;
-      }
+      // Costruisci l'URL con i parametri obbligatori
+      const apiUrl = `/api/equipments?customer_id=${selectedCustomerId}&customer_location_id=${encodeURIComponent(destinazione)}&query=${encodeURIComponent(query)}`;
 
       const response = await fetch(apiUrl, { headers });
 
@@ -580,6 +575,8 @@ export default function InterventionDetailsSectionDetail({
                   ? "Campo non modificabile per questo status"
                   : !selectedCustomerId 
                   ? "Prima seleziona una ragione sociale..." 
+                  : !destinazione
+                  ? "Prima seleziona una destinazione..."
                   : "Cerca apparecchiatura..."
               }
               disabled={!isEquipmentSearchEnabled()}
@@ -619,6 +616,11 @@ export default function InterventionDetailsSectionDetail({
         {!selectedCustomerId && !isFieldsDisabled && (
           <p className="mt-1 text-xs text-gray-500">
             💡 Seleziona prima una ragione sociale per cercare le apparecchiature
+          </p>
+        )}
+        {selectedCustomerId && !destinazione && !isFieldsDisabled && (
+          <p className="mt-1 text-xs text-gray-500">
+            💡 Seleziona una destinazione per cercare le apparecchiature
           </p>
         )}
         {isFieldsDisabled && (

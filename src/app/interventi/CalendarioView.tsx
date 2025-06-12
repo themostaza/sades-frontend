@@ -62,15 +62,11 @@ interface InterventionFromApi {
   connected_articles?: Array<{ id: number }>;
 }
 
-interface CalendarioViewProps {
-  interventi: Intervento[];
-}
-
-export default function CalendarioView({ interventi }: CalendarioViewProps) {
+export default function CalendarioView() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   
   // Stati per gli interventi del calendario (interni)
-  const [interventiCalendario, setInterventiCalendario] = useState<Intervento[]>(interventi);
+  const [interventiCalendario, setInterventiCalendario] = useState<Intervento[]>([]);
   
   // Nuovi stati per gli interventi da assegnare
   const [interventiDaAssegnare, setInterventiDaAssegnare] = useState<Intervento[]>([]);
@@ -96,6 +92,20 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
   const [showTechnicianDropdown, setShowTechnicianDropdown] = useState(false);
   const [isSearchingTechnicians, setIsSearchingTechnicians] = useState(false);
   const [selectedTechnicianInDialog, setSelectedTechnicianInDialog] = useState<User | null>(null);
+
+  // Stato per le zone e la zona selezionata
+  const [zones, setZones] = useState<{ id: number; label: string }[]>([]);
+  const [selectedZone, setSelectedZone] = useState<string>('');
+
+  // Stato per il dialog di dettaglio intervento calendario
+  const [selectedCalendarIntervento, setSelectedCalendarIntervento] = useState<Intervento | null>(null);
+  const [showCalendarInterventoDialog, setShowCalendarInterventoDialog] = useState(false);
+
+  // Stati per i filtri calendario
+  const [calendarTechnicianFilter, setCalendarTechnicianFilter] = useState<string>('');
+
+  // Opzioni tecnici disponibili nella settimana
+  const calendarTechnicianOptions = Array.from(new Set(interventiCalendario.map(i => i.tecnico).filter(t => t && t !== '-')));
 
   const auth = useAuth();
 
@@ -405,12 +415,27 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
     fetchInterventiCalendario();
   }, [fetchInterventiCalendario]);
 
-  // Sincronizza interventiCalendario con la prop interventi
+  // Fetch delle zone al mount
   useEffect(() => {
-    console.log('🔄 Sincronizzazione interventi calendario:', interventi.length, 'interventi ricevuti');
-    console.log('📋 Primi 3 interventi:', interventi.slice(0, 3));
-    setInterventiCalendario(interventi);
-  }, [interventi]);
+    const fetchZones = async () => {
+      try {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/string',
+        };
+        if (auth.token) {
+          headers['Authorization'] = `Bearer ${auth.token}`;
+        }
+        const response = await fetch('/api/zones', { headers });
+        if (response.ok) {
+          const data = await response.json();
+          setZones(data);
+        }
+      } catch (err) {
+        console.error('Errore nel fetch delle zone:', err);
+      }
+    };
+    fetchZones();
+  }, [auth.token]);
 
   // Gestisce il click fuori dal dropdown per chiuderlo
   useEffect(() => {
@@ -727,6 +752,16 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
     }
   };
 
+  // Funzione per convertire HEX in rgba con opacità
+  function hexToRgba(hex: string, alpha: number) {
+    let c = hex.replace('#', '');
+    if (c.length === 3) c = c.split('').map(x => x + x).join('');
+    const num = parseInt(c, 16);
+    const r = (num >> 16) & 255;
+    const g = (num >> 8) & 255;
+    const b = num & 255;
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
 
   // Funzione per ottenere gli interventi che iniziano in un time slot specifico
   const getInterventiForTimeSlot = (day: Date, timeSlot: string): Intervento[] => {
@@ -819,6 +854,7 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
 
   // Fasce orarie
   const timeSlots2 = [
+    '07:00',
     '08:00',
     '09:00', 
     '10:00',
@@ -829,7 +865,11 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
     '15:00',
     '16:00',
     '17:00',
-    '18:00'
+    '18:00',
+    '19:00',
+    '20:00',
+    '21:00',
+    '22:00'
   ];
 
   // Funzione per ottenere il colore dello status
@@ -862,12 +902,32 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
     return `${months[currentWeek.getMonth()]} ${currentWeek.getFullYear()}`;
   };
 
+  const openCalendarInterventoDialog = (intervento: Intervento) => {
+    setSelectedCalendarIntervento(intervento);
+    setShowCalendarInterventoDialog(true);
+  };
+
+  const closeCalendarInterventoDialog = () => {
+    setShowCalendarInterventoDialog(false);
+    setSelectedCalendarIntervento(null);
+  };
+
   return (
     <div className="flex gap-6">
       {/* Lista Interventi da assegnare - Colonna sinistra */}
       <div className="w-fit min-w-[40vw] bg-white rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Interventi da assegnare</h3>
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-4">
+          {/* Filtro zona */}
+          <select
+            value={selectedZone}
+            onChange={e => setSelectedZone(e.target.value)}
+            className="min-w-[180px] px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+          >
+            <option value="">Tutte le zone</option>
+            {zones.map(zone => (
+              <option key={zone.id} value={zone.id}>{zone.label}</option>
+            ))}
+          </select>
         </div>
         
         {/* Righe tabella senza header */}
@@ -892,63 +952,69 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
               </button>
             </div>
           ) : interventiDaAssegnare.length > 0 ? (
-            interventiDaAssegnare.map((intervento) => (
-              <div
-                key={intervento.id}
-                className="px-4 py-3 border-b border-gray-200 hover:bg-gray-50 transition-all duration-300"
-              >
-                {/* Prima riga: ID e Ragione sociale */}
-                <div className="flex justify-between items-center mb-2">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-gray-900">#{intervento.id}</span>
-                    <span className="text-sm text-gray-900">{intervento.ragioneSociale}</span>
-                    
-                    {/* Badge status */}
-                    {intervento.statusLabel && (
-                      <span 
-                        className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                        style={{ backgroundColor: intervento.statusColor || '#6B7280' }}
+            interventiDaAssegnare
+              .filter(intervento => !selectedZone || intervento.zona === (zones.find(z => z.id.toString() === selectedZone)?.label || ''))
+              .map((intervento) => (
+                <div
+                  key={intervento.id}
+                  className="px-4 py-3 border-b border-gray-200 hover:bg-gray-50 transition-all duration-300"
+                >
+                  {/* Prima riga: ID e Ragione sociale */}
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-gray-900">#{intervento.id}</span>
+                      <span className="text-sm text-gray-900">{intervento.ragioneSociale}</span>
+                      
+                      {/* Badge status */}
+                      {intervento.statusLabel && (
+                        <span 
+                          className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                          style={{ backgroundColor: intervento.statusColor || '#6B7280' }}
+                        >
+                          {intervento.statusLabel}
+                        </span>
+                      )}
+                      
+                      {/* Icona apertura nuova tab (ora attiva) */}
+                      <div
+                        title="Apri dettagli"
+                        className="cursor-pointer"
+                        onClick={() => window.open(`/interventi?ai=${intervento.id}`, '_blank')}
                       >
-                        {intervento.statusLabel}
+                        <ExternalLink 
+                          size={14} 
+                          className="text-gray-400 hover:text-teal-600 transition" 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Seconda riga: Info aggiuntive */}
+                  <div className="flex gap-4 mb-2 text-xs text-gray-500">
+                    <span>Zona: {intervento.zona}</span>
+                    <span>Data attuale: {intervento.data}</span>
+                    <span>Tecnico attuale: {intervento.tecnico}</span>
+                    {intervento.callCode && (
+                      <span className="font-medium text-blue-600">
+                        Codice: {intervento.callCode}
                       </span>
                     )}
-                    
-                    {/* Icona apertura nuova tab (non attiva) */}
-                    <div title="Apri dettagli (non disponibile)">
-                      <ExternalLink 
-                        size={14} 
-                        className="text-gray-400 cursor-not-allowed opacity-50" 
-                      />
+                  </div>
+                  
+                  {/* Terza riga: Pulsante per aprire dialog */}
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <button
+                        onClick={() => openDateTimeDialog(intervento.id)}
+                        className="w-full text-sm text-gray-600 bg-white border border-gray-300 rounded px-3 py-2 text-left hover:bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 flex items-center justify-between"
+                      >
+                        <span>Seleziona data, orario e tecnico</span>
+                        <Calendar size={16} className="text-gray-400" />
+                      </button>
                     </div>
                   </div>
                 </div>
-                
-                {/* Seconda riga: Info aggiuntive */}
-                <div className="flex gap-4 mb-2 text-xs text-gray-500">
-                  <span>Zona: {intervento.zona}</span>
-                  <span>Data attuale: {intervento.data}</span>
-                  <span>Tecnico attuale: {intervento.tecnico}</span>
-                  {intervento.callCode && (
-                    <span className="font-medium text-blue-600">
-                      Codice: {intervento.callCode}
-                    </span>
-                  )}
-                </div>
-                
-                {/* Terza riga: Pulsante per aprire dialog */}
-                <div className="flex gap-4">
-                  <div className="flex-1">
-                    <button
-                      onClick={() => openDateTimeDialog(intervento.id)}
-                      className="w-full text-sm text-gray-600 bg-white border border-gray-300 rounded px-3 py-2 text-left hover:bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 flex items-center justify-between"
-                    >
-                      <span>Seleziona data, orario e tecnico</span>
-                      <Calendar size={16} className="text-gray-400" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
+              ))
           ) : (
             <div className="px-6 py-8 text-center text-gray-500">
               <div className="text-sm">Nessun intervento da assegnare</div>
@@ -959,25 +1025,41 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
 
       {/* Calendario - Colonna destra */}
       <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden">
-        {/* Header del calendario */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <button
-            onClick={() => navigateWeek('prev')}
-            className="p-2 hover:bg-gray-100 rounded-full"
-          >
-            <ChevronLeft size={20} className="text-gray-600" />
-          </button>
-          
-          <h2 className="text-lg font-medium text-gray-900">
-            {getCurrentMonthYear()}
-          </h2>
-          
-          <button
-            onClick={() => navigateWeek('next')}
-            className="p-2 hover:bg-gray-100 rounded-full"
-          >
-            <ChevronRight size={20} className="text-gray-600" />
-          </button>
+        {/* Header del calendario + filtri */}
+        <div className="px-6 py-4 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Selettore settimana */}
+          <div className="flex items-center gap-2 min-w-[220px]">
+            <button
+              onClick={() => navigateWeek('prev')}
+              className="p-2 hover:bg-gray-100 rounded-full"
+            >
+              <ChevronLeft size={20} className="text-gray-600" />
+            </button>
+            <h2 className="text-base font-medium text-gray-900 min-w-[120px] text-center">
+              {getCurrentMonthYear()}
+            </h2>
+            <button
+              onClick={() => navigateWeek('next')}
+              className="p-2 hover:bg-gray-100 rounded-full"
+            >
+              <ChevronRight size={20} className="text-gray-600" />
+            </button>
+          </div>
+          {/* Filtri calendario */}
+          <div className="flex flex-wrap gap-4 items-center">
+            <div>
+              <select
+                value={calendarTechnicianFilter}
+                onChange={e => setCalendarTechnicianFilter(e.target.value)}
+                className="min-w-[120px] px-2 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+              >
+                <option value="">Tutti</option>
+                {calendarTechnicianOptions.map(tech => (
+                  <option key={tech} value={tech}>{tech}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
 
         {/* Griglia del calendario */}
@@ -1004,15 +1086,21 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
 
             {/* Righe orari */}
             {timeSlots2.map((timeSlot) => (
-              <div key={timeSlot} className="grid grid-cols-6 border-b border-gray-200 last:border-b-0">
+              <div key={timeSlot} className="grid grid-cols-6 border-b border-gray-200 last:border-b-0 relative">
                 {/* Colonna orario */}
-                <div className="p-4 bg-gray-50 border-r border-gray-200 flex items-center">
-                  <span className="text-sm font-medium text-gray-600">{timeSlot}</span>
+                <div className="p-0 bg-gray-50 border-r border-gray-200 flex items-start h-[80px] relative">
+                  <span className="text-sm font-medium text-gray-600 absolute left-4 top-0 translate-y-[-50%] bg-gray-50 px-1">
+                    {timeSlot}
+                  </span>
                 </div>
                 
                 {/* Colonne giorni */}
                 {weekDays.map((day) => {
-                  const dayInterventi = getInterventiForTimeSlot(day, timeSlot);
+                  // Applica i filtri calendario
+                  let dayInterventi = getInterventiForTimeSlot(day, timeSlot);
+                  if (calendarTechnicianFilter) {
+                    dayInterventi = dayInterventi.filter(i => i.tecnico === calendarTechnicianFilter);
+                  }
                   
                   return (
                     <div key={`${day.toISOString()}-${timeSlot}`} className="relative p-2 border-r border-gray-200 last:border-r-0 min-h-[80px]">
@@ -1028,33 +1116,53 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
                            intervento.orario === 'pomeriggio' ? '18:00' : 
                            intervento.orario === 'tutto_il_giorno' ? '18:00' : '—');
                         const duration = getInterventoDurationInHours(intervento);
-                        
+
+                        // Badge-like: background chiaro, bordo e testo con statusColor
+                        let backgroundColor = undefined;
+                        let borderColor = undefined;
+                        let textColor = undefined;
+                        let fallbackClass = '';
+                        if (intervento.statusColor) {
+                          backgroundColor = hexToRgba(intervento.statusColor, 0.18);
+                          borderColor = intervento.statusColor;
+                          textColor = intervento.statusColor;
+                        } else {
+                          fallbackClass = getStatusColor(intervento.status);
+                        }
+
                         return (
                           <div
                             key={intervento.id}
-                            className={`absolute left-2 right-2 ${getStatusColor(intervento.status)} text-white p-2 rounded text-xs cursor-pointer hover:opacity-80 shadow-md`}
+                            className={`absolute left-2 right-2 p-2 rounded text-xs cursor-pointer hover:opacity-90 shadow-md ${fallbackClass}`}
                             style={{
                               height: blockHeight,
-                              top: `${8 + (index * 4)}px`, // Offset leggermente diverso per più interventi
+                              top: `${8 + (index * 4)}px`,
                               zIndex: 20 + index,
-                              border: '1px solid rgba(255,255,255,0.3)'
+                              border: borderColor ? `1.5px solid ${borderColor}` : '1px solid rgba(255,255,255,0.3)',
+                              backgroundColor: backgroundColor,
+                              color: textColor,
+                              fontWeight: 500,
                             }}
                             title={`${intervento.ragioneSociale} - ${startTime} alle ${endTime} (${duration}h)`}
+                            onClick={() => openCalendarInterventoDialog(intervento)}
                           >
-                            <div className="font-medium truncate text-xs">
-                              {intervento.ragioneSociale}
-                            </div>
-                            <div className="truncate opacity-90 text-[10px] mt-1">
+                            {/* Tecnico in grande e grassetto */}
+                            <div className="font-bold text-base leading-tight break-words">
                               {intervento.tecnico !== '-' ? intervento.tecnico : 'Non assegnato'}
+                            </div>
+                            {/* Orario grande */}
+                            <div className="text-sm font-semibold mt-1 mb-1">
+                              {startTime}-{endTime}
+                            </div>
+                            {/* Cliente piccolo dopo orario */}
+                            <div className="text-xs font-medium break-words opacity-90 mb-1">
+                              {intervento.ragioneSociale}
                             </div>
                             {duration > 1 && (
                               <div className="absolute bottom-1 right-2 text-[10px] opacity-75 bg-black bg-opacity-20 px-1 rounded">
                                 {duration}h
                               </div>
                             )}
-                            <div className="text-[9px] opacity-75 mt-1">
-                              {startTime}-{endTime}
-                            </div>
                           </div>
                         );
                       })}
@@ -1245,6 +1353,103 @@ export default function CalendarioView({ interventi }: CalendarioViewProps) {
                 >
                   Annulla
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog dettaglio intervento calendario */}
+      {showCalendarInterventoDialog && selectedCalendarIntervento && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-xl shadow-2xl w-[90vw] max-w-3xl min-w-[70vw] p-0 relative flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 rounded-t-xl">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                Dettaglio intervento
+                <button
+                  className="ml-2 text-gray-700 hover:text-teal-700 flex items-center gap-1 text-xs font-medium"
+                  title="Apri in nuova scheda"
+                  onClick={() => window.open(`/interventi?ai=${selectedCalendarIntervento.id}`, '_blank')}
+                >
+                  <ExternalLink size={16} />
+                  Apri
+                </button>
+              </h3>
+              <button
+                className="text-gray-400 hover:text-gray-600"
+                onClick={closeCalendarInterventoDialog}
+              >
+                <X size={24} />
+              </button>
+            </div>
+            {/* Corpo */}
+            <div className="px-8 py-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <div>
+                  <span className="block text-xs text-gray-500 font-semibold uppercase mb-1">Tecnico</span>
+                  <span className="text-lg font-bold text-gray-800">{selectedCalendarIntervento.tecnico}</span>
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-500 font-semibold uppercase mb-1">Cliente</span>
+                  <span className="text-base font-medium text-gray-700">{selectedCalendarIntervento.ragioneSociale}</span>
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-500 font-semibold uppercase mb-1">Zona</span>
+                  <span className="text-base text-gray-700">{selectedCalendarIntervento.zona}</span>
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-500 font-semibold uppercase mb-1">Status</span>
+                  <span
+                    className="inline-block px-2 py-1 rounded-full text-xs font-semibold"
+                    style={{
+                      backgroundColor: selectedCalendarIntervento.statusColor ? hexToRgba(selectedCalendarIntervento.statusColor, 0.18) : '#f3f4f6',
+                      color: selectedCalendarIntervento.statusColor || '#374151',
+                    }}
+                  >
+                    {selectedCalendarIntervento.statusLabel || selectedCalendarIntervento.status}
+                  </span>
+                </div>
+                {selectedCalendarIntervento.callCode && (
+                  <div>
+                    <span className="block text-xs text-gray-500 font-semibold uppercase mb-1">Codice chiamata</span>
+                    <span className="text-base text-blue-700 font-mono">{selectedCalendarIntervento.callCode}</span>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <span className="block text-xs text-gray-500 font-semibold uppercase mb-1">Data e Orario</span>
+                  <span className="text-base text-gray-800 font-semibold">
+                    {selectedCalendarIntervento.from_datetime ? new Date(selectedCalendarIntervento.from_datetime).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) : '-'}
+                    {selectedCalendarIntervento.to_datetime && (
+                      <>
+                        <span className="mx-1">→</span>
+                        {new Date(selectedCalendarIntervento.to_datetime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                      </>
+                    )}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-500 font-semibold uppercase mb-1">Durata</span>
+                  <span className="text-base text-gray-800 font-semibold">
+                    {selectedCalendarIntervento.from_datetime && selectedCalendarIntervento.to_datetime ?
+                      (() => {
+                        const start = new Date(selectedCalendarIntervento.from_datetime);
+                        const end = new Date(selectedCalendarIntervento.to_datetime);
+                        const diff = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+                        return `${diff}h`;
+                      })() : '-'}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-500 font-semibold uppercase mb-1">Fascia oraria</span>
+                  <span className="text-base text-gray-700">{selectedCalendarIntervento.orario}</span>
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-500 font-semibold uppercase mb-1">ID Intervento</span>
+                  <span className="text-base text-gray-700">#{selectedCalendarIntervento.id}</span>
+                </div>
               </div>
             </div>
           </div>
