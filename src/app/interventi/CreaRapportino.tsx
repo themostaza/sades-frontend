@@ -437,12 +437,17 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
       
       onClose();
       
-      // Apri il rapportino in una nuova tab invece di navigare nella stessa pagina
+      // Apri il rapportino in una nuova tab
       if (reportData.id) {
         const reportUrl = `/interventi/rapportino/${reportData.id}`;
         window.open(reportUrl, '_blank');
         console.log('🔗 Rapportino aperto in nuova tab:', reportUrl);
       }
+      
+      // Reindirizza con refresh alla pagina dell'intervento con deep link
+      const interventionUrl = `/interventi?ai=${interventionData.id}`;
+      console.log('🔄 Refresh e redirect alla pagina intervento:', interventionUrl);
+      window.location.href = interventionUrl;
     } catch (error) {
       console.error('💥 Errore durante la creazione del rapportino:', error);
       alert(`Errore durante la creazione del rapportino: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);

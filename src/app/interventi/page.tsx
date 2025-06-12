@@ -145,14 +145,31 @@ export default function InterventiPage() {
     }
   };
 
-  // Effect to handle URL search parameters for status filtering
+  // Effect to handle URL search parameters for status filtering and deep linking
   useEffect(() => {
     const statusFromUrl = searchParams.get('status');
+    const interventionIdFromUrl = searchParams.get('ai'); // assistance intervention ID
+    
     console.log('🔗 URL status parameter:', statusFromUrl);
+    console.log('🔗 URL intervention ID parameter (ai):', interventionIdFromUrl);
+    
     if (statusFromUrl) {
       console.log('✅ Setting selectedStatus from URL:', statusFromUrl);
       setSelectedStatus(statusFromUrl);
     }
+    
+    // Deep link: se c'è il parametro "ai", apri direttamente il dettaglio
+    if (interventionIdFromUrl) {
+      const interventionId = parseInt(interventionIdFromUrl, 10);
+      if (!isNaN(interventionId)) {
+        console.log('🎯 Opening intervention detail from URL:', interventionId);
+        setSelectedInterventionId(interventionId);
+        setShowDettaglioIntervento(true);
+      } else {
+        console.warn('⚠️ Invalid intervention ID in URL:', interventionIdFromUrl);
+      }
+    }
+    
     setUrlParamsRead(true);
   }, [searchParams]);
 
@@ -167,12 +184,29 @@ export default function InterventiPage() {
   const handleRowClick = (interventionId: number) => {
     setSelectedInterventionId(interventionId);
     setShowDettaglioIntervento(true);
+    
+    // Aggiungi il parametro "ai" all'URL per supportare il deep linking
+    const currentParams = new URLSearchParams(searchParams.toString());
+    currentParams.set('ai', interventionId.toString());
+    const newUrl = `/interventi?${currentParams.toString()}`;
+    router.replace(newUrl);
   };
 
   // Funzione per chiudere il dettaglio e ricaricare i dati
   const handleDettaglioClose = () => {
     setShowDettaglioIntervento(false);
     setSelectedInterventionId(null);
+    
+    // Rimuovi il parametro "ai" dall'URL se presente
+    const currentParams = new URLSearchParams(searchParams.toString());
+    if (currentParams.has('ai')) {
+      currentParams.delete('ai');
+      const newUrl = currentParams.toString() 
+        ? `/interventi?${currentParams.toString()}` 
+        : '/interventi';
+      router.replace(newUrl);
+    }
+    
     // Ricarica i dati per vedere eventuali modifiche
     fetchInterventionsData();
   };

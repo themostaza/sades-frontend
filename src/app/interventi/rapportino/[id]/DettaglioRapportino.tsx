@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { Clock, Eye, Download, CheckCircle, XCircle, PenTool, RotateCcw, Trash2 } from 'lucide-react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { InterventionReportDetail } from '../../../../types/intervention-reports';
 
@@ -85,7 +84,6 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
   const [shouldRedirectOnClose, setShouldRedirectOnClose] = useState(false);
   const [isSavingSignature, setIsSavingSignature] = useState(false);
   const [updatedReportData, setUpdatedReportData] = useState<InterventionReportDetail>(reportData);
-  const router = useRouter();
   const { token } = useAuth();
 
   // Helper function per formattare la data
@@ -344,9 +342,6 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);
-      if (!showResultDialog) {
-        setShouldRedirectOnClose(false);
-      }
     }
   };
 
@@ -916,8 +911,9 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
                     console.log('🔄 Chiusura dialog risultato - shouldRedirectOnClose:', shouldRedirectOnClose);
                     setShowResultDialog(false);
                     if (shouldRedirectOnClose) {
-                      console.log('✅ Reindirizzamento a /interventi...');
-                      router.push('/interventi');
+                      const interventionUrl = `/interventi?ai=${updatedReportData.intervention_id}`;
+                      console.log('✅ Refresh e redirect alla pagina intervento:', interventionUrl);
+                      window.location.href = interventionUrl;
                     } else {
                       console.log('⏸️ Nessun redirect necessario');
                     }
