@@ -156,8 +156,34 @@ export default function InterventionStatusAndActions({
                 </>
               )}
             </button>
-          ) : (selectedStatus === 'completato' || selectedStatus === 'non_completato') ? (
-            // Pulsanti per status "completato" e "non_completato"
+          ) : selectedStatus === 'non_completato' ? (
+            // Pulsante solo per status "non_completato" - solo visualizza rapporto
+            <button
+              onClick={onViewReport}
+              disabled={isLoadingReport}
+              className={`px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium w-full justify-center ${
+                isLoadingReport 
+                  ? 'bg-gray-100 border border-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-white border border-gray-300 hover:bg-gray-50 text-gray-900'
+              }`}
+            >
+              {isLoadingReport ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                  Caricamento rapporto...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 6 16 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  Visualizza rapporto
+                </>
+              )}
+            </button>
+          ) : selectedStatus === 'completato' ? (
+            // Pulsanti per status "completato" - visualizza rapporto e manda in fatturazione
             <div className="flex gap-4 w-full">
               <button
                 onClick={onViewReport}

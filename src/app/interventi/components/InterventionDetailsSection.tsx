@@ -17,6 +17,8 @@ interface InterventionDetailsSectionProps {
   setOraFine: (value: string) => void;
   servizioDomicilio: string;
   setServizioDomicilio: (value: string) => void;
+  scontoServizioDomicilio: boolean;
+  setScontoServizioDomicilio: (value: boolean) => void;
   preventivo: number;
   setPreventivo: (value: number) => void;
   selectedCustomerId: number | null;
@@ -49,6 +51,8 @@ export default function InterventionDetailsSection({
   setOraFine,
   servizioDomicilio,
   setServizioDomicilio,
+  scontoServizioDomicilio,
+  setScontoServizioDomicilio,
   preventivo,
   setPreventivo,
   selectedCustomerId,
@@ -440,12 +444,20 @@ export default function InterventionDetailsSection({
             </select>
             <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
           </div>
-          <div className="mt-2">
-            <label className="flex items-center">
-              <input type="checkbox" className="mr-2" />
-              <span className="text-sm text-gray-600">Sconto sul servizio domicilio</span>
-            </label>
-          </div>
+          {/* Checkbox sconto visibile solo se servizio domicilio è "Si" */}
+          {servizioDomicilio === 'Si' && (
+            <div className="mt-2">
+              <label className="flex items-center">
+                <input 
+                  type="checkbox" 
+                  checked={scontoServizioDomicilio}
+                  onChange={(e) => setScontoServizioDomicilio(e.target.checked)}
+                  className="mr-2" 
+                />
+                <span className="text-sm text-gray-600">Sconto sul servizio domicilio</span>
+              </label>
+            </div>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">

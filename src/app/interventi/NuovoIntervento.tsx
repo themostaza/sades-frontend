@@ -68,6 +68,7 @@ export default function NuovoIntervento({ isOpen, onClose }: NuovoInterventoProp
 
   // Stato per servizio domicilio
   const [servizioDomicilio, setServizioDomicilio] = useState('Si');
+  const [scontoServizioDomicilio, setScontoServizioDomicilio] = useState(false);
 
   // Stato per preventivo
   const [preventivo, setPreventivo] = useState(0);
@@ -257,7 +258,7 @@ export default function NuovoIntervento({ isOpen, onClose }: NuovoInterventoProp
         zone_id: parseInt(zona) || 0,
         customer_location_id: destinazione || '',
         flg_home_service: servizioDomicilio === 'Si',
-        flg_discount_home_service: false,
+        flg_discount_home_service: servizioDomicilio === 'Si' ? scontoServizioDomicilio : false,
         // Data e orario possono essere null se non specificati
         date: data || null,
         time_slot: orarioIntervento || null,
@@ -372,6 +373,7 @@ export default function NuovoIntervento({ isOpen, onClose }: NuovoInterventoProp
     setOraInizio('');
     setOraFine('');
     setServizioDomicilio('Si');
+    setScontoServizioDomicilio(false);
     setPreventivo(0);
     setCodiceCliente('');
     setTelefonoFisso('');
@@ -398,6 +400,14 @@ export default function NuovoIntervento({ isOpen, onClose }: NuovoInterventoProp
   const handleSetCodiceChiamata = () => {
     // Non fa nulla - il codice è generato automaticamente
   };
+
+  // Sincronizza sconto servizio domicilio con servizio domicilio
+  useEffect(() => {
+    // Se servizio domicilio è "No", disabilita automaticamente lo sconto
+    if (servizioDomicilio === 'No') {
+      setScontoServizioDomicilio(false);
+    }
+  }, [servizioDomicilio]);
 
   // Disabilita/abilita lo scroll del body quando il modal è aperto/chiuso
   useEffect(() => {
@@ -481,6 +491,8 @@ export default function NuovoIntervento({ isOpen, onClose }: NuovoInterventoProp
             setOraFine={setOraFine}
             servizioDomicilio={servizioDomicilio}
             setServizioDomicilio={setServizioDomicilio}
+            scontoServizioDomicilio={scontoServizioDomicilio}
+            setScontoServizioDomicilio={setScontoServizioDomicilio}
             preventivo={preventivo}
             setPreventivo={setPreventivo}
             selectedCustomerId={selectedCustomerId}

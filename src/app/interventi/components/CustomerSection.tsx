@@ -82,6 +82,7 @@ export default function CustomerSection({
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [isSelecting, setIsSelecting] = useState(false); // Flag per evitare ricerche durante selezione
 
   // Stati per le destinazioni del cliente
   const [customerLocations, setCustomerLocations] = useState<CustomerLocation[]>([]);
@@ -233,6 +234,7 @@ export default function CustomerSection({
 
   // Gestisce la selezione di un cliente
   const handleCustomerSelect = (customer: Customer) => {
+    setIsSelecting(true); // Imposta il flag per bloccare la ricerca automatica
     setSelectedCustomer(customer);
     setRagioneSociale(customer.company_name);
     setSearchQuery(customer.company_name);
@@ -240,6 +242,7 @@ export default function CustomerSection({
     setTelefonoFisso(customer.phone_number || 'N/A');
     setNumeroCellulare(customer.mobile_phone_number || 'N/A');
     setShowDropdown(false);
+    setCustomers([]); // Pulisce i risultati per evitare che riappaiano
     
     // Auto-popola la zona se il cliente ha un'area valorizzata
     if (customer.area && zones.length > 0) {
@@ -260,12 +263,30 @@ export default function CustomerSection({
     setDestinazione('');
     fetchCustomerLocations(customer.id);
     setSelectedCustomerId(customer.id);
+    
+    // Reset il flag dopo un breve delay per evitare che l'useEffect scatti
+    setTimeout(() => setIsSelecting(false), 100);
   };
 
   // Gestisce il cambio del testo di ricerca
   const handleSearchChange = (value: string) => {
+    setIsSelecting(false); // Reset il flag quando l'utente digita manualmente
     setSearchQuery(value);
     setRagioneSociale(value);
+    
+    // Se c'è un cliente selezionato e l'utente sta modificando il campo,
+    // significa che vuole fare una nuova ricerca
+    if (selectedCustomer && value !== selectedCustomer.company_name) {
+      setSelectedCustomer(null);
+      setCodiceCliente('');
+      setTelefonoFisso('');
+      setNumeroCellulare('');
+      setDestinazione('');
+      setCustomerLocations([]);
+      setSelectedCustomerId(null);
+      setZona('');
+      onCustomerLocationsLoaded?.(false);
+    }
     
     if (!value.trim()) {
       setSelectedCustomer(null);
@@ -301,6 +322,9 @@ export default function CustomerSection({
 
   // Debounce per la ricerca clienti
   useEffect(() => {
+    // Non fare ricerca se stiamo selezionando un cliente
+    if (isSelecting) return;
+    
     const timeoutId = setTimeout(() => {
       if (searchQuery.trim() && searchQuery.length >= 2) {
         searchCustomers(searchQuery);
@@ -311,7 +335,7 @@ export default function CustomerSection({
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
+  }, [searchQuery, isSelecting]);
 
   // Carica i dati quando il componente viene montato
   useEffect(() => {
@@ -347,7 +371,10 @@ export default function CustomerSection({
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onFocus={() => {
-                  if (customers.length > 0) setShowDropdown(true);
+                  // Solo mostra il dropdown se ci sono risultati e non c'è un cliente già selezionato
+                  if (customers.length > 0 && !selectedCustomer) {
+                    setShowDropdown(true);
+                  }
                 }}
                 placeholder="Cerca ragione sociale..."
                 className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900"
