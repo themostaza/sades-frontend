@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Calendar, X, Search, ExternalLink } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, X, Search, ExternalLink, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface Intervento {
@@ -60,6 +60,7 @@ interface InterventionFromApi {
   status_id: number;
   connected_equipment?: Array<{ id: number }>;
   connected_articles?: Array<{ id: number }>;
+  cancelled_by?: string;
 }
 
 export default function CalendarioView() {
@@ -102,7 +103,8 @@ export default function CalendarioView() {
   const [showCalendarInterventoDialog, setShowCalendarInterventoDialog] = useState(false);
 
   // Stati per i filtri calendario
-  const [calendarTechnicianFilter, setCalendarTechnicianFilter] = useState<string>('');
+  const [calendarTechnicianFilter, setCalendarTechnicianFilter] = useState<string[]>([]);
+  const [showTechnicianMultiSelect, setShowTechnicianMultiSelect] = useState(false);
 
   // Opzioni tecnici disponibili nella settimana
   const calendarTechnicianOptions = Array.from(new Set(interventiCalendario.map(i => i.tecnico).filter(t => t && t !== '-')));
@@ -362,9 +364,9 @@ export default function CalendarioView() {
         const hasEmptyDate = !intervention.date || intervention.date.trim() === '';
         const hasEmptyFromDate = !intervention.from_datetime || intervention.from_datetime.trim() === '';
         const hasEmptyToDate = !intervention.to_datetime || intervention.to_datetime.trim() === '';
-        
-        // Restituisce true se almeno uno dei campi è vuoto
-        return hasEmptyAssignedToName || hasEmptyDate || hasEmptyFromDate || hasEmptyToDate;
+        const isCancelled = intervention.cancelled_by !== undefined && intervention.cancelled_by !== null && intervention.cancelled_by !== '';
+        // Restituisce true se almeno uno dei campi è vuoto E non è cancellato
+        return (hasEmptyAssignedToName || hasEmptyDate || hasEmptyFromDate || hasEmptyToDate) && !isCancelled;
       });
       
       // Converte nel formato atteso dal componente
@@ -1046,18 +1048,52 @@ export default function CalendarioView() {
             </button>
           </div>
           {/* Filtri calendario */}
-          <div className="flex flex-wrap gap-4 items-center">
-            <div>
-              <select
-                value={calendarTechnicianFilter}
-                onChange={e => setCalendarTechnicianFilter(e.target.value)}
-                className="min-w-[120px] px-2 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+          <div className="flex flex-wrap gap-4 items-center relative">
+            <div className="relative">
+              <button
+                type="button"
+                className="min-w-[220px] px-2 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 flex items-center justify-between"
+                onClick={() => setShowTechnicianMultiSelect((v) => !v)}
               >
-                <option value="">Tutti</option>
-                {calendarTechnicianOptions.map(tech => (
-                  <option key={tech} value={tech}>{tech}</option>
-                ))}
-              </select>
+                {calendarTechnicianFilter.length === 0
+                  ? 'Tutti i tecnici'
+                  : calendarTechnicianFilter.join(', ')}
+                <ChevronDown className="ml-2 w-4 h-4 text-gray-400" />
+              </button>
+              {showTechnicianMultiSelect && (
+                <div className="absolute right-0 z-30 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg min-w-[180px] max-h-60 overflow-y-auto">
+                  <div className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2"
+                    onClick={() => setCalendarTechnicianFilter([])}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={calendarTechnicianFilter.length === 0}
+                      readOnly
+                    />
+                    <span className="text-gray-700">Tutti</span>
+                  </div>
+                  {calendarTechnicianOptions.map(tech => (
+                    <div
+                      key={tech}
+                      className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2"
+                      onClick={() => {
+                        if (calendarTechnicianFilter.includes(tech)) {
+                          setCalendarTechnicianFilter(calendarTechnicianFilter.filter(t => t !== tech));
+                        } else {
+                          setCalendarTechnicianFilter([...calendarTechnicianFilter, tech]);
+                        }
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={calendarTechnicianFilter.includes(tech)}
+                        readOnly
+                      />
+                      <span className="text-gray-700">{tech}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1098,8 +1134,8 @@ export default function CalendarioView() {
                 {weekDays.map((day) => {
                   // Applica i filtri calendario
                   let dayInterventi = getInterventiForTimeSlot(day, timeSlot);
-                  if (calendarTechnicianFilter) {
-                    dayInterventi = dayInterventi.filter(i => i.tecnico === calendarTechnicianFilter);
+                  if (calendarTechnicianFilter.length > 0) {
+                    dayInterventi = dayInterventi.filter(i => calendarTechnicianFilter.includes(i.tecnico));
                   }
                   
                   return (
@@ -1157,6 +1193,10 @@ export default function CalendarioView() {
                             {/* Cliente piccolo dopo orario */}
                             <div className="text-xs font-medium break-words opacity-90 mb-1">
                               {intervento.ragioneSociale}
+                            </div>
+                            {/* Stato intervento sotto le info */}
+                            <div className="text-xs font-semibold mt-1" style={{ color: intervento.statusColor || undefined }}>
+                              {intervento.statusLabel || intervento.status}
                             </div>
                             {duration > 1 && (
                               <div className="absolute bottom-1 right-2 text-[10px] opacity-75 bg-black bg-opacity-20 px-1 rounded">

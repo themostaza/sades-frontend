@@ -489,35 +489,7 @@ export default function InterventiPage() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex flex-col">
             <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Interventi</h1>
-            {selectedStatus && (
-              <div className="mt-1 flex items-center gap-2 flex-wrap">
-                <span className="text-sm text-gray-600">Filtrato per stato:</span>
-                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                  statusOptions.find(s => s.key === selectedStatus)?.key === 'da_assegnare' ? 'bg-orange-100 text-orange-800' :
-                  statusOptions.find(s => s.key === selectedStatus)?.key === 'attesa_preventivo' ? 'bg-yellow-100 text-yellow-800' :
-                  statusOptions.find(s => s.key === selectedStatus)?.key === 'attesa_ricambio' ? 'bg-blue-100 text-blue-800' :
-                  statusOptions.find(s => s.key === selectedStatus)?.key === 'in_carico' ? 'bg-teal-100 text-teal-800' :
-                  statusOptions.find(s => s.key === selectedStatus)?.key === 'da_confermare' ? 'bg-purple-100 text-purple-800' :
-                  statusOptions.find(s => s.key === selectedStatus)?.key === 'completato' ? 'bg-green-100 text-green-800' :
-                  statusOptions.find(s => s.key === selectedStatus)?.key === 'non_completato' ? 'bg-gray-100 text-gray-800' :
-                  statusOptions.find(s => s.key === selectedStatus)?.key === 'annullato' ? 'bg-red-100 text-red-800' :
-                  statusOptions.find(s => s.key === selectedStatus)?.key === 'fatturato' ? 'bg-emerald-100 text-emerald-800' :
-                  statusOptions.find(s => s.key === selectedStatus)?.key === 'collocamento' ? 'bg-indigo-100 text-indigo-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
-                  {statusOptions.find(s => s.key === selectedStatus)?.label}
-                </span>
-                <button
-                  onClick={() => handleStatusFilter('')}
-                  className="text-gray-400 hover:text-gray-600 ml-1"
-                  title="Rimuovi filtro"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            )}
           </div>
-          
           {/* View mode toggle - accanto al titolo */}
           <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
             <button
@@ -542,13 +514,11 @@ export default function InterventiPage() {
             </button>
           </div>
         </div>
-        
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <span>Totale: {meta.total}</span>
             <InfoIcon size={16} />
           </div>
-          
           {/* Rendering condizionale del pulsante in base al ruolo */}
           {!userLoading && userInfo && (
             <>
@@ -573,12 +543,40 @@ export default function InterventiPage() {
           )}
         </div>
       </div>
+      {/* Stato selezionato: badge filtro sotto titolo e toggle */}
+      {selectedStatus && (
+        <div className="mt-1 flex items-center gap-2 flex-wrap mb-4">
+          <span className="text-sm text-gray-600">Filtrato per stato:</span>
+          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+            statusOptions.find(s => s.key === selectedStatus)?.key === 'da_assegnare' ? 'bg-orange-100 text-orange-800' :
+            statusOptions.find(s => s.key === selectedStatus)?.key === 'attesa_preventivo' ? 'bg-yellow-100 text-yellow-800' :
+            statusOptions.find(s => s.key === selectedStatus)?.key === 'attesa_ricambio' ? 'bg-blue-100 text-blue-800' :
+            statusOptions.find(s => s.key === selectedStatus)?.key === 'in_carico' ? 'bg-teal-100 text-teal-800' :
+            statusOptions.find(s => s.key === selectedStatus)?.key === 'da_confermare' ? 'bg-purple-100 text-purple-800' :
+            statusOptions.find(s => s.key === selectedStatus)?.key === 'completato' ? 'bg-green-100 text-green-800' :
+            statusOptions.find(s => s.key === selectedStatus)?.key === 'non_completato' ? 'bg-gray-100 text-gray-800' :
+            statusOptions.find(s => s.key === selectedStatus)?.key === 'annullato' ? 'bg-red-100 text-red-800' :
+            statusOptions.find(s => s.key === selectedStatus)?.key === 'fatturato' ? 'bg-emerald-100 text-emerald-800' :
+            statusOptions.find(s => s.key === selectedStatus)?.key === 'collocamento' ? 'bg-indigo-100 text-indigo-800' :
+            'bg-gray-100 text-gray-800'
+          }`}>
+            {statusOptions.find(s => s.key === selectedStatus)?.label}
+          </span>
+          <button
+            onClick={() => handleStatusFilter('')}
+            className="text-gray-400 hover:text-gray-600 ml-1"
+            title="Rimuovi filtro"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Filters */}
       {viewMode === 'lista' && (
-        <div className="mb-6 space-y-4">
-          {/* Search bar - always visible */}
+        <div className="mb-6">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            {/* Search bar */}
             <div className="relative flex-1 max-w-full sm:max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
               <input
@@ -589,8 +587,54 @@ export default function InterventiPage() {
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700 placeholder-gray-400"
               />
             </div>
-            
-            {/* Mobile filter toggle */}
+            {/* Data filter */}
+            <div className="relative flex-1 sm:flex-none sm:min-w-[180px]">
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 bg-white text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                placeholder="Filtra per data"
+              />
+              {selectedDate && (
+                <button
+                  onClick={() => setSelectedDate('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  type="button"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+            {/* Zona filter */}
+            <div className="relative flex-1 sm:flex-none sm:min-w-[180px]">
+              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+              <select
+                value={selectedZone}
+                onChange={(e) => setSelectedZone(e.target.value)}
+                className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
+              >
+                <option value="" className="text-gray-700">Filtra per zona</option>
+                {zonesData.map(zone => (
+                  <option key={zone.id} value={zone.id} className="text-gray-700">{zone.label}</option>
+                ))}
+              </select>
+            </div>
+            {/* Stato filter */}
+            <div className="relative flex-1 sm:flex-none sm:min-w-[180px]">
+              <select
+                value={selectedStatus}
+                onChange={(e) => handleStatusFilter(e.target.value)}
+                className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
+              >
+                {statusOptions.map(status => (
+                  <option key={status.key} value={status.key} className="text-gray-700">
+                    {status.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {/* Mobile filter toggle, opzionale: puoi nasconderlo su desktop */}
             <button
               onClick={() => setShowMobileFilters(!showMobileFilters)}
               className="sm:hidden flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
@@ -599,11 +643,11 @@ export default function InterventiPage() {
               Filtri
             </button>
           </div>
-
-          {/* Desktop filters - always visible on desktop, collapsible on mobile */}
-          <div className={`${showMobileFilters ? 'block' : 'hidden'} sm:block`}>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1 sm:flex-none sm:min-w-[180px]">
+          {/* Mobile: mostra i filtri sotto la search bar se attivo il toggle */}
+          {showMobileFilters && (
+            <div className="flex flex-col gap-3 mt-3 sm:hidden">
+              {/* Data filter */}
+              <div className="relative">
                 <input
                   type="date"
                   value={selectedDate}
@@ -621,8 +665,8 @@ export default function InterventiPage() {
                   </button>
                 )}
               </div>
-              
-              <div className="relative flex-1 sm:flex-none sm:min-w-[180px]">
+              {/* Zona filter */}
+              <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
                 <select
                   value={selectedZone}
@@ -635,8 +679,8 @@ export default function InterventiPage() {
                   ))}
                 </select>
               </div>
-
-              <div className="relative flex-1 sm:flex-none sm:min-w-[180px]">
+              {/* Stato filter */}
+              <div className="relative">
                 <select
                   value={selectedStatus}
                   onChange={(e) => handleStatusFilter(e.target.value)}
@@ -650,7 +694,7 @@ export default function InterventiPage() {
                 </select>
               </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 

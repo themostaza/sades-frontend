@@ -392,8 +392,18 @@ export default function DashboardPage() {
                       <td className="px-4 py-3 text-sm text-gray-600">
                         {formatDate(intervento.date)}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm text-gray-600 flex items-center gap-2">
                         {intervento.zone_label}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`/interventi?ai=${intervento.id}`, '_blank');
+                          }}
+                          title="Apri dettaglio intervento in nuova scheda"
+                          className="ml-2 text-gray-400 hover:text-teal-600"
+                        >
+                          <ExternalLink size={16} />
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -464,8 +474,18 @@ export default function DashboardPage() {
                       <td className="px-4 py-3 text-sm text-gray-600">
                         {intervento.zone_label}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm text-gray-600 flex items-center gap-2">
                         {intervento.assigned_to_name} {intervento.assigned_to_surname || ''}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`/interventi?ai=${intervento.id}`, '_blank');
+                          }}
+                          title="Apri dettaglio intervento in nuova scheda"
+                          className="ml-2 text-gray-400 hover:text-teal-600"
+                        >
+                          <ExternalLink size={16} />
+                        </button>
                       </td>
                     </tr>
                   ))
