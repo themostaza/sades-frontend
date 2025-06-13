@@ -105,9 +105,25 @@ export default function CalendarioView() {
   // Stati per i filtri calendario
   const [calendarTechnicianFilter, setCalendarTechnicianFilter] = useState<string[]>([]);
   const [showTechnicianMultiSelect, setShowTechnicianMultiSelect] = useState(false);
+  const [calendarStatusFilter, setCalendarStatusFilter] = useState<string[]>([]);
+  const [showStatusMultiSelect, setShowStatusMultiSelect] = useState(false);
 
   // Opzioni tecnici disponibili nella settimana
   const calendarTechnicianOptions = Array.from(new Set(interventiCalendario.map(i => i.tecnico).filter(t => t && t !== '-')));
+
+  // Status options con colori
+  const statusOptions = [
+    { id: 'da_assegnare', label: 'Da assegnare', color: 'bg-orange-100 text-orange-800' },
+    { id: 'attesa_preventivo', label: 'Attesa preventivo', color: 'bg-yellow-100 text-yellow-800' },
+    { id: 'attesa_ricambio', label: 'Attesa ricambio', color: 'bg-blue-100 text-blue-800' },
+    { id: 'in_carico', label: 'In carico', color: 'bg-teal-100 text-teal-800' },
+    { id: 'da_confermare', label: 'Da confermare', color: 'bg-purple-100 text-purple-800' },
+    { id: 'completato', label: 'Completato', color: 'bg-green-100 text-green-800' },
+    { id: 'non_completato', label: 'Non completato', color: 'bg-gray-100 text-gray-800' },
+    { id: 'annullato', label: 'Annullato', color: 'bg-red-100 text-red-800' },
+    { id: 'fatturato', label: 'Fatturato', color: 'bg-emerald-100 text-emerald-800' },
+    { id: 'collocamento', label: 'Collocamento', color: 'bg-indigo-100 text-indigo-800' }
+  ];
 
   const auth = useAuth();
 
@@ -765,62 +781,54 @@ export default function CalendarioView() {
     return `rgba(${r},${g},${b},${alpha})`;
   }
 
+  // Funzione per normalizzare lo status per il confronto
+  const normalizeStatus = (status: string): string => {
+    return status ? status.toLowerCase().trim() : '';
+  };
+
   // Funzione per ottenere gli interventi che iniziano in un time slot specifico
   const getInterventiForTimeSlot = (day: Date, timeSlot: string): Intervento[] => {
-    const dayString = day.getDate().toString();
+    const dayString = day.toISOString().split('T')[0];
     
     return interventiCalendario.filter(intervento => {
-      // Prima verifica se l'intervento è nel giorno corretto
-      const matchesDay = intervento.data.includes(dayString);
-      if (!matchesDay) return false;
-      
-      // Calcola l'ora di inizio dell'intervento
-      let interventoStartTime = '';
-      
+      // Filtra per tecnico se ci sono filtri attivi
+      if (calendarTechnicianFilter.length > 0 && !calendarTechnicianFilter.includes(intervento.tecnico)) {
+        return false;
+      }
+
+      // Filtra per status se ci sono filtri attivi
+      if (calendarStatusFilter.length > 0) {
+        const interventionStatus = normalizeStatus(intervento.statusLabel || intervento.status);
+        const hasMatchingStatus = calendarStatusFilter.some(filterStatus => 
+          normalizeStatus(filterStatus) === interventionStatus
+        );
+        
+        if (!hasMatchingStatus) {
+          return false;
+        }
+      }
+
+      // Se l'intervento ha un from_datetime, usa quello per il filtraggio
       if (intervento.from_datetime) {
-        // Usa from_datetime se disponibile
-        try {
-          const startDate = new Date(intervento.from_datetime);
-          interventoStartTime = startDate.toTimeString().substring(0, 5); // Format: "HH:MM"
-        } catch {
-          interventoStartTime = '';
-        }
-      } else {
-        // Fallback basato sul time_slot
-        switch (intervento.orario) {
-          case 'mattina':
-            interventoStartTime = '08:00';
-            break;
-          case 'pomeriggio':
-            interventoStartTime = '14:00';
-            break;
-          case 'tutto_il_giorno':
-            interventoStartTime = '08:00';
-            break;
-          default:
-            // Prova a estrarre l'ora dall'orario se è in formato "HH:MM - HH:MM"
-            const timeMatch = intervento.orario.match(/(\d{2}:\d{2})/);
-            if (timeMatch) {
-              interventoStartTime = timeMatch[1];
-            } else {
-              interventoStartTime = '08:00'; // Fallback
-            }
-        }
+        const interventionDate = new Date(intervento.from_datetime);
+        const interventionDay = interventionDate.toISOString().split('T')[0];
+        const interventionTime = interventionDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+        
+        return interventionDay === dayString && interventionTime === timeSlot;
       }
       
-      // Verifica se l'intervento inizia in questo slot orario
-      const slotMatches = interventoStartTime === timeSlot;
+      // Altrimenti usa il time_slot
+      const interventionDate = new Date(intervento.data);
+      const interventionDay = interventionDate.toISOString().split('T')[0];
       
-      if (slotMatches) {
-        console.log(`🎯 Intervento ${intervento.id} posizionato nel slot ${timeSlot}:`, {
-          ragioneSociale: intervento.ragioneSociale,
-          orarioInizio: interventoStartTime,
-          from_datetime: intervento.from_datetime,
-          orario: intervento.orario
-        });
-      }
+      if (interventionDay !== dayString) return false;
       
-      return slotMatches;
+      // Mappa i time_slot alle fasce orarie
+      if (intervento.orario === 'mattina' && timeSlot === '08:00') return true;
+      if (intervento.orario === 'pomeriggio' && timeSlot === '14:00') return true;
+      if (intervento.orario === 'tutto_il_giorno' && timeSlot === '08:00') return true;
+      
+      return false;
     });
   };
 
@@ -913,6 +921,21 @@ export default function CalendarioView() {
     setShowCalendarInterventoDialog(false);
     setSelectedCalendarIntervento(null);
   };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.technician-multi-select') && !target.closest('.status-multi-select')) {
+        setShowTechnicianMultiSelect(false);
+        setShowStatusMultiSelect(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   return (
     <div className="flex gap-6">
@@ -1049,7 +1072,8 @@ export default function CalendarioView() {
           </div>
           {/* Filtri calendario */}
           <div className="flex flex-wrap gap-4 items-center relative">
-            <div className="relative">
+            {/* Technician Multi-select */}
+            <div className="relative technician-multi-select">
               <button
                 type="button"
                 className="min-w-[220px] px-2 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 flex items-center justify-between"
@@ -1092,6 +1116,63 @@ export default function CalendarioView() {
                       <span className="text-gray-700">{tech}</span>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* Status Multi-select */}
+            <div className="relative status-multi-select">
+              <button
+                type="button"
+                className="min-w-[220px] px-2 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 flex items-center justify-between"
+                onClick={() => setShowStatusMultiSelect((v) => !v)}
+              >
+                {calendarStatusFilter.length === 0
+                  ? 'Tutti gli stati'
+                  : calendarStatusFilter.join(', ')}
+                <ChevronDown className="ml-2 w-4 h-4 text-gray-400" />
+              </button>
+              {showStatusMultiSelect && (
+                <div className="absolute right-0 z-30 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg min-w-[180px] max-h-60 overflow-y-auto">
+                  <div className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2"
+                    onClick={() => setCalendarStatusFilter([])}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={calendarStatusFilter.length === 0}
+                      readOnly
+                    />
+                    <span className="text-gray-700">Tutti</span>
+                  </div>
+                  {statusOptions.map(status => {
+                    const isSelected = calendarStatusFilter.some(filterStatus => 
+                      normalizeStatus(filterStatus) === normalizeStatus(status.label)
+                    );
+                    return (
+                      <div
+                        key={status.id}
+                        className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2"
+                        onClick={() => {
+                          if (isSelected) {
+                            setCalendarStatusFilter(calendarStatusFilter.filter(s => 
+                              normalizeStatus(s) !== normalizeStatus(status.label)
+                            ));
+                          } else {
+                            setCalendarStatusFilter([...calendarStatusFilter, status.label]);
+                          }
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          readOnly
+                        />
+                        <span className={`text-xs font-medium rounded-full px-2 py-1 ${status.color}`}>
+                          {status.label}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
