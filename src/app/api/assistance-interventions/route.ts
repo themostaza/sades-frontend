@@ -21,6 +21,9 @@ export async function GET(request: NextRequest) {
     const zoneId = searchParams.get('zone_id') || '';
     const statusId = searchParams.get('status_id') || '';
     const customerId = searchParams.get('customer_id') || '';
+    const assignedToId = searchParams.get('assigned_to_id') || '';
+    const sortBy = searchParams.get('sort_by') || '';
+    const sortOrder = searchParams.get('sort_order') || '';
 
     // Costruisco l'URL con i parametri
     const apiUrl = new URL(`${BASE_URL}api/assistance-interventions`);
@@ -61,6 +64,16 @@ export async function GET(request: NextRequest) {
     
     if (customerId) {
       apiUrl.searchParams.append('customer_id', customerId);
+    }
+
+    if (assignedToId) {
+      apiUrl.searchParams.append('assigned_to_id', assignedToId);
+    }
+    if (sortBy) {
+      apiUrl.searchParams.append('sort_by', sortBy);
+    }
+    if (sortOrder) {
+      apiUrl.searchParams.append('sort_order', sortOrder);
     }
 
     console.log('🔄 Proxying assistance interventions request to:', apiUrl.toString());

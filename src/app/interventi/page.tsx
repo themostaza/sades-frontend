@@ -236,7 +236,9 @@ export default function InterventiPage() {
       
       const params = new URLSearchParams({
         page: currentPage.toString(),
-        skip: pageSize.toString()
+        skip: pageSize.toString(),
+        sort_by: 'id',
+        sort_order: 'desc',
       });
       
       if (searchTerm.trim()) {
@@ -259,6 +261,11 @@ export default function InterventiPage() {
         const statusId = getStatusId(selectedStatus);
         console.log(`🔄 Mapping status "${selectedStatus}" to ID: ${statusId}`);
         params.append('status_id', statusId?.toString() || '');
+      }
+
+      // Se l'utente è tecnico, filtra per assigned_to_id
+      if (userInfo && !isAdmin()) {
+        params.append('assigned_to_id', userInfo.id);
       }
 
       console.log('🚀 API call with params:', params.toString());
@@ -305,10 +312,15 @@ export default function InterventiPage() {
       console.log('⏳ Waiting for URL params to be read...');
       return;
     }
+    // Se non sono admin e userInfo non è ancora disponibile, attendi
+    if (!isAdmin() && !userInfo) {
+      console.log('⏳ Waiting for userInfo to load for technician filtering...');
+      return;
+    }
     
     console.log('🔄 fetchInterventionsData triggered with selectedStatus:', selectedStatus);
     fetchInterventionsData();
-  }, [currentPage, searchTerm, selectedDate, selectedZone, selectedTechnician, selectedStatus, auth.token, urlParamsRead]);
+  }, [currentPage, searchTerm, selectedDate, selectedZone, selectedTechnician, selectedStatus, auth.token, urlParamsRead, userInfo]);
 
   // Effetto per caricare le zone al mount del componente
   useEffect(() => {
@@ -491,28 +503,30 @@ export default function InterventiPage() {
             <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Interventi</h1>
           </div>
           {/* View mode toggle - accanto al titolo */}
-          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
-            <button
-              onClick={() => setViewMode('lista')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'lista'
-                  ? 'bg-teal-600 text-white'
-                  : 'text-gray-700 hover:text-gray-900'
-              }`}
-            >
-              Lista
-            </button>
-            <button
-              onClick={() => setViewMode('calendario')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'calendario'
-                  ? 'bg-teal-600 text-white'
-                  : 'text-gray-700 hover:text-gray-900'
-              }`}
-            >
-              Calendario
-            </button>
-          </div>
+          {isAdmin() && (
+            <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+              <button
+                onClick={() => setViewMode('lista')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'lista'
+                    ? 'bg-teal-600 text-white'
+                    : 'text-gray-700 hover:text-gray-900'
+                }`}
+              >
+                Lista
+              </button>
+              <button
+                onClick={() => setViewMode('calendario')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'calendario'
+                    ? 'bg-teal-600 text-white'
+                    : 'text-gray-700 hover:text-gray-900'
+                }`}
+              >
+                Calendario
+              </button>
+            </div>
+          )}
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
           <div className="flex items-center gap-2 text-sm text-gray-600">

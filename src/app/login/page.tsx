@@ -28,7 +28,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (isAuthenticated) {
       setIsRedirecting(true);
-      router.push('/dashboard');
+      router.push('/interventi');
     }
   }, [isAuthenticated, router]);
 
@@ -41,7 +41,7 @@ export default function LoginPage() {
       const result = await login(email, password, rememberMe);
       
       if (result.success) {
-        // Il redirect a /dashboard sarà gestito automaticamente dall'useEffect
+        // Il redirect a /interventi sarà gestito automaticamente dall'useEffect
         // quando isAuthenticated diventa true
       } else {
         setError(result.error || 'Credenziali non valide. Verifica email e password e riprova.');
