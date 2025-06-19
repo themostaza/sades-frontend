@@ -50,7 +50,12 @@ interface AbsencesApiResponse {
   };
 }
 
-export default function AbsencesTable() {
+interface AbsencesTableProps {
+  userId?: string;
+  viewOnly?: boolean;
+}
+
+export default function AbsencesTable({ userId, viewOnly }: AbsencesTableProps = {}) {
   // Stati per la sezione assenze
   const [showAssenzeSection, setShowAssenzeSection] = useState(true);
   const [absencesData, setAbsencesData] = useState<Absence[]>([]);
@@ -63,7 +68,7 @@ export default function AbsencesTable() {
     totalPages: 1
   });
   const [absencesCurrentPage, setAbsencesCurrentPage] = useState(1);
-  const [selectedNominativo, setSelectedNominativo] = useState('');
+  const [selectedNominativo, setSelectedNominativo] = useState(userId || '');
   const [selectedFromDate, setSelectedFromDate] = useState('');
   const [selectedToDate, setSelectedToDate] = useState('');
   const [selectedAbsenceStatus, setSelectedAbsenceStatus] = useState('');
@@ -179,6 +184,11 @@ export default function AbsencesTable() {
       fetchAbsencesData();
     }
   }, [showAssenzeSection, absencesCurrentPage, selectedFromDate, selectedToDate, selectedAbsenceStatus, selectedNominativo]);
+
+  // Se userId cambia, aggiorna il filtro
+  useEffect(() => {
+    if (userId) setSelectedNominativo(userId);
+  }, [userId]);
 
   // Utility functions
   const getAbsenceStatusColor = (status: string) => {
@@ -510,21 +520,23 @@ export default function AbsencesTable() {
           <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-4">
-                <div className="relative">
-                  <select
-                    value={selectedNominativo}
-                    onChange={(e) => handleNominativoFilter(e.target.value)}
-                    className="flex items-center gap-2 px-4 py-2 border text-gray-800 border-gray-300 rounded-lg hover:bg-gray-50 bg-white appearance-none pr-8"
-                  >
-                    <option value="">Filtra per nome</option>
-                    {getUniqueNominativi().map((nominativo) => (
-                      <option key={nominativo} value={nominativo}>
-                        {nominativo}
-                      </option>
-                    ))}
-                  </select>
-                  <User className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
-                </div>
+                {!userId && (
+                  <div className="relative">
+                    <select
+                      value={selectedNominativo}
+                      onChange={(e) => handleNominativoFilter(e.target.value)}
+                      className="flex items-center gap-2 px-4 py-2 border text-gray-800 border-gray-300 rounded-lg hover:bg-gray-50 bg-white appearance-none pr-8"
+                    >
+                      <option value="">Filtra per nome</option>
+                      {getUniqueNominativi().map((nominativo) => (
+                        <option key={nominativo} value={nominativo}>
+                          {nominativo}
+                        </option>
+                      ))}
+                    </select>
+                    <User className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                  </div>
+                )}
                 
                 <div className="relative">
                   <input
@@ -588,15 +600,15 @@ export default function AbsencesTable() {
                 >
                   Rifiutate
                 </button>
-                
-                {/* Pulsante per creare nuova assenza */}
-                <button
-                  onClick={handleOpenCreateDialog}
-                  className="ml-4 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-                >
-                  <Plus size={16} />
-                  Nuova assenza
-                </button>
+                {!viewOnly && (
+                  <button
+                    onClick={handleOpenCreateDialog}
+                    className="ml-4 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                  >
+                    <Plus size={16} />
+                    Nuova assenza
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -645,12 +657,8 @@ export default function AbsencesTable() {
                   {absencesData.map((absence) => (
                     <tr 
                       key={absence.id} 
-                      className={`hover:bg-gray-50 ${
-                        absence.status.toLowerCase() === 'waiting' 
-                          ? 'cursor-pointer hover:bg-yellow-50' 
-                          : ''
-                      }`}
-                      onClick={() => handleAbsenceRowClick(absence)}
+                      className={`hover:bg-gray-50 ${!viewOnly && absence.status.toLowerCase() === 'waiting' ? 'cursor-pointer hover:bg-yellow-50' : ''}`}
+                      onClick={() => { if (!viewOnly) handleAbsenceRowClick(absence); }}
                     >
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {formatAbsenceNominativo(absence)}
@@ -705,7 +713,7 @@ export default function AbsencesTable() {
       )}
 
       {/* Dialog per approvazione/rifiuto assenza */}
-      {showApprovalDialog && selectedAbsence && (
+      {!viewOnly && showApprovalDialog && selectedAbsence && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
@@ -786,7 +794,7 @@ export default function AbsencesTable() {
       )}
 
       {/* Dialog per creazione nuova assenza */}
-      {showCreateDialog && (
+      {!viewOnly && showCreateDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">

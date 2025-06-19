@@ -34,7 +34,7 @@ interface UserInfo {
 const allMenuItems = [
   { id: 'dashboard', icon: Home, label: 'Dashboard', route: '/dashboard', roles: ['amministrazione'] },
   { id: 'interventi', icon: CheckSquare, label: 'Interventi', route: '/interventi', roles: ['amministrazione', 'tecnico'] },
-  { id: 'team', icon: Users, label: 'Team', route: '/team', roles: ['amministrazione'] },
+  { id: 'team', icon: Users, label: 'Team', route: '/team', roles: ['amministrazione', 'tecnico'] },
   { id: 'clienti', icon: BriefcaseBusiness, label: 'Clienti', route: '/clienti', roles: ['amministrazione'] },
   { id: 'apparecchiature', icon: Wrench, label: 'Apparecchiature', route: '/apparecchiature', roles: ['amministrazione'] },
   { id: 'inventario', icon: Archive, label: 'Inventario', route: '/inventario', roles: ['amministrazione', 'tecnico'] },

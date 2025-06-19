@@ -67,45 +67,66 @@ export default function TeamPage() {
   const [rolesLoading, setRolesLoading] = useState(true);
 
   const auth = useAuth();
+  const [userInfo, setUserInfo] = useState<{ id: string; role: string } | null>(null);
+  const [userLoading, setUserLoading] = useState(true);
 
   // Carica i ruoli all'avvio del componente
   useEffect(() => {
+    if (userLoading || !userInfo) return;
+    if (userInfo.role?.toLowerCase() === 'tecnico') return;
     const fetchRoles = async () => {
       try {
         setRolesLoading(true);
-        
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
         };
-
         if (auth.token) {
           headers['Authorization'] = `Bearer ${auth.token}`;
         }
-
         const response = await fetch('/api/roles', {
           headers,
         });
-
         if (!response.ok) {
           throw new Error('Failed to fetch roles');
         }
-
         const rolesData: Role[] = await response.json();
         setRoles(rolesData);
         console.log('✅ Ruoli caricati:', rolesData);
-        
       } catch (error) {
         console.error('Errore durante il caricamento dei ruoli:', error);
       } finally {
         setRolesLoading(false);
       }
     };
-
     fetchRoles();
+  }, [auth.token, userInfo, userLoading]);
+
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        setUserLoading(true);
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
+        const response = await fetch('/api/auth/me', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({}),
+        });
+        if (!response.ok) throw new Error('Failed to fetch user info');
+        const data = await response.json();
+        setUserInfo(data);
+      } catch  {
+        setUserInfo(null);
+      } finally {
+        setUserLoading(false);
+      }
+    };
+    if (auth.token) fetchUserInfo();
   }, [auth.token]);
 
   // Funzione per recuperare i dati dall'API
   const fetchTeamData = async () => {
+    if (userInfo?.role?.toLowerCase() === 'tecnico') return;
     try {
       setLoading(true);
       setError(null);
@@ -152,10 +173,11 @@ export default function TeamPage() {
 
   // Effetto per caricare i dati iniziali e quando cambiano i filtri
   useEffect(() => {
+    if (userInfo?.role?.toLowerCase() === 'tecnico') return;
     if (currentView === 'list') {
       fetchTeamData();
     }
-  }, [currentPage, searchTerm, selectedRole, currentView]);
+  }, [currentPage, searchTerm, selectedRole, currentView, userInfo]);
 
   const getStatusColor = (status: string, disabled: boolean) => {
     if (disabled) {
@@ -308,6 +330,18 @@ export default function TeamPage() {
     }
   };
 
+  if (userLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div></div>;
+  }
+
+  if (userInfo?.role?.toLowerCase() === 'tecnico') {
+    return (
+      <div className="p-6 bg-white min-h-screen">
+        <AbsencesTable userId={userInfo.id} viewOnly={true} />
+      </div>
+    );
+  }
+
   // Renderizza il componente UserForm se siamo in modalità create o edit
   if (currentView === 'create') {
     return (
@@ -338,51 +372,55 @@ export default function TeamPage() {
   return (
     <div className="p-6 bg-white min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Team</h1>
-        <button 
-          onClick={handleCreateUser}
-          className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-        >
-          <Plus size={16} />
-          Aggiungi nuovo
-        </button>
-      </div>
+      {auth.user?.role !== 'tecnico' && (
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-semibold text-gray-900">Team</h1>
+          <button 
+            onClick={handleCreateUser}
+            className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+          >
+            <Plus size={16} />
+            Aggiungi nuovo
+          </button>
+        </div>
+      )}
 
       {/* Search and filters */}
-      <div className="mb-6">
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <input
-              type="text"
-              placeholder="Cerca nome, cognome, codice fiscale"
-              value={searchTerm}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="w-full pl-10 text-gray-800 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-            />
-          </div>
-          
-          <div className="relative">
-            <select
-              value={selectedRole}
-              onChange={(e) => handleRoleFilter(e.target.value)}
-              className="flex items-center gap-2 px-4 py-2 border text-gray-800 border-gray-300 rounded-lg hover:bg-gray-50 bg-white appearance-none pr-8"
-              disabled={rolesLoading}
-            >
-              <option value="">
-                {rolesLoading ? 'Caricamento...' : 'Filtra per ruolo'}
-              </option>
-              {roles.map((role) => (
-                <option key={role.id} value={role.id.toString()}>
-                  {role.label}
+      {auth.user?.role !== 'tecnico' && (
+        <div className="mb-6">
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <input
+                type="text"
+                placeholder="Cerca nome, cognome, codice fiscale"
+                value={searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="w-full pl-10 text-gray-800 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+              />
+            </div>
+            
+            <div className="relative">
+              <select
+                value={selectedRole}
+                onChange={(e) => handleRoleFilter(e.target.value)}
+                className="flex items-center gap-2 px-4 py-2 border text-gray-800 border-gray-300 rounded-lg hover:bg-gray-50 bg-white appearance-none pr-8"
+                disabled={rolesLoading}
+              >
+                <option value="">
+                  {rolesLoading ? 'Caricamento...' : 'Filtra per ruolo'}
                 </option>
-              ))}
-            </select>
-            <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                {roles.map((role) => (
+                  <option key={role.id} value={role.id.toString()}>
+                    {role.label}
+                  </option>
+                ))}
+              </select>
+              <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Loading state */}
       {loading && (

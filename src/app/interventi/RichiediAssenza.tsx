@@ -21,6 +21,7 @@ export default function RichiediAssenza({ isOpen, onClose, userInfo }: RichiediA
     to_date: '',
     note: ''
   });
+  const [successMessage, setSuccessMessage] = useState('');
 
   const auth = useAuth();
 
@@ -76,7 +77,16 @@ export default function RichiediAssenza({ isOpen, onClose, userInfo }: RichiediA
       }
 
       console.log('✅ Richiesta di assenza inviata con successo');
-      handleClose();
+      setSuccessMessage('Richiesta di assenza inviata con successo!');
+      setAbsenceData({
+        from_date: '',
+        to_date: '',
+        note: ''
+      });
+      setTimeout(() => {
+        setSuccessMessage('');
+        handleClose();
+      }, 2000);
       
     } catch (error) {
       console.error('Errore durante la richiesta di assenza:', error);
@@ -103,6 +113,12 @@ export default function RichiediAssenza({ isOpen, onClose, userInfo }: RichiediA
             <X size={20} />
           </button>
         </div>
+
+        {successMessage && (
+          <div className="mb-4 p-2 bg-green-100 text-green-800 rounded text-center">
+            {successMessage}
+          </div>
+        )}
 
         <div className="space-y-4 mb-6">
           <div>
