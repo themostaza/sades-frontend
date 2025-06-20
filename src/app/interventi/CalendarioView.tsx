@@ -762,12 +762,8 @@ export default function CalendarioView() {
   // Funzione per ottenere l'ora da una stringa datetime
   const getTimeFromDatetime = (datetime: string): string => {
     if (!datetime) return '';
-    try {
-      const date = new Date(datetime);
-      return date.toTimeString().substring(0, 5); // Format: "HH:MM"
-    } catch {
-      return '';
-    }
+    // Prende solo la parte HH:MM dalla stringa ISO
+    return datetime.substring(11, 16);
   };
 
   // Funzione per convertire HEX in rgba con opacità
@@ -808,12 +804,10 @@ export default function CalendarioView() {
         }
       }
 
-      // Se l'intervento ha un from_datetime, usa quello per il filtraggio
+      // Se l'intervento ha un from_datetime, usa direttamente la stringa ISO per il filtraggio
       if (intervento.from_datetime) {
-        const interventionDate = new Date(intervento.from_datetime);
-        const interventionDay = interventionDate.toISOString().split('T')[0];
-        const interventionTime = interventionDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-        
+        const interventionDay = intervento.from_datetime.substring(0, 10); // YYYY-MM-DD
+        const interventionTime = intervento.from_datetime.substring(11, 16); // HH:MM
         return interventionDay === dayString && interventionTime === timeSlot;
       }
       

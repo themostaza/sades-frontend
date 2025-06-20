@@ -211,7 +211,8 @@ export default function ApparecchiaturePage() {
   };
 
   // Truncate text for display
-  const truncateText = (text: string, maxLength: number = 25) => {
+  const truncateText = (text: string | null | undefined, maxLength: number = 25) => {
+    if (!text) return '-';
     return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
   };
 
