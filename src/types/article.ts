@@ -91,6 +91,7 @@ export interface UpdateArticleRequest extends CreateArticleRequest {
 // Tipo per i tipi di posto
 export interface PlaceType {
   id: number;
+  label: string;
   name: string;
   description?: string;
 }
@@ -101,6 +102,8 @@ export interface ArticlePlace {
   name: string;
   description?: string;
   place_type_id: number;
+  property_1: string;
+  property_2: string;
 }
 
 // Tipo per i magazzini

@@ -215,23 +215,23 @@ export default function InventarioPage() {
   };
 
   // Calcola statistiche
-  const getInStockCount = () => {
-    return articles.filter(article => 
-      article.quantity_stock && article.quantity_stock > 0
-    ).length;
-  };
+  // const getInStockCount = () => {
+  //   return articles.filter(article => 
+  //     article.quantity_stock && article.quantity_stock > 0
+  //   ).length;
+  // };
 
-  const getOutOfStockCount = () => {
-    return articles.filter(article => 
-      !article.quantity_stock || article.quantity_stock <= 0
-    ).length;
-  };
+  // const getOutOfStockCount = () => {
+  //   return articles.filter(article => 
+  //     !article.quantity_stock || article.quantity_stock <= 0
+  //   ).length;
+  // };
 
-  const getLowStockCount = () => {
-    return articles.filter(article => 
-      article.quantity_stock && article.quantity_stock > 0 && article.quantity_stock < 10
-    ).length;
-  };
+  // const getLowStockCount = () => {
+  //   return articles.filter(article => 
+  //     article.quantity_stock && article.quantity_stock > 0 && article.quantity_stock < 10
+  //   ).length;
+  // };
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'N/A';
@@ -242,19 +242,6 @@ export default function InventarioPage() {
   const hasDateValue = (dateString: string | null) => {
     return dateString && dateString.trim() !== '';
   };
-
-  if (loading && articles.length === 0) {
-    return (
-      <div className="p-6 bg-white min-h-screen">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 text-teal-600 animate-spin mx-auto mb-4" />
-            <p className="text-gray-600">Caricamento inventario...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Mostra il dettaglio articolo se selezionato
   if (showArticleDetail && selectedArticleId) {
@@ -276,6 +263,7 @@ export default function InventarioPage() {
           <div className="text-sm text-gray-600">
             Totale articoli: <span className="font-medium">{totalItems}</span>
           </div>
+          {/*
           <div className="flex items-center gap-2">
             <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
               In stock: {getInStockCount()}
@@ -289,6 +277,7 @@ export default function InventarioPage() {
               </span>
             )}
           </div>
+          */}
         </div>
       </div>
 
@@ -305,7 +294,12 @@ export default function InventarioPage() {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
             />
           </div>
+          {/* Loader accanto ai filtri */}
+          {loading && (
+            <Loader2 className="w-5 h-5 text-teal-600 animate-spin" />
+          )}
           
+          {/*
           <div className="relative">
             <select
               value={filters.family}
@@ -319,6 +313,7 @@ export default function InventarioPage() {
             </select>
             <Package className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
           </div>
+          */}
 
           <div className="relative">
             <select
@@ -344,7 +339,7 @@ export default function InventarioPage() {
               <option value="">Tutti i tipi di posto</option>
               {placeTypes.map((type) => (
                 <option key={type.id} value={type.id.toString()}>
-                  {type.name}
+                  {type.label}
                 </option>
               ))}
             </select>
@@ -361,7 +356,7 @@ export default function InventarioPage() {
                 <option value="">Tutti i posti</option>
                 {articlePlaces.map((place) => (
                   <option key={place.id} value={place.id.toString()}>
-                    {place.name}
+                    {place.property_1} ({place.property_2})
                   </option>
                 ))}
               </select>
