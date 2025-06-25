@@ -41,29 +41,26 @@ export default function DashboardPage() {
   const router = useRouter();
 
   // Get today's date in CET timezone
-  const getTodayInCET = () => {
+  const getTodayInCET = React.useCallback(() => {
     const now = new Date();
     // Convert to CET (UTC+1) or CEST (UTC+2) depending on DST
     const cetDate = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Rome"}));
     return cetDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
-  };
+  }, []);
 
   // Fetch interventions data
-  const fetchInterventions = async () => {
+  const fetchInterventions = React.useCallback(async () => {
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-
       if (auth.token) {
         headers['Authorization'] = `Bearer ${auth.token}`;
       }
-
       // Fetch a larger dataset to get all interventions for filtering
       const response = await fetch('/api/assistance-interventions?skip=100', {
         headers,
       });
-
       if (!response.ok) {
         if (response.status === 401) {
           auth.logout();
@@ -71,39 +68,33 @@ export default function DashboardPage() {
         }
         throw new Error('Failed to fetch interventions');
       }
-
       const data: AssistanceInterventionsApiResponse = await response.json();
       setInterventions(data.data || []);
     } catch (err) {
       console.error('Error fetching interventions:', err);
       throw err;
     }
-  };
+  }, [auth]);
 
   // Fetch absences data for today
-  const fetchAbsences = async () => {
+  const fetchAbsences = React.useCallback(async () => {
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-
       if (auth.token) {
         headers['Authorization'] = `Bearer ${auth.token}`;
       }
-
       const today = getTodayInCET();
-      
       // Fetch absences that include today's date
       const params = new URLSearchParams({
         page: '1',
         limit: '100', // Get enough data to cover all possible absences
         status: 'approved' // Only count approved absences
       });
-
       const response = await fetch(`/api/absences?${params.toString()}`, {
         headers,
       });
-
       if (!response.ok) {
         if (response.status === 401) {
           auth.logout();
@@ -111,29 +102,25 @@ export default function DashboardPage() {
         }
         throw new Error('Failed to fetch absences');
       }
-
       const data: AbsencesApiResponse = await response.json();
-      
       // Filter absences that include today's date
       const todayAbsences = data.data.filter(absence => {
         const fromDate = absence.from_date.split('T')[0];
         const toDate = absence.to_date.split('T')[0];
         return today >= fromDate && today <= toDate;
       });
-      
       setAbsences(todayAbsences);
     } catch (err) {
       console.error('Error fetching absences:', err);
       throw err;
     }
-  };
+  }, [auth, getTodayInCET]);
 
   // Fetch all data
-  const fetchAllData = async () => {
+  const fetchAllData = React.useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-
       await Promise.all([
         fetchInterventions(),
         fetchAbsences()
@@ -144,11 +131,11 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchInterventions, fetchAbsences]);
 
   useEffect(() => {
     fetchAllData();
-  }, [auth.token]);
+  }, [fetchAllData, auth.token]);
 
   // Calculate KPIs and filtered data
   const interventiInCarico = interventions.filter(

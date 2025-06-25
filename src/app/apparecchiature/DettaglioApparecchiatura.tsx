@@ -94,25 +94,20 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
   const auth = useAuth();
 
   // Fetch equipment details
-  const fetchEquipmentDetails = async () => {
+  const fetchEquipmentDetails = React.useCallback(async () => {
     if (!equipmentId) return;
-    
     try {
       setLoading(true);
       setError(null);
-
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-
       if (auth.token) {
         headers['Authorization'] = `Bearer ${auth.token}`;
       }
-
       const response = await fetch(`/api/equipments/${equipmentId}`, {
         headers,
       });
-
       if (!response.ok) {
         if (response.status === 401) {
           auth.logout();
@@ -120,7 +115,6 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
         }
         throw new Error('Failed to fetch equipment details');
       }
-
       const data = await response.json();
       const equipmentData = data.data || data;
       setEquipment(equipmentData);
@@ -130,7 +124,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
     } finally {
       setLoading(false);
     }
-  };
+  }, [equipmentId, auth]);
 
   // Format date for input
   const formatDateForInput = (dateString: string | null | undefined) => {
@@ -142,7 +136,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
     if (equipmentId) {
       fetchEquipmentDetails();
     }
-  }, [equipmentId]);
+  }, [equipmentId, fetchEquipmentDetails]);
 
   if (loading && !equipment) {
     return (
