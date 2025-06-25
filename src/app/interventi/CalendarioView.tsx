@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Calendar, X, Search, ExternalLink, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import type { ConnectedEquipment, ConnectedArticle } from '../../types/assistance-interventions';
 
 interface Intervento {
   id: string;
@@ -107,6 +108,11 @@ export default function CalendarioView() {
   const [showTechnicianMultiSelect, setShowTechnicianMultiSelect] = useState(false);
   const [calendarStatusFilter, setCalendarStatusFilter] = useState<string[]>([]);
   const [showStatusMultiSelect, setShowStatusMultiSelect] = useState(false);
+
+  // Stato per le note calendario
+  const [calendarNotes, setCalendarNotes] = useState<string>('');
+  const [savingCalendarNotes, setSavingCalendarNotes] = useState(false);
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
 
   // Opzioni tecnici disponibili nella settimana
   const calendarTechnicianOptions = Array.from(new Set(interventiCalendario.map(i => i.tecnico).filter(t => t && t !== '-')));
@@ -270,7 +276,7 @@ export default function CalendarioView() {
       console.error('Error fetching calendar interventions:', err);
     } finally {
     }
-  }, [auth.token, auth.logout, currentWeek]);
+  }, [auth, currentWeek]);
 
   // Funzione per cercare i tecnici nel dialog
   const searchTechnicians = useCallback(async (query: string) => {
@@ -310,7 +316,7 @@ export default function CalendarioView() {
     } finally {
       setIsSearchingTechnicians(false);
     }
-  }, [auth.token]);
+  }, [auth]);
 
   // Funzione per caricare tutti i tecnici (quando si clicca nel campo)
   const loadAllTechnicians = async () => {
@@ -421,7 +427,7 @@ export default function CalendarioView() {
     } finally {
       setLoadingInterventiDaAssegnare(false);
     }
-  }, [auth.token, auth.logout]);
+  }, [auth]);
 
   // Hook per caricare gli interventi da assegnare al mount
   useEffect(() => {
@@ -453,7 +459,7 @@ export default function CalendarioView() {
       }
     };
     fetchZones();
-  }, [auth.token]);
+  }, [auth, auth.token]);
 
   // Gestisce il click fuori dal dropdown per chiuderlo
   useEffect(() => {
@@ -698,11 +704,12 @@ export default function CalendarioView() {
         internal_notes: currentData.internal_notes || '',
         status_id: currentData.status_id,
         // Mantieni equipments e articles esistenti
-        equipments: currentData.connected_equipment?.map((eq) => eq.id) || [],
-        articles: currentData.connected_articles?.map((art) => ({
-          article_id: art.id.toString(),
-          quantity: 1
-        })) || []
+        equipments: (currentData.connected_equipment as ConnectedEquipment[] | undefined)?.map((eq) => eq.id) || [],
+        articles: (currentData.connected_articles as ConnectedArticle[] | undefined)?.map((art) => ({
+          article_id: art.id,
+          quantity: typeof art.quantity === 'number' ? art.quantity : 1
+        })) || [],
+        calendar_notes: calendarNotes,
       };
 
       console.log('📤 Payload PUT:', updatePayload);
@@ -930,6 +937,94 @@ export default function CalendarioView() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Quando si seleziona un intervento dal calendario, carica le note
+  useEffect(() => {
+    if (showCalendarInterventoDialog && selectedCalendarIntervento) {
+      // Recupera le note dal backend se disponibili
+      const fetchNotes = async () => {
+        try {
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+          };
+          if (auth.token) {
+            headers['Authorization'] = `Bearer ${auth.token}`;
+          }
+          const response = await fetch(`/api/assistance-interventions/${selectedCalendarIntervento.id}`, { headers });
+          if (response.ok) {
+            const data = await response.json();
+            setCalendarNotes(data.calendar_notes || '');
+          } else {
+            setCalendarNotes('');
+          }
+        } catch {
+          setCalendarNotes('');
+        }
+      };
+      fetchNotes();
+    }
+  }, [showCalendarInterventoDialog, selectedCalendarIntervento, auth.token]);
+
+  // Funzione per autosalvataggio delle note con debounce
+  const handleCalendarNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setCalendarNotes(value);
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+    debounceTimeout.current = setTimeout(async () => {
+      if (!selectedCalendarIntervento) return;
+      setSavingCalendarNotes(true);
+      try {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        if (auth.token) {
+          headers['Authorization'] = `Bearer ${auth.token}`;
+        }
+        // Recupera i dati attuali per non sovrascrivere altri campi
+        const getResponse = await fetch(`/api/assistance-interventions/${selectedCalendarIntervento.id}`, { headers });
+        if (!getResponse.ok) return;
+        const currentData = await getResponse.json();
+        // Prepara il payload SOLO con i campi previsti dallo swagger
+        const updatePayload = {
+          customer_id: currentData.customer_id,
+          type_id: currentData.type_id,
+          zone_id: currentData.zone_id,
+          customer_location_id: currentData.customer_location_id,
+          flg_home_service: currentData.flg_home_service,
+          flg_discount_home_service: currentData.flg_discount_home_service,
+          date: currentData.date,
+          time_slot: currentData.time_slot,
+          from_datetime: currentData.from_datetime,
+          to_datetime: currentData.to_datetime,
+          quotation_price: parseFloat(currentData.quotation_price) || 0,
+          opening_hours: currentData.opening_hours || '',
+          assigned_to: currentData.assigned_to,
+          call_code: currentData.call_code,
+          internal_notes: currentData.internal_notes || '',
+          status_id: currentData.status_id,
+          approved_by: currentData.approved_by,
+          approved_at: currentData.approved_at,
+          cancelled_by: currentData.cancelled_by,
+          cancelled_at: currentData.cancelled_at,
+          invoiced_by: currentData.invoiced_by,
+          invoiced_at: currentData.invoiced_at,
+          equipments: (currentData.connected_equipment as ConnectedEquipment[] | undefined)?.map((eq) => eq.id) || [],
+          articles: (currentData.connected_articles as ConnectedArticle[] | undefined)?.map((art) => ({
+            article_id: art.id,
+            quantity: typeof art.quantity === 'number' ? art.quantity : 1
+          })) || [],
+          calendar_notes: calendarNotes,
+        };
+        await fetch(`/api/assistance-interventions/${selectedCalendarIntervento.id}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify(updatePayload),
+        });
+      } finally {
+        setSavingCalendarNotes(false);
+      }
+    }, 800); // debounce 800ms
+  };
 
   return (
     <div className="flex gap-6">
@@ -1500,6 +1595,19 @@ export default function CalendarioView() {
             </div>
             {/* Corpo */}
             <div className="px-8 py-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* CAMPO NOTE CALENDARIO */}
+              <div className="col-span-2 mb-4">
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Note calendario</label>
+                <textarea
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 min-h-[60px]"
+                  value={calendarNotes}
+                  onChange={handleCalendarNotesChange}
+                  placeholder="Aggiungi note per questo intervento..."
+                />
+                {savingCalendarNotes && (
+                  <span className="text-xs text-gray-400 ml-2">Salvataggio...</span>
+                )}
+              </div>
               <div className="space-y-3">
                 <div>
                   <span className="block text-xs text-gray-500 font-semibold uppercase mb-1">Tecnico</span>

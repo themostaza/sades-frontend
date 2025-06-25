@@ -45,6 +45,7 @@ export interface AssistanceIntervention {
   type_label: string;
   report_id: number | null;
   report_is_failed: boolean | null;
+  calendar_notes?: string;
 }
 
 export interface AssistanceInterventionDetail {
@@ -91,6 +92,7 @@ export interface AssistanceInterventionDetail {
   report_is_failed: boolean | null;
   connected_equipment: ConnectedEquipment[];
   connected_articles: ConnectedArticle[];
+  calendar_notes?: string;
 }
 
 export interface CreateAssistanceInterventionRequest {
@@ -145,6 +147,7 @@ export interface UpdateAssistanceInterventionRequest {
     article_id: string;
     quantity: number;
   }>;
+  calendar_notes?: string;
 }
 
 export interface AssistanceInterventionsApiResponse {
