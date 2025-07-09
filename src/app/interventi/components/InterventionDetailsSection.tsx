@@ -242,15 +242,8 @@ export default function InterventionDetailsSection({
   // Debounce per la ricerca apparecchiature
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (isEquipmentSearchEnabled() && equipmentSearchQuery.trim() && equipmentSearchQuery.length >= 2) {
+      if (isEquipmentSearchEnabled()) {
         searchEquipments(equipmentSearchQuery);
-      } else if (equipmentSearchQuery.trim() === '' && equipments.length > 0) {
-        // Se l'utente ha cancellato tutto e c'erano già risultati, mantienili
-        // (il fetch iniziale li ha già caricati)
-        return;
-      } else if (equipmentSearchQuery.length > 0 && equipmentSearchQuery.length < 2) {
-        // Se c'è del testo ma meno di 2 caratteri, nascondi il dropdown
-        setShowEquipmentDropdown(false);
       }
     }, 300);
 
