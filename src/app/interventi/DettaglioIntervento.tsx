@@ -1165,8 +1165,8 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
               <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
             </button>
             
-            {/* Pulsante annulla intervento - solo per status completato o inferiori */}
-            {shouldShowCancelButton() && userInfo && (
+            {/* Pulsante annulla intervento - solo per status completato o inferiori e solo admin */}
+            {shouldShowCancelButton() && userInfo && isAdmin() && (
               <CancelInterventionButton
                 onCancel={annullaIntervento}
                 disabled={isRefreshing || isDownloadingPDF}

@@ -202,7 +202,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                 </label>
                 <input
                   type="text"
-                  value={equipment.description}
+                  value={equipment.description ?? ''}
                   readOnly
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                 />
@@ -217,7 +217,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.company_name}
+                      value={equipment.company_name ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -229,7 +229,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.location_company_name || ''}
+                      value={equipment.location_company_name ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -241,7 +241,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.brand_label}
+                      value={equipment.brand_label ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -253,7 +253,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.serial_number || ''}
+                      value={equipment.serial_number ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -265,7 +265,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.family_label}
+                      value={equipment.family_label ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -277,7 +277,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.group_label}
+                      value={equipment.group_label ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -289,7 +289,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.serial_number || ''}
+                      value={equipment.serial_number ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -304,7 +304,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.company_name}
+                      value={equipment.company_name ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -316,7 +316,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.location_company_name || ''}
+                      value={equipment.location_company_name ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -328,7 +328,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.model || ''}
+                      value={equipment.model ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -341,7 +341,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     <div className="space-y-3">
                       <input
                         type="date"
-                        value={formatDateForInput(equipment.sale_date)}
+                        value={formatDateForInput(equipment.sale_date ?? '')}
                         readOnly
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                       />
@@ -370,7 +370,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.subfamily_label}
+                      value={equipment.subfamily_label ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -382,7 +382,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.subgroup_label || ''}
+                      value={equipment.subgroup_label ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -404,7 +404,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                 </label>
                 <textarea
                   rows={3}
-                  value={equipment.note || ''}
+                  value={equipment.note ?? ''}
                   readOnly
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                 />
@@ -419,7 +419,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      value={equipment.tech_assist_phone_num || ''}
+                      value={equipment.tech_assist_phone_num ?? ''}
                       readOnly
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -439,7 +439,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.design_position || ''}
+                      value={equipment.design_position ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -463,7 +463,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.max_charge || ''}
+                      value={equipment.max_charge ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -475,7 +475,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.compr_model || ''}
+                      value={equipment.compr_model ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -489,7 +489,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.gas_type_label || ''}
+                      value={equipment.gas_type_label ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -513,7 +513,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.compr_model || ''}
+                      value={equipment.compr_model ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
@@ -525,7 +525,7 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
                     </label>
                     <input
                       type="text"
-                      value={equipment.compr_brand || ''}
+                      value={equipment.compr_brand ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
