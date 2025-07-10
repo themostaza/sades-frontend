@@ -39,6 +39,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const auth = useAuth();
   const router = useRouter();
+  const [unreadNotifications, setUnreadNotifications] = useState<number | null>(null);
 
   // Get today's date in CET timezone
   const getTodayInCET = React.useCallback(() => {
@@ -116,6 +117,28 @@ export default function DashboardPage() {
     }
   }, [auth, getTodayInCET]);
 
+  // Fetch unread notifications for admin
+  const fetchUnreadNotifications = React.useCallback(async () => {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (auth.token) {
+        headers['Authorization'] = `Bearer ${auth.token}`;
+      }
+      const response = await fetch('/api/notifications?unread_only=true&limit=1', {
+        headers,
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch unread notifications');
+      }
+      const data = await response.json();
+      setUnreadNotifications(data.pagination?.total ?? 0);
+    } catch {
+      setUnreadNotifications(0);
+    }
+  }, [auth]);
+
   // Fetch all data
   const fetchAllData = React.useCallback(async () => {
     try {
@@ -135,7 +158,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchAllData();
-  }, [fetchAllData, auth.token]);
+    fetchUnreadNotifications();
+  }, [fetchAllData, fetchUnreadNotifications, auth.token]);
 
   // Calculate KPIs and filtered data
   const interventiInCarico = interventions.filter(
@@ -301,7 +325,9 @@ export default function DashboardPage() {
             <h3 className="text-sm font-medium text-gray-600">Notifiche non lette</h3>
             <ExternalLink size={16} className="text-gray-400" />
           </div>
-          <div className="text-3xl font-bold text-gray-900">31</div>
+          <div className="text-3xl font-bold text-gray-900">
+            {unreadNotifications !== null ? unreadNotifications : '-'}
+          </div>
         </button>
       </div>
 
