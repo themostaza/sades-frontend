@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { loginUser } from '../utils/api';
 
 interface User {
@@ -40,32 +40,57 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
-  const pathname = usePathname();
-
-  // Pagine pubbliche che non richiedono autenticazione
-  const publicPages = ['/', '/login'];
-  const isPublicPage = publicPages.includes(pathname);
 
   // Inizializza l'autenticazione al caricamento
   useEffect(() => {
-    const initAuth = () => {
+    const initAuth = async () => {
       const storedToken = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-      const storedUser = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
       
-      if (storedToken && storedUser) {
+      if (storedToken) {
         try {
-          const parsedUser = JSON.parse(storedUser);
-          setToken(storedToken);
-          setUser(parsedUser);
-          
-          // Imposta anche il cookie per il middleware
-          document.cookie = `auth_token=${storedToken}; path=/; max-age=${30 * 24 * 60 * 60}`; // 30 giorni
+          // Chiama /api/auth/me per ottenere le informazioni aggiornate dell'utente
+          const response = await fetch('/api/auth/me', {
+            method: 'POST',
+            headers: {
+              'accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${storedToken}`,
+            },
+            body: JSON.stringify({ token: storedToken }),
+          });
+
+          if (response.ok) {
+            const userData = await response.json();
+            console.log('✅ User data from /api/auth/me:', userData);
+            
+            // Imposta token e dati utente aggiornati
+            setToken(storedToken);
+            setUser({
+              id: userData.id || userData.user_id || '1',
+              email: userData.email,
+              name: userData.name || userData.full_name,
+              role: userData.role || userData.user_role
+            });
+            
+            // Imposta anche il cookie per il middleware
+            document.cookie = `auth_token=${storedToken}; path=/; max-age=${30 * 24 * 60 * 60}`; // 30 giorni
+          } else {
+            // Se il token non è valido, pulisci tutto
+            console.log('🚫 Token not valid, clearing auth data');
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_user');
+            sessionStorage.removeItem('auth_token');
+            sessionStorage.removeItem('auth_user');
+            document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+          }
         } catch (error) {
-          console.error('Error parsing stored user data:', error);
+          console.error('Error validating token:', error);
+          // In caso di errore, pulisci tutto
           localStorage.removeItem('auth_token');
           localStorage.removeItem('auth_user');
           sessionStorage.removeItem('auth_token');
           sessionStorage.removeItem('auth_user');
+          document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
         }
       }
       
@@ -75,12 +100,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initAuth();
   }, []);
 
-  // Middleware di autenticazione
-  useEffect(() => {
-    if (!isLoading && !isPublicPage && !token) {
-      router.push('/login');
-    }
-  }, [isLoading, isPublicPage, token, router]);
 
   const login = async (email: string, password: string, rememberMe: boolean = false): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -102,13 +121,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       document.cookie = cookieString;
       
       // Debug: mostra info del cookie
-      const expirationDate = new Date(Date.now() + (maxAge * 1000));
-      console.log('🍪 Cookie impostato:', {
-        rememberMe,
-        maxAgeDays: maxAge / (24 * 60 * 60),
-        expirationDate: expirationDate.toLocaleString('it-IT'),
-        cookieString
-      });
+      // const expirationDate = new Date(Date.now() + (maxAge * 1000));
+      // console.log('🍪 Cookie impostato:', {
+      //   rememberMe,
+      //   maxAgeDays: maxAge / (24 * 60 * 60),
+      //   expirationDate: expirationDate.toLocaleString('it-IT'),
+      //   cookieString
+      // });
       
       // Salva nel localStorage se "ricordami" è selezionato
       if (rememberMe) {

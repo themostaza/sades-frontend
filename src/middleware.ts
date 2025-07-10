@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { canAccessRoute, getDefaultRoute, isValidRole, type UserRole } from './utils/permissions';
 
 export async function middleware(request: NextRequest) {
+  console.log('🚀 MIDDLEWARE ATTIVATO per:', request.nextUrl.pathname);
   const { pathname } = request.nextUrl;
-  
+
   // Pagine pubbliche che non richiedono autenticazione
   const publicPages = ['/', '/login'];
   
@@ -17,6 +19,7 @@ export async function middleware(request: NextRequest) {
   
   // Se non c'è token, reindirizza al login
   if (!token) {
+    console.log('🚫 No token found, redirecting to login');
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
   }
@@ -38,41 +41,50 @@ export async function middleware(request: NextRequest) {
     if (!response.ok) {
       console.log('🚫 Token validation failed in middleware, redirecting to login');
       const loginUrl = new URL('/login', request.url);
-      // Rimuovi il cookie non valido
-      const response = NextResponse.redirect(loginUrl);
-      response.cookies.delete('auth_token');
-      return response;
+      const redirectResponse = NextResponse.redirect(loginUrl);
+      redirectResponse.cookies.delete('auth_token');
+      return redirectResponse;
     }
 
     // Ottieni le informazioni dell'utente dalla risposta
     const userData = await response.json();
     console.log('✅ Token validated successfully in middleware, user:', userData);
 
-    // Se l'utente è un tecnico e sta cercando di accedere alla dashboard, reindirizzalo agli interventi
-    if (userData.role === 'tecnico' && pathname === '/dashboard') {
-      console.log('🔄 Redirecting technician from dashboard to interventi');
-      const interventiUrl = new URL('/interventi', request.url);
-      return NextResponse.redirect(interventiUrl);
+    // Verifica se il ruolo è valido
+    if (!isValidRole(userData.role)) {
+      console.log('🚫 Invalid user role:', userData.role);
+      const loginUrl = new URL('/login', request.url);
+      const redirectResponse = NextResponse.redirect(loginUrl);
+      redirectResponse.cookies.delete('auth_token');
+      return redirectResponse;
     }
 
-    // Controlla se l'utente sta cercando di accedere a pagine per cui non ha autorizzazione
-    const technicianAllowedPages = ['/interventi', '/inventario', '/notifiche'];
-    if (userData.role === 'tecnico' && !technicianAllowedPages.some(page => pathname.startsWith(page))) {
-      console.log('🚫 Technician trying to access unauthorized page:', pathname);
-      const interventiUrl = new URL('/interventi', request.url);
-      return NextResponse.redirect(interventiUrl);
+    const userRole = userData.role as UserRole;
+
+    // Controlla se l'utente può accedere alla route richiesta
+    if (!canAccessRoute(userRole, pathname)) {
+      console.log(`🚫 User with role "${userRole}" cannot access "${pathname}"`);
+      
+      // Reindirizza alla route di default per questo ruolo
+      const defaultRoute = getDefaultRoute(userRole);
+      console.log(`🔄 Redirecting to default route: ${defaultRoute}`);
+      
+      const redirectUrl = new URL(defaultRoute, request.url);
+      return NextResponse.redirect(redirectUrl);
     }
+
+    console.log(`✅ Access granted for role "${userRole}" to "${pathname}"`);
     
-    // Se il token è valido, permetti l'accesso
+    // Se il token è valido e l'utente ha i permessi, permetti l'accesso
     return NextResponse.next();
     
   } catch (error) {
     console.error('💥 Error validating token in middleware:', error);
     // In caso di errore, reindirizza al login per sicurezza
     const loginUrl = new URL('/login', request.url);
-    const response = NextResponse.redirect(loginUrl);
-    response.cookies.delete('auth_token');
-    return response;
+    const redirectResponse = NextResponse.redirect(loginUrl);
+    redirectResponse.cookies.delete('auth_token');
+    return redirectResponse;
   }
 }
 
