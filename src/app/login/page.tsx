@@ -9,7 +9,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [isRedirecting, setIsRedirecting] = useState(false);
@@ -38,7 +37,7 @@ export default function LoginPage() {
     setError('');
     
     try {
-      const result = await login(email, password, rememberMe);
+      const result = await login(email, password);
       
       if (result.success) {
         // Il redirect a /interventi sarà gestito automaticamente dall'useEffect
@@ -178,22 +177,8 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Remember Me and Forgot Password */}
+            {/* Forgot Password */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
-                  Ricordami per 30 giorni
-                </label>
-              </div>
-
               <div className="text-sm">
                 <button
                   type="button"
@@ -233,7 +218,7 @@ export default function LoginPage() {
         {/* Footer */}
         <div className="mt-8 text-center">
           <p className="text-xs text-gray-500 flex items-center justify-between">
-            <span>© Sades Impianti srl - 2024</span>
+            <span>© Sades Impianti srl - 2025</span>
             <a 
               href="mailto:sades@sades.it" 
               className="text-teal-600 hover:text-teal-500 transition-colors flex items-center gap-1"
