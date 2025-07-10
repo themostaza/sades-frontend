@@ -36,6 +36,7 @@ interface ApiResponse {
 
 export default function TeamPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(20);
@@ -69,6 +70,15 @@ export default function TeamPage() {
   const auth = useAuth();
   const [userInfo, setUserInfo] = useState<{ id: string; role: string } | null>(null);
   const [userLoading, setUserLoading] = useState(true);
+
+  // Debouncing per la ricerca
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // Carica i ruoli all'avvio del componente
   useEffect(() => {
@@ -136,8 +146,8 @@ export default function TeamPage() {
         skip: pageSize.toString(),
       });
       
-      if (searchTerm.trim()) {
-        params.append('query', searchTerm.trim());
+      if (debouncedSearchTerm.trim()) {
+        params.append('query', debouncedSearchTerm.trim());
       }
       
       if (selectedRole) {
@@ -177,7 +187,7 @@ export default function TeamPage() {
     if (currentView === 'list') {
       fetchTeamData();
     }
-  }, [currentPage, searchTerm, selectedRole, currentView, userInfo]);
+  }, [currentPage, debouncedSearchTerm, selectedRole, currentView, userInfo]);
 
   const getStatusColor = (status: string, disabled: boolean) => {
     if (disabled) {
@@ -393,7 +403,7 @@ export default function TeamPage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
               <input
                 type="text"
-                placeholder="Cerca nome, cognome, codice fiscale"
+                placeholder="Cerca nome, cognome"
                 value={searchTerm}
                 onChange={(e) => handleSearch(e.target.value)}
                 className="w-full pl-10 text-gray-800 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
