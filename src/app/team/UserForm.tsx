@@ -119,24 +119,95 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
     fetchRoles();
   }, [auth.token]);
 
-  // Popola il form se stiamo modificando un utente esistente
+  // Carica i dati dell'utente se stiamo modificando un utente esistente
   useEffect(() => {
-    if (user && !isCreating) {
-      const userData = {
-        name: user.name || '',
-        surname: user.surname || '',
-        fiscal_code: user.fiscal_code || '',
-        email: user.email || '',
-        phone_number: user.phone_number || '',
-        note: user.note || '',
-        role_id: getRoleId(user.role),
-        disabled: user.disabled || false
-      };
-      
-      setFormData(userData);
-      setOriginalData(userData); // Salva i dati originali per il confronto
-    }
-  }, [user, isCreating]);
+    const fetchUserData = async () => {
+      if (user && !isCreating) {
+        try {
+          console.log('🔄 Fetching user data for edit mode:', user.id);
+          
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+          };
+
+          if (auth.token) {
+            headers['Authorization'] = `Bearer ${auth.token}`;
+          }
+
+          const response = await fetch(`/api/users/${user.id}`, {
+            headers,
+          });
+
+          if (response.ok) {
+            const userData = await response.json();
+            console.log('✅ User data received from backend:', userData);
+            console.log('📋 Data structure:', {
+              name: userData.name,
+              surname: userData.surname,
+              fiscal_code: userData.fiscal_code,
+              email: userData.email,
+              phone_number: userData.phone_number,
+              note: userData.note,
+              role: userData.role,
+              role_id: userData.role_id,
+              disabled: userData.disabled
+            });
+            
+            const formData = {
+              name: userData.name || '',
+              surname: userData.surname || '',
+              fiscal_code: userData.fiscal_code || '',
+              email: userData.email || '',
+              phone_number: userData.phone_number || '',
+              note: userData.note || '',
+              role_id: userData.role_id ? userData.role_id.toString() : '',
+              disabled: userData.disabled === true
+            };
+            
+            console.log('📝 Form data being set:', formData);
+            console.log('🎯 Role mapping: backend role_id =', userData.role_id, '-> form role_id =', formData.role_id);
+            console.log('☑️ Disabled mapping: backend disabled =', userData.disabled, '-> form disabled =', formData.disabled);
+            setFormData(formData);
+            setOriginalData(formData);
+          } else {
+            console.error('❌ Failed to fetch user data, using data from list');
+            // Fallback ai dati dalla lista
+            const userData = {
+              name: user.name || '',
+              surname: user.surname || '',
+              fiscal_code: user.fiscal_code || '',
+              email: user.email || '',
+              phone_number: user.phone_number || '',
+              note: user.note || '',
+              role_id: getRoleId(user.role), // Fallback con conversione
+              disabled: user.disabled === true
+            };
+            
+            setFormData(userData);
+            setOriginalData(userData);
+          }
+        } catch (error) {
+          console.error('💥 Error fetching user data:', error);
+          // Fallback ai dati dalla lista
+          const userData = {
+            name: user.name || '',
+            surname: user.surname || '',
+            fiscal_code: user.fiscal_code || '',
+            email: user.email || '',
+            phone_number: user.phone_number || '',
+            note: user.note || '',
+            role_id: getRoleId(user.role), // Fallback con conversione
+            disabled: user.disabled === true
+          };
+          
+          setFormData(userData);
+          setOriginalData(userData);
+        }
+      }
+    };
+
+    fetchUserData();
+  }, [user, isCreating, auth.token]);
 
   // Mappa i ruoli ai loro ID (basato sui dati dall'API)
   const getRoleId = (roleName: string | null | undefined): string => {
@@ -528,7 +599,7 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
                 disabled={loading}
               />
               <label htmlFor="disabled" className="ml-2 block text-sm text-gray-900">
-                Disattiva utente
+                Utente disabilitato
               </label>
             </div>
           )}
