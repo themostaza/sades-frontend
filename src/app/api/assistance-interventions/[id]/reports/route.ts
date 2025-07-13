@@ -19,6 +19,7 @@ export async function POST(
     
     console.log('🔄 Proxying intervention report creation to:', `${BASE_URL}api/assistance-interventions/${id}/reports`);
     console.log('📤 Request body:', body);
+    console.log('📋 Items array:', JSON.stringify(body.items, null, 2));
 
     const headers: Record<string, string> = {
       'accept': 'application/json',
