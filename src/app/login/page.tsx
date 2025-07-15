@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Eye, EyeOff, Mail, Lock, X, CheckCircle, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -11,7 +11,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isRedirecting, setIsRedirecting] = useState(false);
   
   // Forgot password dialog states
   const [showForgotPasswordDialog, setShowForgotPasswordDialog] = useState(false);
@@ -19,17 +18,8 @@ export default function LoginPage() {
   const [isResetLoading, setIsResetLoading] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
 
-  const authContext = useAuth();
-  const { login, isAuthenticated } = authContext;
+  const { login } = useAuth();
   const router = useRouter();
-
-  // Redirect se già autenticato
-  useEffect(() => {
-    if (isAuthenticated) {
-      setIsRedirecting(true);
-      router.push('/interventi');
-    }
-  }, [isAuthenticated, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,8 +30,8 @@ export default function LoginPage() {
       const result = await login(email, password);
       
       if (result.success) {
-        // Il redirect a /interventi sarà gestito automaticamente dall'useEffect
-        // quando isAuthenticated diventa true
+        // Redirect semplice - il middleware gestirà la validazione
+        router.push('/interventi');
       } else {
         setError(result.error || 'Credenziali non valide. Verifica email e password e riprova.');
       }
@@ -194,15 +184,10 @@ export default function LoginPage() {
             <div>
               <button
                 type="submit"
-                disabled={isLoading || isRedirecting}
+                disabled={isLoading}
                 className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {isRedirecting ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Reindirizzamento...
-                  </div>
-                ) : isLoading ? (
+                {isLoading ? (
                   <div className="flex items-center">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                     Accesso in corso...
