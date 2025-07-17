@@ -530,6 +530,17 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
       const reportData = await response.json();
       console.log('✅ Rapportino creato con successo:', reportData);
       
+      // Gestisce la duplicazione dell'intervento per rapportini failed
+      if (reportData.duplicated_intervention) {
+        console.log('✅ Nuovo intervento creato automaticamente:', reportData.duplicated_intervention.id);
+        showNotification('success', 'Intervento duplicato!', 
+          `Rapportino creato e nuovo intervento #${reportData.duplicated_intervention.id} generato automaticamente per la riprogrammazione.`);
+      } else if (reportData.duplication_warning) {
+        console.warn('⚠️ Warning nella duplicazione:', reportData.duplication_warning);
+        showNotification('error', 'Attenzione', 
+          `Rapportino creato ma problema nella duplicazione intervento: ${reportData.duplication_warning}`);
+      }
+      
       onClose();
       
       // Apri il rapportino in una nuova tab
