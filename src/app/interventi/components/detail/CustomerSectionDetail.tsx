@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Phone } from 'lucide-react';
+import { ChevronDown, Phone, History } from 'lucide-react';
 import { useAuth } from '../../../../contexts/AuthContext';
+import CustomerHistoryDialog from '../CustomerHistoryDialog';
 
 interface CustomerLocation {
   id: string;
@@ -90,6 +91,9 @@ export default function CustomerSectionDetail({
   // Stati per le zone
   const [zones, setZones] = useState<Zone[]>([]);
   const [loadingZones, setLoadingZones] = useState(false);
+
+  // Stato per il dialog della cronologia
+  const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
 
   // Funzione per caricare le destinazioni del cliente
   const fetchCustomerLocations = async (customerId: number) => {
@@ -451,10 +455,27 @@ export default function CustomerSectionDetail({
 
       {/* Link anagrafica */}
       <div className="text-center">
-        <button className="text-teal-600 hover:text-teal-700 text-sm font-medium">
+        <button 
+          onClick={() => setIsHistoryDialogOpen(true)}
+          disabled={!selectedCustomerId}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            selectedCustomerId 
+              ? 'bg-teal-50 text-teal-600 hover:bg-teal-100 hover:text-teal-700 border border-teal-200' 
+              : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-200'
+          }`}
+        >
+          <History size={16} />
           Vedi anagrafica e cronologia interventi
         </button>
       </div>
+      
+      {/* Dialog cronologia interventi */}
+      <CustomerHistoryDialog
+        isOpen={isHistoryDialogOpen}
+        onClose={() => setIsHistoryDialogOpen(false)}
+        customerId={selectedCustomerId || 0}
+        customerName={ragioneSociale}
+      />
     </div>
   );
 } 
