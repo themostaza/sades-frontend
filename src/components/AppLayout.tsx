@@ -51,24 +51,24 @@ export default function AppLayout({ children }: AppLayoutProps) {
       
       // Se c'è token in storage ma non nel cookie -> logout automatico
       if (storageToken && !cookieToken && token) {
-        console.log('🚫 Desincronizzazione rilevata: token presente in storage ma mancante nel cookie');
+        // console.log('🚫 Desincronizzazione rilevata: token presente in storage ma mancante nel cookie');
         logout();
         return;
       }
       
       // Se non c'è token né in storage né nel cookie, ma AuthContext pensa di essere autenticato
       if (!storageToken && !cookieToken && token) {
-        console.log('🚫 Nessun token trovato: logout automatico');
+        // console.log('🚫 Nessun token trovato: logout automatico');
         logout();
         return;
       }
       
-      console.log('✅ Controllo autenticazione AppLayout:', {
-        pathname,
-        hasCookieToken: !!cookieToken,
-        hasStorageToken: !!storageToken,
-        hasContextToken: !!token
-      });
+      // console.log('✅ Controllo autenticazione AppLayout:', {
+      //   pathname,
+      //   hasCookieToken: !!cookieToken,
+      //   hasStorageToken: !!storageToken,
+      //   hasContextToken: !!token
+      // });
     }
   }, [pathname, token, logout]); // Controlla ad ogni cambio route
   
@@ -123,7 +123,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         router.push('/help');
         break;
       default:
-        console.log(`Navigating to: ${item}`);
+        // console.log(`Navigating to: ${item}`);
     }
   };
 

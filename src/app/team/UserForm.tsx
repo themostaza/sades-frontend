@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Trash2, Mail, Save } from 'lucide-react';
+import { ArrowLeft, Trash2, Mail, Save, AlertTriangle, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface TeamMember {
@@ -30,6 +30,17 @@ interface UserFormProps {
   onDelete?: (userId: string) => void;
 }
 
+interface UserRequestBody {
+  name: string;
+  surname: string;
+  fiscal_code: string;
+  email: string;
+  phone_number: string;
+  note: string;
+  role_id: number;
+  disabled: boolean;
+}
+
 export default function UserForm({ user, isCreating = false, onBack, onSave, onDelete }: UserFormProps) {
   const [formData, setFormData] = useState({
     name: '',
@@ -55,6 +66,7 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
   });
 
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
@@ -64,6 +76,12 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
   const [rolesLoading, setRolesLoading] = useState(true);
 
   const auth = useAuth();
+
+  // Funzione di validazione email
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
   // Carica i ruoli all'avvio del componente
   useEffect(() => {
@@ -101,24 +119,95 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
     fetchRoles();
   }, [auth.token]);
 
-  // Popola il form se stiamo modificando un utente esistente
+  // Carica i dati dell'utente se stiamo modificando un utente esistente
   useEffect(() => {
-    if (user && !isCreating) {
-      const userData = {
-        name: user.name || '',
-        surname: user.surname || '',
-        fiscal_code: user.fiscal_code || '',
-        email: user.email || '',
-        phone_number: user.phone_number || '',
-        note: user.note || '',
-        role_id: getRoleId(user.role),
-        disabled: user.disabled || false
-      };
-      
-      setFormData(userData);
-      setOriginalData(userData); // Salva i dati originali per il confronto
-    }
-  }, [user, isCreating]);
+    const fetchUserData = async () => {
+      if (user && !isCreating) {
+        try {
+          console.log('🔄 Fetching user data for edit mode:', user.id);
+          
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+          };
+
+          if (auth.token) {
+            headers['Authorization'] = `Bearer ${auth.token}`;
+          }
+
+          const response = await fetch(`/api/users/${user.id}`, {
+            headers,
+          });
+
+          if (response.ok) {
+            const userData = await response.json();
+            console.log('✅ User data received from backend:', userData);
+            console.log('📋 Data structure:', {
+              name: userData.name,
+              surname: userData.surname,
+              fiscal_code: userData.fiscal_code,
+              email: userData.email,
+              phone_number: userData.phone_number,
+              note: userData.note,
+              role: userData.role,
+              role_id: userData.role_id,
+              disabled: userData.disabled
+            });
+            
+            const formData = {
+              name: userData.name || '',
+              surname: userData.surname || '',
+              fiscal_code: userData.fiscal_code || '',
+              email: userData.email || '',
+              phone_number: userData.phone_number || '',
+              note: userData.note || '',
+              role_id: userData.role_id ? userData.role_id.toString() : '',
+              disabled: userData.disabled === true
+            };
+            
+            console.log('📝 Form data being set:', formData);
+            console.log('🎯 Role mapping: backend role_id =', userData.role_id, '-> form role_id =', formData.role_id);
+            console.log('☑️ Disabled mapping: backend disabled =', userData.disabled, '-> form disabled =', formData.disabled);
+            setFormData(formData);
+            setOriginalData(formData);
+          } else {
+            console.error('❌ Failed to fetch user data, using data from list');
+            // Fallback ai dati dalla lista
+            const userData = {
+              name: user.name || '',
+              surname: user.surname || '',
+              fiscal_code: user.fiscal_code || '',
+              email: user.email || '',
+              phone_number: user.phone_number || '',
+              note: user.note || '',
+              role_id: getRoleId(user.role), // Fallback con conversione
+              disabled: user.disabled === true
+            };
+            
+            setFormData(userData);
+            setOriginalData(userData);
+          }
+        } catch (error) {
+          console.error('💥 Error fetching user data:', error);
+          // Fallback ai dati dalla lista
+          const userData = {
+            name: user.name || '',
+            surname: user.surname || '',
+            fiscal_code: user.fiscal_code || '',
+            email: user.email || '',
+            phone_number: user.phone_number || '',
+            note: user.note || '',
+            role_id: getRoleId(user.role), // Fallback con conversione
+            disabled: user.disabled === true
+          };
+          
+          setFormData(userData);
+          setOriginalData(userData);
+        }
+      }
+    };
+
+    fetchUserData();
+  }, [user, isCreating, auth.token]);
 
   // Mappa i ruoli ai loro ID (basato sui dati dall'API)
   const getRoleId = (roleName: string | null | undefined): string => {
@@ -142,13 +231,12 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
     return JSON.stringify(formData) !== JSON.stringify(originalData);
   };
 
-  // Validazione form
+  // Validazione form - obbligatori nome, email e ruolo
   const isFormValid = () => {
     return formData.name.trim() && 
-           formData.surname.trim() && 
-           formData.fiscal_code.trim() && 
            formData.email.trim() && 
-           formData.role_id;
+           formData.role_id &&
+           isValidEmail(formData.email);
   };
 
   // Verifica se il pulsante salva deve essere abilitato
@@ -157,6 +245,11 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
   };
 
   const handleInputChange = (field: string, value: string | boolean) => {
+    // Reset errore quando l'utente modifica i dati
+    if (error) {
+      setError(null);
+    }
+    
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -168,6 +261,7 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
 
     try {
       setLoading(true);
+      setError(null); // Reset errore precedente
 
       const token = auth.token;
       if (!token) {
@@ -176,18 +270,28 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
         return;
       }
 
-      const requestBody = {
-        name: formData.name.trim(),
-        surname: formData.surname.trim(),
+      const requestBody: UserRequestBody = {
+        name: formData.name.trim() || '',
+        surname: formData.surname.trim() || '',
+        fiscal_code: formData.fiscal_code.trim() || '',
         email: formData.email.trim(),
+        phone_number: formData.phone_number.trim() || '',
+        note: formData.note.trim() || '',
         role_id: parseInt(formData.role_id),
-        phone_number: formData.phone_number.trim() || "string",
-        fiscal_code: formData.fiscal_code.trim(),
-        disabled: formData.disabled,
-        note: formData.note.trim() || "string"
+        disabled: formData.disabled
       };
 
       console.log('🔄 Saving user:', requestBody);
+      console.log('📋 All fields being sent to backend:', {
+        name: requestBody.name === '' ? 'EMPTY' : requestBody.name,
+        surname: requestBody.surname === '' ? 'EMPTY' : requestBody.surname,
+        fiscal_code: requestBody.fiscal_code === '' ? 'EMPTY' : requestBody.fiscal_code,
+        email: requestBody.email,
+        phone_number: requestBody.phone_number === '' ? 'EMPTY' : requestBody.phone_number,
+        note: requestBody.note === '' ? 'EMPTY' : requestBody.note,
+        role_id: requestBody.role_id,
+        disabled: requestBody.disabled
+      });
 
       // Determina URL e metodo in base alla modalità
       const url = isCreating ? '/api/users' : `/api/users/${user?.id}`;
@@ -210,7 +314,17 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
         }
         const errorData = await response.json().catch(() => ({}));
         console.error('Errore API:', errorData);
-        throw new Error(errorData.message || 'Errore durante il salvataggio');
+        
+        // Gestione errore specifico per email già esistente
+        if (errorData.errorCode === 'USR_010') {
+          setError('Email già esistente. Utilizzare un\'email diversa.');
+          return;
+        }
+        
+        // Gestione errore generico per altri errori
+        const errorMessage = errorData.message || 'Errore durante il salvataggio';
+        setError(`Errore: ${errorMessage} ${errorData.errorCode ? `(${errorData.errorCode})` : ''}`);
+        return;
       }
 
       const data = await response.json();
@@ -234,6 +348,7 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
       
     } catch (error) {
       console.error('Errore durante il salvataggio:', error);
+      setError(`Errore imprevisto: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
     } finally {
       setLoading(false);
     }
@@ -340,6 +455,24 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
         )}
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <AlertTriangle className="flex-shrink-0 w-5 h-5 text-red-500 mr-3" />
+            <div>
+              <p className="text-sm font-medium text-red-800">{error}</p>
+            </div>
+            <button
+              onClick={() => setError(null)}
+              className="ml-auto text-red-500 hover:text-red-700"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Form */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
@@ -351,7 +484,7 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nominativo *
+                Nome *
               </label>
               <input
                 type="text"
@@ -364,7 +497,7 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cognome *
+                Cognome
               </label>
               <input
                 type="text"
@@ -380,7 +513,7 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
           {/* Codice Fiscale */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Codice fiscale *
+              Codice fiscale
             </label>
             <input
               type="text"
@@ -404,9 +537,18 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
                 value={formData.email}
                 onChange={(e) => handleInputChange('email', e.target.value)}
                 placeholder="Email"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900"
+                className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900 ${
+                  formData.email && !isValidEmail(formData.email) 
+                    ? 'border-red-300 bg-red-50' 
+                    : 'border-gray-300'
+                }`}
                 disabled={loading}
               />
+              {formData.email && !isValidEmail(formData.email) && (
+                <p className="mt-1 text-sm text-red-600">
+                  Inserisci un indirizzo email valido
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -457,7 +599,7 @@ export default function UserForm({ user, isCreating = false, onBack, onSave, onD
                 disabled={loading}
               />
               <label htmlFor="disabled" className="ml-2 block text-sm text-gray-900">
-                Disattiva utente
+                Utente disabilitato
               </label>
             </div>
           )}

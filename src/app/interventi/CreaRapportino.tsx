@@ -112,6 +112,19 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
   const [interventoNonRiuscito, setInterventoNonRiuscito] = useState(false);
   const [motivoNonRiuscito, setMotivoNonRiuscito] = useState('');
 
+  // Stati per richiesta nuovo intervento
+  const [showRequestNewInterventionDialog, setShowRequestNewInterventionDialog] = useState(false);
+  const [requestNewInterventionText, setRequestNewInterventionText] = useState('');
+  const [isSubmittingNewIntervention, setIsSubmittingNewIntervention] = useState(false);
+
+  // Stati per notifiche UI
+  const [showNotificationMessage, setShowNotificationMessage] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState<{
+    type: 'success' | 'error';
+    title: string;
+    message: string;
+  } | null>(null);
+
   // Stato per il dialog di conferma uscita
   const [showExitConfirmDialog, setShowExitConfirmDialog] = useState(false);
   
@@ -234,6 +247,88 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
   // Funzione per annullare l'uscita
   const cancelExit = () => {
     setShowExitConfirmDialog(false);
+  };
+
+  // Funzioni per gestire le notifiche UI
+  const showNotification = (type: 'success' | 'error', title: string, message: string) => {
+    setNotificationMessage({ type, title, message });
+    setShowNotificationMessage(true);
+    
+    // Auto-hide dopo 5 secondi per i messaggi di successo
+    if (type === 'success') {
+      setTimeout(() => {
+        setShowNotificationMessage(false);
+      }, 5000);
+    }
+  };
+
+  const hideNotification = () => {
+    setShowNotificationMessage(false);
+  };
+
+  // Funzioni per gestire la richiesta di nuovo intervento
+  const handleRequestNewIntervention = () => {
+    setShowRequestNewInterventionDialog(true);
+  };
+
+  const handleCloseRequestDialog = () => {
+    setShowRequestNewInterventionDialog(false);
+    setRequestNewInterventionText('');
+  };
+
+  const handleSubmitNewInterventionRequest = async () => {
+    if (!requestNewInterventionText.trim()) {
+      showNotification('error', 'Campo richiesto', 'Inserisci i dettagli della richiesta');
+      return;
+    }
+
+    setIsSubmittingNewIntervention(true);
+    try {
+      // Verifica che il token sia disponibile
+      if (!token) {
+        showNotification('error', 'Errore di autenticazione', 'Effettuare il login.');
+        return;
+      }
+
+      // Prepara il payload per la notifica
+      const notificationPayload = {
+        role: "amministrazione",
+        message: `Richiesta nuovo intervento - ${interventionData.company_name}\n\nRichiesta di apertura nuovo intervento per il cliente ${interventionData.company_name}.\n\nDettagli: ${requestNewInterventionText}\n\nRichiesta generata dall'intervento ID: ${interventionData.id}`
+      };
+
+      console.log('📤 Payload per notifica nuovo intervento:', notificationPayload);
+
+      // Chiamata API per inviare la notifica
+      const response = await fetch('/api/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(notificationPayload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Errore durante l\'invio della notifica');
+      }
+
+      const notificationData = await response.json();
+      console.log('✅ Notifica inviata con successo:', notificationData);
+      
+      // Chiudi il dialog e resetta il testo
+      setShowRequestNewInterventionDialog(false);
+      setRequestNewInterventionText('');
+      
+      // Mostra messaggio di successo
+      showNotification('success', 'Richiesta inviata!', 'La richiesta di nuovo intervento è stata inviata con successo all\'amministrazione.');
+      
+    } catch (error) {
+      console.error('💥 Errore durante l\'invio della notifica:', error);
+      showNotification('error', 'Errore durante l\'invio', error instanceof Error ? error.message : 'Errore sconosciuto durante l\'invio della richiesta');
+    } finally {
+      setIsSubmittingNewIntervention(false);
+    }
   };
 
   // Funzione per validare il form
@@ -1048,6 +1143,25 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
           </button>
         </div>
 
+        {/* Richiedi nuovo intervento - Sezione globale */}
+        <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Richiedi nuovo intervento</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Invia in automatico una notifica all&apos;amministrazione per aprire un nuovo intervento su questo cliente
+              </p>
+            </div>
+            <button
+              onClick={handleRequestNewIntervention}
+              disabled={isSubmittingNewIntervention}
+              className="bg-teal-600 hover:bg-teal-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              {isSubmittingNewIntervention ? 'Invio...' : 'Richiedi'}
+            </button>
+          </div>
+        </div>
+
         {/* Intervento non riuscito - Sezione globale */}
         <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -1241,6 +1355,101 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
               >
                 Torna indietro comunque
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog richiesta nuovo intervento */}
+      {showRequestNewInterventionDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center">
+                <Plus className="w-6 h-6 text-teal-600" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Richiedi nuovo intervento
+                </h3>
+              </div>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-gray-500 mb-4">
+                Descrivi i dettagli della richiesta di apertura del nuovo intervento per il cliente {interventionData.company_name}:
+              </p>
+                             <textarea
+                 value={requestNewInterventionText}
+                 onChange={(e) => setRequestNewInterventionText(e.target.value)}
+                 rows={4}
+                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-none text-gray-700"
+                 placeholder="Scrivi qui i dettagli della richiesta di apertura nuovo intervento..."
+               />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={handleCloseRequestDialog}
+                disabled={isSubmittingNewIntervention}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleSubmitNewInterventionRequest}
+                disabled={isSubmittingNewIntervention || !requestNewInterventionText.trim()}
+                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              >
+                {isSubmittingNewIntervention ? 'Invio...' : 'Invia richiesta'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notifiche UI */}
+      {showNotificationMessage && notificationMessage && (
+        <div className="fixed top-4 right-4 z-[60] max-w-md">
+          <div className={`rounded-lg p-4 shadow-lg border-l-4 ${
+            notificationMessage.type === 'success' 
+              ? 'bg-green-50 border-green-400' 
+              : 'bg-red-50 border-red-400'
+          }`}>
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                {notificationMessage.type === 'success' ? (
+                  <svg className="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+              <div className="ml-3 flex-1">
+                <h3 className={`text-sm font-medium ${
+                  notificationMessage.type === 'success' ? 'text-green-800' : 'text-red-800'
+                }`}>
+                  {notificationMessage.title}
+                </h3>
+                <p className={`mt-1 text-sm ${
+                  notificationMessage.type === 'success' ? 'text-green-700' : 'text-red-700'
+                }`}>
+                  {notificationMessage.message}
+                </p>
+              </div>
+              <div className="ml-4 flex-shrink-0">
+                <button
+                  onClick={hideNotification}
+                  className={`inline-flex rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                    notificationMessage.type === 'success' 
+                      ? 'text-green-500 hover:bg-green-100 focus:ring-green-600' 
+                      : 'text-red-500 hover:bg-red-100 focus:ring-red-600'
+                  }`}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>

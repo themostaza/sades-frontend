@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { loginUser } from '../utils/api';
 
 interface User {
@@ -40,33 +40,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
-  const pathname = usePathname();
 
-  // Pagine pubbliche che non richiedono autenticazione
-  const publicPages = ['/', '/login'];
-  const isPublicPage = publicPages.includes(pathname);
-
-  // Inizializza l'autenticazione al caricamento
+  // Inizializzazione semplificata - legge solo il cookie
   useEffect(() => {
     const initAuth = () => {
-      const storedToken = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-      const storedUser = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
+      // Il middleware gestisce la validazione del token
+      // Qui leggiamo solo il cookie per determinare lo stato iniziale
+      const cookieToken = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth_token='))
+        ?.split('=')[1];
       
-      if (storedToken && storedUser) {
-        try {
-          const parsedUser = JSON.parse(storedUser);
-          setToken(storedToken);
-          setUser(parsedUser);
-          
-          // Imposta anche il cookie per il middleware
-          document.cookie = `auth_token=${storedToken}; path=/; max-age=${30 * 24 * 60 * 60}`; // 30 giorni
-        } catch (error) {
-          console.error('Error parsing stored user data:', error);
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('auth_user');
-          sessionStorage.removeItem('auth_token');
-          sessionStorage.removeItem('auth_user');
-        }
+      if (cookieToken) {
+        // Se c'è un token nel cookie, assumiamo che l'utente sia autenticato
+        // Le info utente verranno caricate dal middleware/server
+        setToken(cookieToken);
+        // Potresti anche leggere user info dal cookie se necessario
       }
       
       setIsLoading(false);
@@ -74,13 +63,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     initAuth();
   }, []);
-
-  // Middleware di autenticazione
-  useEffect(() => {
-    if (!isLoading && !isPublicPage && !token) {
-      router.push('/login');
-    }
-  }, [isLoading, isPublicPage, token, router]);
 
   const login = async (email: string, password: string, rememberMe: boolean = false): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -95,30 +77,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setToken(authToken);
       setUser(userData);
       
-      // Imposta il cookie per il middleware
+      // Imposta solo il cookie - il middleware gestisce il resto
       const maxAge = rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60; // 30 giorni o 1 giorno
       const isSecure = window.location.protocol === 'https:';
       const cookieString = `auth_token=${authToken}; path=/; max-age=${maxAge}; SameSite=Lax${isSecure ? '; Secure' : ''}`;
       document.cookie = cookieString;
-      
-      // Debug: mostra info del cookie
-      const expirationDate = new Date(Date.now() + (maxAge * 1000));
-      console.log('🍪 Cookie impostato:', {
-        rememberMe,
-        maxAgeDays: maxAge / (24 * 60 * 60),
-        expirationDate: expirationDate.toLocaleString('it-IT'),
-        cookieString
-      });
-      
-      // Salva nel localStorage se "ricordami" è selezionato
-      if (rememberMe) {
-        localStorage.setItem('auth_token', authToken);
-        localStorage.setItem('auth_user', JSON.stringify(userData));
-      } else {
-        // Usa sessionStorage per sessioni temporanee
-        sessionStorage.setItem('auth_token', authToken);
-        sessionStorage.setItem('auth_user', JSON.stringify(userData));
-      }
       
       return { success: true };
     } catch (error) {
@@ -130,12 +93,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = () => {
     setUser(null);
     setToken(null);
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
-    sessionStorage.removeItem('auth_token');
-    sessionStorage.removeItem('auth_user');
     
-    // Rimuovi il cookie
+    // Rimuovi solo il cookie - semplificato
     document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
     
     router.push('/login');
@@ -150,7 +109,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: !!token,
   };
 
-  // Mostra un loading spinner durante l'inizializzazione
+  // Loading semplificato
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">

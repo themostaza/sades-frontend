@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../contexts/AuthContext';
+import { getSidebarRoutes, getDefaultRoute, isValidRole, type UserRole } from '../utils/permissions';
 import {
   Home,
   CheckSquare,
@@ -32,13 +33,13 @@ interface UserInfo {
 }
 
 const allMenuItems = [
-  { id: 'dashboard', icon: Home, label: 'Dashboard', route: '/dashboard', roles: ['amministrazione'] },
-  { id: 'interventi', icon: CheckSquare, label: 'Interventi', route: '/interventi', roles: ['amministrazione', 'tecnico'] },
-  { id: 'team', icon: Users, label: 'Team', route: '/team', roles: ['amministrazione', 'tecnico'] },
-  { id: 'clienti', icon: BriefcaseBusiness, label: 'Clienti', route: '/clienti', roles: ['amministrazione'] },
-  { id: 'apparecchiature', icon: Wrench, label: 'Apparecchiature', route: '/apparecchiature', roles: ['amministrazione'] },
-  { id: 'inventario', icon: Archive, label: 'Inventario', route: '/inventario', roles: ['amministrazione', 'tecnico'] },
-  { id: 'notifiche', icon: Bell, label: 'Notifiche', route: '/notifiche', roles: ['amministrazione', 'tecnico'] },
+  { id: 'dashboard', icon: Home, label: 'Dashboard', route: '/dashboard' },
+  { id: 'interventi', icon: CheckSquare, label: 'Interventi', route: '/interventi' },
+  { id: 'team', icon: Users, label: 'Team', route: '/team' },
+  { id: 'clienti', icon: BriefcaseBusiness, label: 'Clienti', route: '/clienti' },
+  { id: 'apparecchiature', icon: Wrench, label: 'Apparecchiature', route: '/apparecchiature' },
+  { id: 'inventario', icon: Archive, label: 'Inventario', route: '/inventario' },
+  { id: 'notifiche', icon: Bell, label: 'Notifiche', route: '/notifiche' },
 ];
 
 const bottomItems = [
@@ -88,7 +89,7 @@ export default function Sidebar({
       
       const userData: UserInfo = await response.json();
       setUserInfo(userData);
-      console.log('✅ Informazioni utente caricate nella sidebar:', userData);
+      // console.log('✅ Informazioni utente caricate nella sidebar:', userData);
     } catch (err) {
       console.error('Error fetching user info in sidebar:', err);
     } finally {
@@ -105,10 +106,13 @@ export default function Sidebar({
 
   // Funzione per filtrare i menu items in base al ruolo
   const getFilteredMenuItems = () => {
-    if (!userInfo) return [];
+    if (!userInfo || !isValidRole(userInfo.role)) return [];
+    
+    const userRole = userInfo.role as UserRole;
+    const allowedRoutes = getSidebarRoutes(userRole);
     
     return allMenuItems.filter(item => 
-      item.roles.includes(userInfo.role)
+      allowedRoutes.includes(item.route)
     );
   };
 
@@ -126,8 +130,16 @@ export default function Sidebar({
     if (pathname === '/inventario') return 'inventario';
     if (pathname === '/help') return 'help';
     
-    // Default per amministratori è dashboard, per tecnici è interventi
-    return userInfo?.role === 'tecnico' ? 'interventi' : 'dashboard';
+    // Default basato sul sistema di permessi
+    if (userInfo && isValidRole(userInfo.role)) {
+      const userRole = userInfo.role as UserRole;
+      const defaultRoute = getDefaultRoute(userRole);
+      // Trova l'item corrispondente alla route di default
+      const defaultItem = allMenuItems.find(item => item.route === defaultRoute);
+      return defaultItem?.id || 'dashboard';
+    }
+    
+    return 'dashboard';
   };
 
   const currentActiveItem = getActiveItem();

@@ -79,8 +79,10 @@ export default function InventarioPage() {
         setPlaceTypes(placeTypesData);
       }
 
-      // Fetch warehouses
-      const warehousesResponse = await fetch('/api/warehouses', { headers });
+      // Fetch warehouses - usa assigned-warehouses se l'utente è un tecnico
+      const warehousesEndpoint = auth.user?.role === 'tecnico' ? '/api/assigned-warehouses' : '/api/warehouses';
+      const warehousesResponse = await fetch(warehousesEndpoint, { headers });
+      
       if (warehousesResponse.ok) {
         const warehousesData = await warehousesResponse.json();
         setWarehouses(warehousesData);

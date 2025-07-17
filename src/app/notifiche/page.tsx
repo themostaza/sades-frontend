@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Check, X, Clock, User, Calendar, Bell } from 'lucide-react';
+import { Check, X, Clock, User, Calendar, Bell, Trash2, Plus } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface ApiNotification {
@@ -9,6 +9,12 @@ interface ApiNotification {
   message: string;
   fl_read: boolean;
   created_at: string;
+}
+
+interface Role {
+  id: string;
+  name: string;
+  label: string;
 }
 
 interface Notification {
@@ -74,6 +80,12 @@ export default function NotifichePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [isLoadingRoles, setIsLoadingRoles] = useState(false);
+  const [selectedRole, setSelectedRole] = useState('');
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [isCreatingNotification, setIsCreatingNotification] = useState(false);
 
   const fetchNotifications = async (page: number = 1, tab: 'tutte' | 'non-lette') => {
     console.log('[Notifiche][fetchNotifications] STARTED - token:', !!auth.token, 'page:', page, 'tab:', tab);
@@ -155,18 +167,18 @@ export default function NotifichePage() {
         throw new Error('Errore nel marcare la notifica come letta');
       }
       
-      // Aggiorna lo stato locale
-      setNotifications(prev => 
-        prev.map(notification => 
-          notification.id === id 
-            ? { ...notification, isRead: true }
-            : notification
-        )
-      );
-      
-      // Se siamo nel tab "non-lette", ricarica i dati per rimuovere la notifica letta
+      // Se siamo nel tab "non-lette", rimuovi la notifica dalla lista
       if (activeTab === 'non-lette') {
-        fetchNotifications(currentPage, activeTab);
+        setNotifications(prev => prev.filter(notification => notification.id !== id));
+      } else {
+        // Se siamo nel tab "tutte", aggiorna solo lo stato isRead
+        setNotifications(prev => 
+          prev.map(notification => 
+            notification.id === id 
+              ? { ...notification, isRead: true }
+              : notification
+          )
+        );
       }
     } catch (err) {
       console.error('[Notifiche] Errore mark as read:', err);
@@ -192,17 +204,123 @@ export default function NotifichePage() {
       
       await Promise.all(promises);
       
-      // Ricarica i dati per aggiornare la vista
-      fetchNotifications(currentPage, activeTab);
+      // Aggiorna lo stato locale senza refresh
+      if (activeTab === 'non-lette') {
+        // Nel tab "non-lette", rimuovi tutte le notifiche
+        setNotifications([]);
+      } else {
+        // Nel tab "tutte", marca tutte come lette
+        setNotifications(prev => 
+          prev.map(notification => ({ ...notification, isRead: true }))
+        );
+      }
     } catch (err) {
       console.error('[Notifiche] Errore mark all as read:', err);
     }
   };
 
-  const deleteNotification = (id: string) => {
-    // TODO: Implementare la chiamata API per eliminare la notifica
-    // Per ora rimuoviamo solo localmente
-    setNotifications(prev => prev.filter(notification => notification.id !== id));
+  const deleteNotification = async (id: string) => {
+    if (!auth.token) return;
+    
+    try {
+      // Rimuovi immediatamente dalla UI per feedback rapido
+      setNotifications(prev => prev.filter(notification => notification.id !== id));
+      
+      // Chiama API per eliminare dal server (se disponibile)
+      // Per ora assumiamo che l'API per eliminare non sia ancora implementata
+      // const response = await fetch(`/api/notifications/${id}`, {
+      //   method: 'DELETE',
+      //   headers: {
+      //     'Authorization': `Bearer ${auth.token}`,
+      //   },
+      //   credentials: 'include',
+      // });
+      
+      // if (!response.ok) {
+      //   throw new Error('Errore nell\'eliminazione della notifica');
+      // }
+      
+    } catch (err) {
+      console.error('[Notifiche] Errore delete:', err);
+      // In caso di errore, ricarica i dati per ripristinare lo stato
+      fetchNotifications(currentPage, activeTab);
+    }
+  };
+
+  const fetchRoles = async () => {
+    if (!auth.token) return;
+    
+    setIsLoadingRoles(true);
+    try {
+      const response = await fetch('/api/roles', {
+        headers: {
+          'Authorization': `Bearer ${auth.token}`,
+        },
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Errore nel recupero dei ruoli');
+      }
+      
+      const data: Role[] = await response.json();
+      setRoles(data);
+    } catch (err) {
+      console.error('[Notifiche] Errore fetch roles:', err);
+      setRoles([]);
+    } finally {
+      setIsLoadingRoles(false);
+    }
+  };
+
+  const createNotification = async () => {
+    if (!auth.token || !selectedRole || !notificationMessage.trim()) return;
+    
+    setIsCreatingNotification(true);
+    try {
+      const response = await fetch('/api/notifications', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${auth.token}`,
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          role: selectedRole,
+          message: notificationMessage.trim(),
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Errore nella creazione della notifica');
+      }
+      
+      // Chiudi il dialog e resetta il form
+      setIsCreateDialogOpen(false);
+      setSelectedRole('');
+      setNotificationMessage('');
+      
+      // Ricarica le notifiche per vedere quella appena creata
+      fetchNotifications(currentPage, activeTab);
+    } catch (err) {
+      console.error('[Notifiche] Errore create notification:', err);
+      alert('Errore nella creazione della notifica');
+    } finally {
+      setIsCreatingNotification(false);
+    }
+  };
+
+  const openCreateDialog = () => {
+    setIsCreateDialogOpen(true);
+    if (roles.length === 0) {
+      fetchRoles();
+    }
+  };
+
+  const closeCreateDialog = () => {
+    setIsCreateDialogOpen(false);
+    setSelectedRole('');
+    setNotificationMessage('');
   };
 
   if (auth.isLoading) {
@@ -255,6 +373,13 @@ export default function NotifichePage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Notifiche</h1>
         <div className="flex items-center gap-3">
+          <button
+            onClick={openCreateDialog}
+            className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2"
+          >
+            <Plus size={16} />
+            Crea notifica
+          </button>
           <button
             onClick={markAllAsRead}
             disabled={isLoadingNotifications || unreadCount === 0}
@@ -338,7 +463,7 @@ export default function NotifichePage() {
                       {getNotificationIcon(notification.type)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm ${
+                      <p className={`text-sm whitespace-pre-line ${
                         notification.isRead ? 'text-gray-600' : 'text-gray-900 font-medium'
                       }`}>
                         {notification.title}
@@ -353,27 +478,22 @@ export default function NotifichePage() {
                     {!notification.isRead && (
                       <button
                         onClick={() => markAsRead(notification.id)}
-                        className="text-teal-600 hover:text-teal-700 p-1 rounded transition-colors"
+                        className="text-teal-600 hover:text-teal-700 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-md transition-all duration-200 flex items-center gap-1.5"
                         title="Segna come letta"
                       >
                         <Check size={16} />
+                        <span className="text-sm font-semibold">Letta</span>
                       </button>
                     )}
                     <button
                       onClick={() => deleteNotification(notification.id)}
-                      className="text-red-600 hover:text-red-700 p-1 rounded transition-colors"
+                      className="text-gray-600 hover:text-red-600 bg-gray-50 hover:bg-red-50 p-2 rounded-md transition-all duration-200"
                       title="Elimina notifica"
                     >
-                      <X size={16} />
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </div>
-                
-                {!notification.isRead && (
-                  <div className="absolute top-4 right-4">
-                    <div className="w-2 h-2 bg-teal-600 rounded-full"></div>
-                  </div>
-                )}
               </div>
             ))
           )}
@@ -402,6 +522,76 @@ export default function NotifichePage() {
             >
               Avanti
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog per creare notifica */}
+      {isCreateDialogOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Crea nuova notifica
+            </h2>
+            
+            <div className="space-y-4">
+              {/* Select ruolo */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ruolo destinatario
+                </label>
+                <select
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value)}
+                  disabled={isLoadingRoles}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 disabled:opacity-50 text-gray-700"
+                >
+                  <option value="">
+                    {isLoadingRoles ? 'Caricamento ruoli...' : 'Seleziona un ruolo'}
+                  </option>
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.label}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Input messaggio */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Messaggio
+                </label>
+                <textarea
+                  value={notificationMessage}
+                  onChange={(e) => setNotificationMessage(e.target.value)}
+                  placeholder="Scrivi il messaggio della notifica..."
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-none text-gray-700"
+                />
+              </div>
+            </div>
+
+            {/* Bottoni */}
+            <div className="flex items-center justify-end gap-3 mt-6">
+              <button
+                onClick={closeCreateDialog}
+                disabled={isCreatingNotification}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors disabled:opacity-50"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={createNotification}
+                disabled={isCreatingNotification || !selectedRole || !notificationMessage.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {isCreatingNotification && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                )}
+                Crea notifica
+              </button>
+            </div>
           </div>
         </div>
       )}
