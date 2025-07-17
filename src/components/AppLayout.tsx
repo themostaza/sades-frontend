@@ -13,56 +13,58 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { logout, token } = useAuth();
-  
+
   // Pagine che non devono mostrare la sidebar (pagine pubbliche e specifiche)
-  const pagesWithoutSidebar = ['/', '/login'];
-  
+  const pagesWithoutSidebar = ['/', '/login', '/change-password'];
+
   // Funzione per determinare se mostrare la sidebar
   const shouldShowSidebar = () => {
     // Pagine specifiche senza sidebar
     if (pagesWithoutSidebar.includes(pathname)) {
       return false;
     }
-    
+
     // Pagine di dettaglio rapportino senza sidebar (esperienza fullscreen)
     if (pathname.startsWith('/interventi/rapportino/')) {
       return false;
     }
-    
+
     return true;
   };
-  
+
   const showSidebar = shouldShowSidebar();
-  
+
   // Controllo di autenticazione per pagine non pubbliche
   useEffect(() => {
     // Esegui il controllo solo per pagine che richiedono autenticazione
     // (escludendo solo login e root, ma includendo rapportini che richiedono auth)
     const isPublicPage = pagesWithoutSidebar.includes(pathname);
-    
+
     if (!isPublicPage) {
       // Verifica sincronizzazione tra cookie e localStorage/sessionStorage
       const cookieToken = document.cookie
         .split('; ')
-        .find(row => row.startsWith('auth_token='))
+        .find((row) => row.startsWith('auth_token='))
         ?.split('=')[1];
-      
-      const storageToken = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-      
+
+      const storageToken =
+        localStorage.getItem('auth_token') ||
+        sessionStorage.getItem('auth_token');
+
       // Se c'è token in storage ma non nel cookie -> logout automatico
       if (storageToken && !cookieToken && token) {
         // console.log('🚫 Desincronizzazione rilevata: token presente in storage ma mancante nel cookie');
         logout();
         return;
       }
-      
+
       // Se non c'è token né in storage né nel cookie, ma AuthContext pensa di essere autenticato
       if (!storageToken && !cookieToken && token) {
         // console.log('🚫 Nessun token trovato: logout automatico');
         logout();
         return;
       }
-      
+
       // console.log('✅ Controllo autenticazione AppLayout:', {
       //   pathname,
       //   hasCookieToken: !!cookieToken,
@@ -71,7 +73,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       // });
     }
   }, [pathname, token, logout]); // Controlla ad ogni cambio route
-  
+
   // Determina l'item attivo dal pathname
   const getActiveItem = () => {
     if (pathname === '/dashboard') return 'dashboard';
@@ -95,7 +97,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   const handleSidebarClick = (item: string) => {
     setActiveItem(item);
-    
+
     // Navigazione basata sull'item selezionato
     switch (item) {
       case 'dashboard':
@@ -123,7 +125,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         router.push('/help');
         break;
       default:
-        // console.log(`Navigating to: ${item}`);
+      // console.log(`Navigating to: ${item}`);
     }
   };
 
@@ -132,17 +134,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
       {/* Sidebar fissa - solo se non siamo in login o root */}
       {showSidebar && (
         <div className="fixed top-0 left-0 z-50">
-          <Sidebar 
-            activeItem={activeItem}
-            onItemClick={handleSidebarClick}
-          />
+          <Sidebar activeItem={activeItem} onItemClick={handleSidebarClick} />
         </div>
       )}
-      
+
       {/* Main content con margin condizionale per la sidebar */}
       <main className={`min-h-screen ${showSidebar ? 'ml-16' : ''}`}>
         {children}
       </main>
     </div>
   );
-} 
+}
