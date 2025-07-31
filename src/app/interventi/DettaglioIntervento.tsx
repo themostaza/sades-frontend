@@ -729,6 +729,9 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     return userInfo?.role === 'amministrazione';
   };
 
+  // Funzione per determinare se l'utente è tecnico
+  const isTechnician = userInfo?.role === 'tecnico';
+
   // Effect per caricare le informazioni utente al mount
   useEffect(() => {
     if (auth.token && isOpen) {
@@ -1173,6 +1176,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
             setSelectedCustomerId={setSelectedCustomerId}
             onCustomerLocationsLoaded={handleCustomerLocationsLoaded}
             statusId={getStatusId(selectedStatus) ?? undefined}
+            disabled={isTechnician}
           />
 
           {/* Intervention Details Section */}
@@ -1203,6 +1207,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
             setNoteInterne={setNoteInterne}
             onCustomerLocationsLoaded={handleCustomerLocationsLoaded}
             statusId={getStatusId(selectedStatus) ?? undefined}
+            disabled={isTechnician}
           />
 
           {/* Call Details Section */}
@@ -1218,6 +1223,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
               setCodiceChiamata={setCodiceChiamata}
               dataCreazione={dataCreazione}
               statusId={getStatusId(selectedStatus) ?? undefined}
+              disabled={isTechnician}
             />
           )}
 

@@ -46,6 +46,8 @@ export interface AssistanceIntervention {
   report_id: number | null;
   report_is_failed: boolean | null;
   calendar_notes?: string;
+  assigned_to?: string | null;
+  approved_by?: string | null;
 }
 
 export interface AssistanceInterventionDetail {

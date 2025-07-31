@@ -36,6 +36,7 @@ interface InterventionDetailsSectionDetailProps {
   isCreating?: boolean;
   customerLocationsLoaded?: boolean;
   hasCustomerLocations?: boolean;
+  disabled?: boolean;
 }
 
 interface SelectedArticle {
@@ -70,7 +71,8 @@ export default function InterventionDetailsSectionDetail({
   setNoteInterne,
   statusId = 1,
   isCreating = false,
-  hasCustomerLocations = false
+  hasCustomerLocations = false,
+  // disabled = false
 }: InterventionDetailsSectionDetailProps) {
   const auth = useAuth();
 
@@ -402,7 +404,7 @@ export default function InterventionDetailsSectionDetail({
                   <div className="text-sm text-gray-700">PNC: {selArt.article.pnc_code} | Stock: {selArt.article.quantity_stock} | <span className=" text-gray-600 ml-1">ID: {selArt.article.id}</span></div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="text-sm">Qtà:</label>
+                  <label className="text-sm text-gray-700">Qtà:</label>
                   <input type="number" min="1" value={selArt.quantity} onChange={(e) => updateArticleQuantity(selArt.article.id, Number(e.target.value))} disabled={isFieldsDisabled} className={`w-16 p-1 border rounded font-medium text-gray-700 ${isFieldsDisabled ? 'bg-gray-200' : ''}`}/>
                   {!isFieldsDisabled && <button onClick={() => removeArticle(selArt.article.id)} className="text-red-500"><X size={16} /></button>}
                 </div>
