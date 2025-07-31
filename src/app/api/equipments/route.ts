@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     
     // Estrai i parametri di query
     const page = searchParams.get('page') || '1';
-    const skip = searchParams.get('skip') || '20';
+    const skip = searchParams.get('skip') || '50';
     const customer_id = searchParams.get('customer_id');
     const customer_location_id = searchParams.get('customer_location_id');
     const query = searchParams.get('query');

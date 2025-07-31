@@ -89,8 +89,9 @@ export default function InterventionDetailsSectionDetail({
   const isEquipmentSearchEnabled = () => {
     if (isFieldsDisabled) return false;
     if (!selectedCustomerId) return false;
-    if (isCreating && hasCustomerLocations && !destinazione) return false;
-    if (!isCreating && !destinazione) return false; // In detail view, destination is required
+    // RIMOSSO: if (isCreating && hasCustomerLocations && !destinazione) return false;
+    // In visualizzazione dettaglio, la destinazione resta obbligatoria
+    if (!isCreating && !destinazione) return false;
     return true;
   };
 
@@ -337,7 +338,7 @@ export default function InterventionDetailsSectionDetail({
             <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
               {equipments.map((eq) => (
                 <div key={eq.id} onClick={() => handleEquipmentSelect(eq)} className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700">
-                  <div>{eq.description}</div>
+                  <div className="font-medium text-gray-700">{eq.description}</div>
                   <div className="text-sm text-gray-500">{eq.brand_name} {eq.model} (S/N: {eq.serial_number})</div>
                 </div>
               ))}
@@ -350,9 +351,9 @@ export default function InterventionDetailsSectionDetail({
         {selectedEquipments.length > 0 && (
           <div className="mt-3 space-y-2">
             {selectedEquipments.map((eq) => (
-              <div key={eq.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+              <div key={eq.id} className="flex items-center justify-between bg-gray-100 p-3 rounded-lg">
                 <div>
-                  <div className="font-medium">{eq.description}</div>
+                  <div className="font-medium text-gray-700">{eq.description}</div>
                   <div className="text-sm text-gray-500">{eq.brand_name} {eq.model}</div>
                 </div>
                 {!isFieldsDisabled && <button onClick={() => removeEquipment(eq.id)} className="text-red-500"><X size={16} /></button>}
@@ -380,8 +381,11 @@ export default function InterventionDetailsSectionDetail({
             <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
               {articles.map((art) => (
                 <div key={art.id} onClick={() => handleArticleSelect(art)} className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700">
-                  <div>{art.short_description}</div>
-                  <div className="text-sm text-gray-500">PNC: {art.pnc_code} | Stock: {art.quantity_stock}</div>
+                  <div className="font-medium text-gray-700">{art.short_description}
+                  </div>
+                  <div className="text-sm text-gray-500">PNC: {art.pnc_code} | Stock: {art.quantity_stock} |
+                    <span className=" text-gray-600 ml-1"> ID: {art.id}</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -391,14 +395,15 @@ export default function InterventionDetailsSectionDetail({
         {selectedArticles.length > 0 && (
           <div className="mt-3 space-y-2">
             {selectedArticles.map((selArt) => (
-              <div key={selArt.article.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+              <div key={selArt.article.id} className="flex items-center justify-between bg-gray-100 p-3 rounded-lg">
                 <div className="flex-1">
-                  <div className="font-medium">{selArt.article.short_description}</div>
-                  <div className="text-sm text-gray-500">PNC: {selArt.article.pnc_code}</div>
+                  <div className="font-medium text-gray-700">{selArt.article.short_description}
+                  </div>
+                  <div className="text-sm text-gray-700">PNC: {selArt.article.pnc_code} | Stock: {selArt.article.quantity_stock} | <span className=" text-gray-600 ml-1">ID: {selArt.article.id}</span></div>
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="text-sm">Qtà:</label>
-                  <input type="number" min="1" value={selArt.quantity} onChange={(e) => updateArticleQuantity(selArt.article.id, Number(e.target.value))} disabled={isFieldsDisabled} className={`w-16 p-1 border rounded ${isFieldsDisabled ? 'bg-gray-200' : ''}`}/>
+                  <input type="number" min="1" value={selArt.quantity} onChange={(e) => updateArticleQuantity(selArt.article.id, Number(e.target.value))} disabled={isFieldsDisabled} className={`w-16 p-1 border rounded font-medium text-gray-700 ${isFieldsDisabled ? 'bg-gray-200' : ''}`}/>
                   {!isFieldsDisabled && <button onClick={() => removeArticle(selArt.article.id)} className="text-red-500"><X size={16} /></button>}
                 </div>
               </div>
