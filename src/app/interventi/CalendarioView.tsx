@@ -133,7 +133,7 @@ export default function CalendarioView() {
 
   const auth = useAuth();
 
-  // Genera solo i giorni lavorativi della settimana corrente (Lunedì-Venerdì)
+  // Genera i giorni lavorativi della settimana corrente (Lunedì-Sabato)
   const getWeekDays = (date: Date) => {
     const week = [];
     const startOfWeek = new Date(date);
@@ -141,8 +141,8 @@ export default function CalendarioView() {
     const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // Lunedì come primo giorno
     startOfWeek.setDate(diff);
 
-    // Solo 5 giorni lavorativi (Lunedì-Venerdì)
-    for (let i = 0; i < 5; i++) {
+    // 6 giorni lavorativi (Lunedì-Sabato)
+    for (let i = 0; i < 6; i++) {
       const day = new Date(startOfWeek);
       day.setDate(startOfWeek.getDate() + i);
       week.push(day);
@@ -209,7 +209,7 @@ export default function CalendarioView() {
       // Calcola le date di inizio e fine della settimana corrente
       const weekDays = getWeekDays(currentWeek);
       const startDate = weekDays[0]; // Lunedì
-      const endDate = weekDays[4]; // Venerdì
+      const endDate = weekDays[5]; // Sabato
       
       // Formatta le date in YYYY-MM-DD per l'API
       const fromDate = startDate.toISOString().split('T')[0];
@@ -861,7 +861,7 @@ export default function CalendarioView() {
   };
 
   const weekDays = getWeekDays(currentWeek);
-  const dayNames = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì'];
+  const dayNames = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
 
   // Fasce orarie
   const timeSlots2 = [
@@ -1271,8 +1271,8 @@ export default function CalendarioView() {
         {/* Griglia del calendario */}
         <div className="overflow-x-auto">
           <div className="min-w-full">
-            {/* Header giorni - Solo Lunedì-Venerdì */}
-            <div className="grid grid-cols-6 border-b border-gray-200">
+            {/* Header giorni - Lunedì-Sabato */}
+            <div className="grid grid-cols-7 border-b border-gray-200">
               <div className="p-4 bg-gray-50 border-r border-gray-200">
                 <span className="text-sm font-medium text-gray-500">Orario</span>
               </div>
@@ -1292,7 +1292,7 @@ export default function CalendarioView() {
 
             {/* Righe orari */}
             {timeSlots2.map((timeSlot) => (
-              <div key={timeSlot} className="grid grid-cols-6 border-b border-gray-200 last:border-b-0 relative">
+              <div key={timeSlot} className="grid grid-cols-7 border-b border-gray-200 last:border-b-0 relative">
                 {/* Colonna orario */}
                 <div className="p-0 bg-gray-50 border-r border-gray-200 flex items-start h-[80px] relative">
                   <span className="text-sm font-medium text-gray-600 absolute left-4 top-0 translate-y-[-50%] bg-gray-50 px-1">

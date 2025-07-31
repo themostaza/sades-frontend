@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Check, AlertCircle } from 'lucide-react';
+import { getStatusColor, statusOptions } from '../../../utils/intervention-status';
 
 // Tipo semplificato per il report esistente
 interface SimpleReport {
@@ -9,11 +10,7 @@ interface SimpleReport {
   is_failed: boolean;
 }
 
-interface StatusOption {
-  id: string;
-  label: string;
-  color: string;
-}
+
 
 interface UserInfo {
   id: string;
@@ -25,19 +22,13 @@ interface UserInfo {
 }
 
 interface InterventionStatusAndActionsProps {
-  // Status related props
   selectedStatus: string;
-  setSelectedStatus: (status: string) => void;
-  
-  // Report related props
   userInfo: UserInfo | null;
   userLoading: boolean;
   existingReport: SimpleReport | null;
   isCheckingReport: boolean;
   isLoadingReport: boolean;
   interventionId: number;
-  
-  // Action handlers
   onCreateReport: () => void;
   onViewReport: () => void;
   onConfirmReport: () => void;
@@ -53,18 +44,7 @@ interface ConfirmDialogState {
   onConfirm?: () => void;
 }
 
-const statusOptions: StatusOption[] = [
-  { id: 'da_assegnare', label: 'Da assegnare', color: 'bg-orange-100 text-orange-800' },
-  { id: 'attesa_preventivo', label: 'Attesa preventivo', color: 'bg-yellow-100 text-yellow-800' },
-  { id: 'attesa_ricambio', label: 'Attesa ricambio', color: 'bg-blue-100 text-blue-800' },
-  { id: 'in_carico', label: 'In carico', color: 'bg-teal-100 text-teal-800' },
-  { id: 'da_confermare', label: 'Da confermare', color: 'bg-purple-100 text-purple-800' },
-  { id: 'completato', label: 'Completato', color: 'bg-green-100 text-green-800' },
-  { id: 'non_completato', label: 'Non completato', color: 'bg-gray-100 text-gray-800' },
-  { id: 'annullato', label: 'Annullato', color: 'bg-red-100 text-red-800' },
-  { id: 'fatturato', label: 'Fatturato', color: 'bg-emerald-100 text-emerald-800' },
-  { id: 'collocamento', label: 'Collocamento', color: 'bg-indigo-100 text-indigo-800' }
-];
+
 
 export default function InterventionStatusAndActions({
   selectedStatus,
@@ -76,7 +56,7 @@ export default function InterventionStatusAndActions({
   onCreateReport,
   onViewReport,
   onConfirmReport,
-  onSendToInvoicing
+  onSendToInvoicing,
 }: InterventionStatusAndActionsProps) {
 
   // Stato per il dialog di conferma
@@ -280,15 +260,15 @@ export default function InterventionStatusAndActions({
       <div>
         <div className="flex flex-wrap gap-2">
           {statusOptions.map((status) => {
-            const isSelected = selectedStatus === status.id;
+            const isSelected = selectedStatus === status.key;
             return (
               <div
-                key={status.id}
+                key={status.key}
                 className={`${
                   isSelected 
                     ? 'px-4 py-2 rounded-md text-sm font-bold ring-2 ring-blue-500' 
                     : 'px-3 py-1 rounded-full text-xs font-medium opacity-40'
-                } ${status.color} transition-all cursor-default`}
+                } ${getStatusColor(status.key)} transition-all cursor-default`}
                 title="Status calcolato automaticamente"
               >
                 {status.label}

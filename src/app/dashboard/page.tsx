@@ -1,10 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, InfoIcon, ExternalLink } from 'lucide-react';
+import { InfoIcon, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
-import NuovoIntervento from '../interventi/NuovoIntervento';
 import { AssistanceIntervention, AssistanceInterventionsApiResponse } from '../../types/assistance-interventions';
 
 // Interface for absences
@@ -32,7 +31,7 @@ interface AbsencesApiResponse {
 }
 
 export default function DashboardPage() {
-  const [showNuovoIntervento, setShowNuovoIntervento] = useState(false);
+  
   const [interventions, setInterventions] = useState<AssistanceIntervention[]>([]);
   const [absences, setAbsences] = useState<Absence[]>([]);
   const [loading, setLoading] = useState(true);
@@ -280,13 +279,6 @@ export default function DashboardPage() {
             <span>Status</span>
             <InfoIcon size={16} />
           </div>
-          <button 
-            onClick={() => setShowNuovoIntervento(true)}
-            className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-          >
-            <Plus size={16} />
-            Nuovo intervento
-          </button>
         </div>
       </div>
 
@@ -530,15 +522,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Componente Nuovo Intervento */}
-      <NuovoIntervento 
-        isOpen={showNuovoIntervento}
-        onClose={() => {
-          setShowNuovoIntervento(false);
-          // Ricarica i dati dopo aver creato un nuovo intervento
-          fetchAllData();
-        }}
-      />
+      
     </div>
   );
 }

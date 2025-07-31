@@ -1,8 +1,21 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Phone } from 'lucide-react';
+import { ChevronDown, Search, History } from 'lucide-react';
 import { useAuth } from '../../../../contexts/AuthContext';
+import CustomerHistoryDialog from '../CustomerHistoryDialog';
+
+interface Customer {
+  id: number;
+  company_name: string;
+  client_code: string | null;
+  phone_number: string;
+  mobile_phone_number: string;
+  address: string;
+  city: string;
+  zone_label: string;
+  area: string | null;
+}
 
 interface CustomerLocation {
   id: string;
@@ -33,7 +46,8 @@ interface CustomerSectionDetailProps {
   selectedCustomerId: number | null;
   setSelectedCustomerId: (value: number | null) => void;
   onCustomerLocationsLoaded?: (hasLocations: boolean) => void;
-  statusId: number;
+  statusId?: number;
+  isCreating?: boolean;
 }
 
 interface InterventionType {
@@ -48,6 +62,7 @@ interface Zone {
 
 export default function CustomerSectionDetail({
   ragioneSociale,
+  setRagioneSociale,
   destinazione,
   setDestinazione,
   tipologiaIntervento,
@@ -55,69 +70,136 @@ export default function CustomerSectionDetail({
   zona,
   setZona,
   codiceCliente,
+  setCodiceCliente,
   telefonoFisso,
   setTelefonoFisso,
   numeroCellulare,
   setNumeroCellulare,
   selectedCustomerId,
+  setSelectedCustomerId,
   onCustomerLocationsLoaded,
-  statusId
+  statusId = 1, // Default to a non-disabling status
+  isCreating = false,
 }: CustomerSectionDetailProps) {
-  console.log('🏗️ CustomerSectionDetail render with props:', {
-    ragioneSociale,
-    destinazione,
-    codiceCliente,
-    telefonoFisso,
-    numeroCellulare,
-    selectedCustomerId,
-    statusId
-  });
-  
   const auth = useAuth();
 
-  // Determina se i campi devono essere disabilitati
-  // I campi sono modificabili solo fino al massimo allo status "in_carico" (ID 4)
-  const isFieldsDisabled = statusId > 4;
+  const isFieldsDisabled = !isCreating && statusId > 4;
 
-  // Stati per le destinazioni del cliente
+  // Stati per la ricerca clienti (usati solo in modalità creazione)
+  const [searchQuery, setSearchQuery] = useState('');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedCustomerForSearch, setSelectedCustomerForSearch] = useState<Customer | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isSelecting, setIsSelecting] = useState(false);
+
   const [customerLocations, setCustomerLocations] = useState<CustomerLocation[]>([]);
   const [loadingLocations, setLoadingLocations] = useState(false);
-
-  // Stati per i tipi di intervento
   const [interventionTypes, setInterventionTypes] = useState<InterventionType[]>([]);
   const [loadingInterventionTypes, setLoadingInterventionTypes] = useState(false);
-
-  // Stati per le zone
   const [zones, setZones] = useState<Zone[]>([]);
   const [loadingZones, setLoadingZones] = useState(false);
+  const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
 
-  // Funzione per caricare le destinazioni del cliente
+  // Funzioni di ricerca clienti (solo per isCreating)
+  const searchCustomers = async (query: string) => {
+    if (!isCreating || !query.trim() || query.length < 2) {
+      setCustomers([]);
+      setShowDropdown(false);
+      return;
+    }
+    try {
+      setIsSearching(true);
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
+      const response = await fetch(`/api/customers?query=${encodeURIComponent(query)}&skip=10`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        setCustomers(data.data || []);
+        setShowDropdown(true);
+      } else {
+        setCustomers([]);
+        setShowDropdown(false);
+      }
+    } catch {
+      setCustomers([]);
+      setShowDropdown(false);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleCustomerSelect = (customer: Customer) => {
+    setIsSelecting(true);
+    setSelectedCustomerForSearch(customer);
+    setRagioneSociale(customer.company_name);
+    setSearchQuery(customer.company_name);
+    setCodiceCliente(customer.client_code || 'N/A');
+    setTelefonoFisso(customer.phone_number || 'N/A');
+    setNumeroCellulare(customer.mobile_phone_number || 'N/A');
+    setShowDropdown(false);
+    setCustomers([]);
+    
+    if (customer.area && zones.length > 0) {
+      const matchingZone = zones.find(z => z.id.toString() === customer.area);
+      if (matchingZone) setZona(customer.area);
+      else setZona('');
+    } else {
+      setZona('');
+    }
+    
+    setDestinazione('');
+    fetchCustomerLocations(customer.id);
+    setSelectedCustomerId(customer.id);
+    
+    setTimeout(() => setIsSelecting(false), 100);
+  };
+  
+  const handleSearchChange = (value: string) => {
+    setIsSelecting(false);
+    setSearchQuery(value);
+    setRagioneSociale(value);
+
+    if (selectedCustomerForSearch && value !== selectedCustomerForSearch.company_name) {
+      setSelectedCustomerForSearch(null);
+      setCodiceCliente('');
+      setTelefonoFisso('');
+      setNumeroCellulare('');
+      setDestinazione('');
+      setCustomerLocations([]);
+      setSelectedCustomerId(null);
+      setZona('');
+      onCustomerLocationsLoaded?.(false);
+    }
+
+    if (!value.trim()) {
+      setSelectedCustomerForSearch(null);
+      setCodiceCliente('');
+      setTelefonoFisso('');
+      setNumeroCellulare('');
+      setDestinazione('');
+      setCustomerLocations([]);
+      setSelectedCustomerId(null);
+      setZona('');
+      onCustomerLocationsLoaded?.(false);
+    }
+  };
+
   const fetchCustomerLocations = async (customerId: number) => {
     try {
       setLoadingLocations(true);
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      if (auth.token) {
-        headers['Authorization'] = `Bearer ${auth.token}`;
-      }
-
-      const response = await fetch(`/api/customers/${customerId}/locations`, {
-        headers,
-      });
-
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
+      const response = await fetch(`/api/customers/${customerId}/locations`, { headers });
       if (response.ok) {
         const data = await response.json();
         setCustomerLocations(data.data || []);
-        onCustomerLocationsLoaded?.(data.data.length > 0);
+        onCustomerLocationsLoaded?.((data.data || []).length > 0);
       } else {
-        console.error('Errore nel caricamento delle destinazioni');
         setCustomerLocations([]);
         onCustomerLocationsLoaded?.(false);
       }
-    } catch (error) {
-      console.error('Errore nel caricamento delle destinazioni:', error);
+    } catch {
       setCustomerLocations([]);
       onCustomerLocationsLoaded?.(false);
     } finally {
@@ -125,122 +207,140 @@ export default function CustomerSectionDetail({
     }
   };
 
-  // Funzione per caricare i tipi di intervento
   const fetchInterventionTypes = async () => {
+    setLoadingInterventionTypes(true);
     try {
-      setLoadingInterventionTypes(true);
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      if (auth.token) {
-        headers['Authorization'] = `Bearer ${auth.token}`;
-      }
-
-      const response = await fetch('/api/intervention-types', {
-        headers,
-      });
-
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
+      const response = await fetch('/api/intervention-types', { headers });
       if (response.ok) {
-        const data = await response.json();
-        setInterventionTypes(data || []);
+        setInterventionTypes(await response.json() || []);
       } else {
-        console.error('Errore nel caricamento dei tipi di intervento');
         setInterventionTypes([]);
       }
-    } catch (error) {
-      console.error('Errore nel caricamento dei tipi di intervento:', error);
+    } catch {
       setInterventionTypes([]);
     } finally {
       setLoadingInterventionTypes(false);
     }
   };
 
-  // Funzione per caricare le zone
   const fetchZones = async () => {
+    setLoadingZones(true);
     try {
-      setLoadingZones(true);
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      if (auth.token) {
-        headers['Authorization'] = `Bearer ${auth.token}`;
-      }
-
-      const response = await fetch('/api/zones', {
-        headers,
-      });
-
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
+      const response = await fetch('/api/zones', { headers });
       if (response.ok) {
-        const data = await response.json();
-        setZones(data || []);
+        setZones(await response.json() || []);
       } else {
-        console.error('Errore nel caricamento delle zone');
         setZones([]);
       }
-    } catch (error) {
-      console.error('Errore nel caricamento delle zone:', error);
+    } catch {
       setZones([]);
     } finally {
       setLoadingZones(false);
     }
   };
-
-  // Carica tipi di intervento e zone all'avvio
+  
   useEffect(() => {
     fetchInterventionTypes();
     fetchZones();
   }, []);
 
-  // Se il selectedCustomerId è già presente (caricamento da API), trova il cliente
   useEffect(() => {
-    console.log('🔄 CustomerSectionDetail useEffect triggered with:', {
-      selectedCustomerId,
-      ragioneSociale,
-      codiceCliente,
-      telefonoFisso,
-      numeroCellulare
-    });
-    
-    if (selectedCustomerId && ragioneSociale) {
-      console.log('✅ Customer data present:', {
-        codiceCliente,
-        telefonoFisso,
-        numeroCellulare
-      });
-      
-      // Carica le destinazioni
+    if (!isCreating && selectedCustomerId) {
       fetchCustomerLocations(selectedCustomerId);
-    } else {
-      console.log('❌ useEffect conditions not met:', {
-        hasSelectedCustomerId: !!selectedCustomerId,
-        hasRagioneSociale: !!ragioneSociale
-      });
     }
-  }, [selectedCustomerId, ragioneSociale, codiceCliente, telefonoFisso, numeroCellulare]);
+  }, [isCreating, selectedCustomerId]);
 
-  // Gestisce il click fuori dal dropdown
+  // Debounce for customer search in creation mode
   useEffect(() => {
-    // Non più necessario dato che non abbiamo dropdown di ricerca clienti
-  }, []);
+    if (!isCreating || isSelecting) return;
+    const timeoutId = setTimeout(() => {
+      if (searchQuery.trim() && searchQuery.length >= 2) {
+        searchCustomers(searchQuery);
+      } else {
+        setCustomers([]);
+        setShowDropdown(false);
+      }
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, isCreating, isSelecting]);
+  
+  // Handle click outside for dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (isCreating && !target.closest('.customer-search-container')) {
+        setShowDropdown(false);
+      }
+    };
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdown, isCreating]);
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-6">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Dati Cliente</h2>
       
-      {/* Ragione sociale e Destinazione */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Ragione sociale <span className="text-red-500">*</span>
           </label>
-          <input
-            type="text"
-            value={ragioneSociale}
-            readOnly
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
-          />
+          {isCreating ? (
+            <div className="relative customer-search-container">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onFocus={() => {
+                    if (customers.length > 0 && !selectedCustomerForSearch) {
+                      setShowDropdown(true);
+                    }
+                  }}
+                  placeholder="Cerca ragione sociale..."
+                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900"
+                />
+                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                {isSearching && (
+                  <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
+                    <div className="w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
+              </div>
+              
+              {showDropdown && customers.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {customers.map((customer) => (
+                    <div
+                      key={customer.id}
+                      onClick={() => handleCustomerSelect(customer)}
+                      className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                    >
+                      <div className="font-medium text-gray-900">{customer.company_name}</div>
+                      <div className="text-sm text-gray-500">
+                        {customer.address}, {customer.city} - {customer.zone_label}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <input
+              type="text"
+              value={ragioneSociale}
+              readOnly
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+            />
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -255,19 +355,14 @@ export default function CustomerSectionDetail({
                   ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
                   : 'focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white text-gray-900'
               }`}
-              disabled={isFieldsDisabled || loadingLocations || customerLocations.length === 0}
+              disabled={isFieldsDisabled || loadingLocations || customerLocations.length === 0 || !selectedCustomerId}
             >
               <option value="">
-                {isFieldsDisabled
-                  ? 'Campo non modificabile per questo status'
-                  : !selectedCustomerId 
-                  ? 'Prima seleziona una ragione sociale' 
-                  : loadingLocations 
-                  ? 'Caricamento destinazioni...' 
-                  : customerLocations.length === 0 
-                  ? 'Nessuna destinazione disponibile'
-                  : 'Seleziona destinazione'
-                }
+                {isFieldsDisabled ? 'Campo non modificabile' :
+                 !selectedCustomerId ? 'Seleziona cliente' :
+                 loadingLocations ? 'Caricamento...' :
+                 customerLocations.length === 0 ? 'Nessuna destinazione' :
+                 'Seleziona destinazione'}
               </option>
               {customerLocations.map((location) => (
                 <option key={location.id} value={location.id}>
@@ -276,31 +371,10 @@ export default function CustomerSectionDetail({
               ))}
             </select>
             <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-            {loadingLocations && (
-              <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
-                <div className="w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
-              </div>
-            )}
           </div>
-          {!selectedCustomerId && !isFieldsDisabled && (
-            <p className="mt-1 text-xs text-gray-500">
-              💡 Seleziona prima una ragione sociale per vedere le destinazioni disponibili
-            </p>
-          )}
-          {isFieldsDisabled && (
-            <p className="mt-1 text-xs text-gray-500">
-              🔒 Campo non modificabile per questo status
-            </p>
-          )}
-          {selectedCustomerId && customerLocations.length === 0 && !loadingLocations && !isFieldsDisabled && (
-            <p className="mt-1 text-xs text-amber-600">
-              ⚠️ Nessuna destinazione configurata per questo cliente
-            </p>
-          )}
         </div>
       </div>
 
-      {/* Tipologia intervento e Zona */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -317,26 +391,12 @@ export default function CustomerSectionDetail({
               }`}
               disabled={isFieldsDisabled || loadingInterventionTypes}
             >
-              <option value="">
-                {isFieldsDisabled
-                  ? 'Campo non modificabile per questo status'
-                  : loadingInterventionTypes 
-                  ? 'Caricamento...' 
-                  : 'Seleziona tipologia'
-                }
-              </option>
+              <option value="">{loadingInterventionTypes ? 'Caricamento...' : 'Seleziona tipologia'}</option>
               {interventionTypes.map((type) => (
-                <option key={type.id} value={type.id.toString()}>
-                  {type.label}
-                </option>
+                <option key={type.id} value={type.id.toString()}>{type.label}</option>
               ))}
             </select>
             <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-            {loadingInterventionTypes && (
-              <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
-                <div className="w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
-              </div>
-            )}
           </div>
         </div>
         <div>
@@ -354,36 +414,19 @@ export default function CustomerSectionDetail({
               }`}
               disabled={isFieldsDisabled || loadingZones}
             >
-              <option value="">
-                {isFieldsDisabled
-                  ? 'Campo non modificabile per questo status'
-                  : loadingZones 
-                  ? 'Caricamento zone...' 
-                  : 'Seleziona zona'
-                }
-              </option>
-              {zones.map((zone) => (
-                <option key={zone.id} value={zone.id.toString()}>
-                  {zone.label}
-                </option>
+              <option value="">{loadingZones ? 'Caricamento...' : 'Seleziona zona'}</option>
+              {zones.map((zoneItem) => (
+                <option key={zoneItem.id} value={zoneItem.id.toString()}>{zoneItem.label}</option>
               ))}
             </select>
             <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-            {loadingZones && (
-              <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
-                <div className="w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
-              </div>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Codice cliente, Telefono fisso, Numero cellulare */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Codice cliente
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Codice cliente</label>
           <input 
             type="text"
             value={codiceCliente}
@@ -392,69 +435,46 @@ export default function CustomerSectionDetail({
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Telefono fisso
-          </label>
-          <div className="flex">
-            <input 
-              type="text"
-              value={telefonoFisso}
-              onChange={(e) => setTelefonoFisso(e.target.value)}
-              className={`flex-1 px-3 py-2 border border-gray-300 rounded-l-lg ${
-                isFieldsDisabled 
-                  ? 'bg-gray-50 text-gray-500 cursor-not-allowed' 
-                  : 'bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'
-              }`}
-              disabled={isFieldsDisabled}
-            />
-            <button 
-              disabled={isFieldsDisabled || !telefonoFisso}
-              className={`px-3 py-2 rounded-r-lg flex items-center gap-1 ${
-                isFieldsDisabled || !telefonoFisso 
-                  ? 'bg-gray-400 cursor-not-allowed text-gray-600' 
-                  : 'bg-teal-600 hover:bg-teal-700 text-white'
-              }`}
-            >
-              <Phone size={14} />
-            </button>
-          </div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Telefono fisso</label>
+          <input 
+            type="text"
+            value={telefonoFisso}
+            readOnly
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+          />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Numero di cellulare
-          </label>
-          <div className="flex">
-            <input 
-              type="text"
-              value={numeroCellulare}
-              onChange={(e) => setNumeroCellulare(e.target.value)}
-              className={`flex-1 px-3 py-2 border border-gray-300 rounded-l-lg ${
-                isFieldsDisabled 
-                  ? 'bg-gray-50 text-gray-500 cursor-not-allowed' 
-                  : 'bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'
-              }`}
-              disabled={isFieldsDisabled}
-            />
-            <button 
-              disabled={isFieldsDisabled || !numeroCellulare}
-              className={`px-3 py-2 rounded-r-lg flex items-center gap-1 ${
-                isFieldsDisabled || !numeroCellulare 
-                  ? 'bg-gray-400 cursor-not-allowed text-gray-600' 
-                  : 'bg-teal-600 hover:bg-teal-700 text-white'
-              }`}
-            >
-              <Phone size={14} />
-            </button>
-          </div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Numero di cellulare</label>
+          <input 
+            type="text"
+            value={numeroCellulare}
+            readOnly
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+          />
         </div>
       </div>
 
-      {/* Link anagrafica */}
       <div className="text-center">
-        <button className="text-teal-600 hover:text-teal-700 text-sm font-medium">
+        <button 
+          onClick={() => setIsHistoryDialogOpen(true)}
+          disabled={!selectedCustomerId}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            selectedCustomerId 
+              ? 'bg-teal-50 text-teal-600 hover:bg-teal-100' 
+              : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+          }`}
+        >
+          <History size={16} />
           Vedi anagrafica e cronologia interventi
         </button>
       </div>
+      
+      <CustomerHistoryDialog
+        isOpen={isHistoryDialogOpen}
+        onClose={() => setIsHistoryDialogOpen(false)}
+        customerId={selectedCustomerId || 0}
+        customerName={ragioneSociale}
+      />
     </div>
   );
-} 
+}
