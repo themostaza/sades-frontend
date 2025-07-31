@@ -1,4 +1,4 @@
-import { AssistanceIntervention } from '../types/assistance-interventions';
+
 
 /**
  * Elenco delle opzioni di stato per i filtri e le visualizzazioni.
@@ -44,7 +44,25 @@ export const getStatusId = (statusKey: string): number | null => {
  * @param intervention L'oggetto intervento da analizzare.
  * @returns Un oggetto con `label` (etichetta leggibile) e `key` (identificatore univoco) dello stato.
  */
-export const calculateStatus = (intervention: AssistanceIntervention): { label: string; key: string } => {
+interface InterventionWithStatus {
+  invoiced_by: string | null;
+  cancelled_by: string | null;
+  assigned_to: string | null;
+  date: string | null;
+  time_slot: string | null;
+  from_datetime: string | null;
+  to_datetime: string | null;
+  report_id: number | null;
+  approved_by: string | null;
+  report_is_failed: boolean | null;
+}
+
+/**
+ * Calcola lo stato di un intervento basandosi su una serie di regole di business.
+ * @param intervention L'oggetto intervento da analizzare.
+ * @returns Un oggetto con `label` (etichetta leggibile) e `key` (identificatore univoco) dello stato.
+ */
+export const calculateStatus = (intervention: InterventionWithStatus): { label: string; key: string } => {
   // Priorità massima: se invoiced_by è valorizzato → fatturato
   if (intervention.invoiced_by) {
     return { label: 'Fatturato', key: 'fatturato' };
@@ -57,7 +75,7 @@ export const calculateStatus = (intervention: AssistanceIntervention): { label: 
   
   // Controllo dei campi obbligatori per l'assegnazione
   const requiredFields = [
-    intervention.assigned_to_name,
+    intervention.assigned_to,
     intervention.date,
     intervention.time_slot,
     intervention.from_datetime,
@@ -65,7 +83,7 @@ export const calculateStatus = (intervention: AssistanceIntervention): { label: 
   ];
   
   // Se uno dei campi obbligatori non è valorizzato → da_assegnare
-  if (requiredFields.some(field => !field || field.trim() === '')) {
+  if (requiredFields.some(field => !field || (typeof field === 'string' && field.trim() === ''))) {
     return { label: 'Da assegnare', key: 'da_assegnare' };
   }
   
@@ -77,7 +95,7 @@ export const calculateStatus = (intervention: AssistanceIntervention): { label: 
     currentStatus = { label: 'Da confermare', key: 'da_confermare' };
     
     // Se c'è anche approved_by → controllo report_is_failed
-    if (intervention.approved_by_name) {
+    if (intervention.approved_by) {
       if (intervention.report_is_failed === true) {
         currentStatus = { label: 'Non completato', key: 'non_completato' };
       } else if (intervention.report_is_failed === false || intervention.report_is_failed === null) {

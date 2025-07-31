@@ -314,9 +314,33 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       <span
-                        className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(calculateStatus(intervention).key)}`}
+                        className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(
+                          calculateStatus({
+                            invoiced_by: intervention.invoiced_by ?? null,
+                            cancelled_by: intervention.cancelled_by ?? null,
+                            assigned_to: null, // non disponibile in AssistanceIntervention
+                            date: intervention.date ?? null,
+                            time_slot: intervention.time_slot ?? null,
+                            from_datetime: intervention.from_datetime ?? null,
+                            to_datetime: intervention.to_datetime ?? null,
+                            report_id: intervention.report_id ?? null,
+                            approved_by: null, // non disponibile in AssistanceIntervention
+                            report_is_failed: intervention.report_is_failed ?? null,
+                          }).key
+                        )}`}
                       >
-                        {calculateStatus(intervention).label}
+                        {calculateStatus({
+                          invoiced_by: intervention.invoiced_by ?? null,
+                          cancelled_by: intervention.cancelled_by ?? null,
+                          assigned_to: null, // non disponibile in AssistanceIntervention
+                          date: intervention.date ?? null,
+                          time_slot: intervention.time_slot ?? null,
+                          from_datetime: intervention.from_datetime ?? null,
+                          to_datetime: intervention.to_datetime ?? null,
+                          report_id: intervention.report_id ?? null,
+                          approved_by: null, // non disponibile in AssistanceIntervention
+                          report_is_failed: intervention.report_is_failed ?? null,
+                        }).label}
                       </span>
                     </td>
                   </tr>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Check, AlertCircle, Download, RefreshCw } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Download, RefreshCw, Check } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import CustomerSectionDetail from './components/detail/CustomerSectionDetail';
 import InterventionDetailsSectionDetail from './components/detail/InterventionDetailsSectionDetail';
@@ -13,6 +13,7 @@ import { AssistanceInterventionDetail, UpdateAssistanceInterventionRequest } fro
 import { fetchAssistanceInterventionDetail, updateAssistanceIntervention, downloadAssistanceInterventionPDF, downloadPDFFile } from '../../utils/assistance-interventions-api';
 import CreaRapportino from './CreaRapportino';
 import CancelInterventionButton from './components/small_components/CancelInterventionButton';
+import { calculateStatus, getStatusId } from '../../utils/intervention-status';
 
 interface DettaglioInterventoProps {
   isOpen: boolean;
@@ -131,63 +132,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   const [isLoadingReport, setIsLoadingReport] = useState(false);
   // Stato per il refresh dei dati
   const [isRefreshing, setIsRefreshing] = useState(false);
-  // Funzione per calcolare lo stato corretto basato sulla logica frontend (stessa di page.tsx)
-  const calculateStatus = (interventionData: AssistanceInterventionDetail): { label: string; key: string } => {
-    // Priorità massima: se invoiced_by è valorizzato → fatturato
-    if (interventionData.invoiced_by) {
-      return { label: 'Fatturato', key: 'fatturato' };
-    }
-    // Priorità alta: se cancelled_by è valorizzato → annullato
-    if (interventionData.cancelled_by) {
-      return { label: 'Annullato', key: 'annullato' };
-    }
-    // Controllo dei campi obbligatori per l'assegnazione
-    const requiredFields = [
-      interventionData.assigned_to,
-      interventionData.date,
-      interventionData.time_slot,
-      interventionData.from_datetime,
-      interventionData.to_datetime
-    ];
-  
-    // Se uno dei campi obbligatori non è valorizzato → da_assegnare
-    if (requiredFields.some(field => !field || field.trim() === '')) {
-      return { label: 'Da assegnare', key: 'da_assegnare' };
-    }
-    // Tutti i campi obbligatori sono valorizzati → in_carico
-    let currentStatus = { label: 'In carico', key: 'in_carico' };
-    // Se c'è un report_id → da_confermare
-    if (interventionData.report_id !== null) {
-      currentStatus = { label: 'Da confermare', key: 'da_confermare' };
-      // Se c'è anche approved_by → controllo report_is_failed
-      if (interventionData.approved_by) {
-        if (interventionData.report_is_failed === true) {
-          currentStatus = { label: 'Non completato', key: 'non_completato' };
-        } else if (interventionData.report_is_failed === false || interventionData.report_is_failed === null) {
-          currentStatus = { label: 'Completato', key: 'completato' };
-        }
-      }
-    }
-    
-    return currentStatus;
-  };
 
-  // Funzione per mappare i valori degli stati ai corrispondenti ID
-  const getStatusId = (): number => {
-    const statusMap: Record<string, number> = {
-      'da_assegnare': 1,
-      'attesa_preventivo': 2,
-      'attesa_ricambio': 3,
-      'in_carico': 4,
-      'da_confermare': 5,
-      'completato': 6,
-      'non_completato': 7,
-      'annullato': 8,
-      'fatturato': 9,
-      'collocamento': 10
-    };
-    return statusMap[selectedStatus] || 1;
-  };
 
   // Funzione per caricare i dettagli del cliente
   const loadCustomerDetails = async (customerId: number) => {
@@ -652,7 +597,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         assigned_to: selectedTechnician?.id || '',
         call_code: codiceChiamata,
         internal_notes: noteInterne,
-        status_id: getStatusId(),
+                status_id: getStatusId(selectedStatus) ?? 1,
         equipments: selectedEquipments.map(eq => eq.id),
         articles: selectedArticles.map(art => ({
           article_id: art.article.id,
@@ -813,8 +758,8 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   const shouldShowCancelButton = () => {
     // Il tasto per annullare deve esserci solo nel caso in cui siamo nello status "completato" o inferiori
     // Non può esserci in "Non completato" (7), "Fatturato" (9), "Collocamento" (10) e "Annullato" (8)
-    const statusId = getStatusId();
-    return statusId <= 6 && selectedStatus !== 'annullato';
+    const statusId = getStatusId(selectedStatus);
+    return statusId !== null && statusId <= 6 && selectedStatus !== 'annullato';
   };
 
   // Funzione per visualizzare il rapporto in una nuova tab
@@ -849,13 +794,17 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     }
   };
 
-  // Sincronizza sconto servizio domicilio con servizio domicilio
+  // Logica automatica per servizio domicilio in base a tipologia intervento
   useEffect(() => {
-    // Se servizio domicilio è "No", disabilita automaticamente lo sconto
-    if (servizioDomicilio === 'No') {
+    if (tipologiaIntervento === '12' || tipologiaIntervento === '4') {
+      setServizioDomicilio('Si');
+      setScontoServizioDomicilio(false);
+    } else if (tipologiaIntervento) {
+      setServizioDomicilio('No');
       setScontoServizioDomicilio(false);
     }
-  }, [servizioDomicilio]);
+    // Se tipologiaIntervento è vuoto, non forzare nulla
+  }, [tipologiaIntervento]);
 
   // Effect per impostare existingReport basandosi sui dati dal payload
   useEffect(() => {
@@ -1190,7 +1139,6 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         {/* Status e pulsanti rapporto */}
         <InterventionStatusAndActions
           selectedStatus={selectedStatus}
-          setSelectedStatus={setSelectedStatus}
           userInfo={userInfo}
           userLoading={userLoading}
           existingReport={existingReport}
@@ -1224,7 +1172,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
             selectedCustomerId={selectedCustomerId}
             setSelectedCustomerId={setSelectedCustomerId}
             onCustomerLocationsLoaded={handleCustomerLocationsLoaded}
-            statusId={getStatusId()}
+            statusId={getStatusId(selectedStatus) ?? undefined}
           />
 
           {/* Intervention Details Section */}
@@ -1254,7 +1202,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
             noteInterne={noteInterne}
             setNoteInterne={setNoteInterne}
             onCustomerLocationsLoaded={handleCustomerLocationsLoaded}
-            statusId={getStatusId()}
+            statusId={getStatusId(selectedStatus) ?? undefined}
           />
 
           {/* Call Details Section */}
@@ -1269,7 +1217,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
               codiceChiamata={codiceChiamata}
               setCodiceChiamata={setCodiceChiamata}
               dataCreazione={dataCreazione}
-              statusId={getStatusId()}
+              statusId={getStatusId(selectedStatus) ?? undefined}
             />
           )}
 

@@ -33,6 +33,10 @@ export default function NuovoIntervento({ isOpen, onClose }: NuovoInterventoProp
   const [numeroCellulare, setNumeroCellulare] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   
+  // Stati per servizio domicilio e sconto
+  const [servizioDomicilio, setServizioDomicilio] = useState('No');
+  const [scontoServizioDomicilio, setScontoServizioDomicilio] = useState(false);
+  
   // Stati per la validazione e il caricamento
   const [customerLocationsLoaded, setCustomerLocationsLoaded] = useState(false);
   const [hasCustomerLocations, setHasCustomerLocations] = useState(false);
@@ -47,6 +51,18 @@ export default function NuovoIntervento({ isOpen, onClose }: NuovoInterventoProp
   };
   
   const getStatusId = () => 1; // Sempre 'da_assegnare' per nuovi interventi
+
+  // Logica automatica per servizio domicilio in base a tipologia intervento
+  useEffect(() => {
+    if (tipologiaIntervento === '12' || tipologiaIntervento === '4') {
+      setServizioDomicilio('Si');
+      setScontoServizioDomicilio(false);
+    } else if (tipologiaIntervento) {
+      setServizioDomicilio('No');
+      setScontoServizioDomicilio(false);
+    }
+    // Se tipologiaIntervento è vuoto, non forzare nulla
+  }, [tipologiaIntervento]);
 
   const createInterventionAndRedirect = async () => {
     if (!isFormValid()) {
@@ -64,8 +80,8 @@ export default function NuovoIntervento({ isOpen, onClose }: NuovoInterventoProp
         customer_location_id: destinazione || '',
         status_id: getStatusId(),
         // Tutti gli altri campi sono null o valori di default
-        flg_home_service: true,
-        flg_discount_home_service: false,
+        flg_home_service: servizioDomicilio === 'Si',
+        flg_discount_home_service: servizioDomicilio === 'Si' ? scontoServizioDomicilio : false,
         date: null,
         time_slot: null,
         from_datetime: null,

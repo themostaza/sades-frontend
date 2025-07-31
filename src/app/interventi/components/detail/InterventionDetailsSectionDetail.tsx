@@ -239,7 +239,7 @@ export default function InterventionDetailsSectionDetail({
           rows={4}
           placeholder={isFieldsDisabled ? "Non modificabile" : "Inserisci note..."}
           disabled={isFieldsDisabled}
-          className={`w-full px-3 py-2 border border-gray-300 rounded-lg ${isFieldsDisabled ? 'bg-gray-50' : ''}`}
+          className={`w-full px-3 py-2 border border-gray-300 rounded-lg ${isFieldsDisabled ? 'bg-gray-50' : ''} text-gray-700`}
         />
       </div>
 
@@ -251,8 +251,9 @@ export default function InterventionDetailsSectionDetail({
               value={servizioDomicilio}
               onChange={(e) => setServizioDomicilio(e.target.value)}
               disabled={isFieldsDisabled}
-              className={`w-full px-3 py-2 border border-gray-300 rounded-lg appearance-none ${isFieldsDisabled ? 'bg-gray-50' : ''}`}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-lg appearance-none ${isFieldsDisabled ? 'bg-gray-50' : ''} text-gray-700`}
             >
+              <option value="">Seleziona</option>
               <option value="Si">Si</option>
               <option value="No">No</option>
             </select>
@@ -274,7 +275,8 @@ export default function InterventionDetailsSectionDetail({
             value={data}
             onChange={(e) => setData(e.target.value)}
             disabled={isFieldsDisabled}
-            className={`w-full px-3 py-2 border border-gray-300 rounded-lg ${isFieldsDisabled ? 'bg-gray-50' : ''}`}
+            className={`w-full px-3 py-2 border border-gray-300 rounded-lg ${isFieldsDisabled ? 'bg-gray-50' : ''} text-gray-700`}
+            placeholder="Seleziona una data"
           />
         </div>
         <div>
@@ -284,7 +286,7 @@ export default function InterventionDetailsSectionDetail({
               value={orarioIntervento}
               onChange={(e) => setOrarioIntervento(e.target.value)}
               disabled={isFieldsDisabled || !data}
-              className={`w-full px-3 py-2 border border-gray-300 rounded-lg appearance-none ${isFieldsDisabled || !data ? 'bg-gray-50' : ''}`}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-lg appearance-none ${isFieldsDisabled || !data ? 'bg-gray-50' : ''} text-gray-700`}
             >
               <option value="">Seleziona orario</option>
               <option value="mattina">Mattina (8-13)</option>
@@ -307,13 +309,13 @@ export default function InterventionDetailsSectionDetail({
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Preventivo</label>
           <div className="flex">
-            <input type="number" step="0.01" min="0" value={preventivo} onChange={(e) => setPreventivo(Number(e.target.value))} disabled={isFieldsDisabled} className={`flex-1 px-3 py-2 border rounded-l-lg ${isFieldsDisabled ? 'bg-gray-50' : ''}`}/>
+            <input type="number" step="0.01" min="0" value={preventivo} onChange={(e) => setPreventivo(Number(e.target.value))} disabled={isFieldsDisabled} className={`flex-1 px-3 py-2 border rounded-l-lg ${isFieldsDisabled ? 'bg-gray-50' : ''} text-gray-700`} placeholder="Inserisci importo"/>
             <span className="bg-gray-100 border-t border-b border-r px-3 py-2 rounded-r-lg text-gray-600">EUR</span>
           </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Orario apertura</label>
-          <input type="text" value={orarioApertura} onChange={(e) => setOrarioApertura(e.target.value)} placeholder={isFieldsDisabled ? "Non modificabile" : "Orario apertura"} disabled={isFieldsDisabled} className={`w-full px-3 py-2 border rounded-lg ${isFieldsDisabled ? 'bg-gray-50' : ''}`}/>
+          <input type="text" value={orarioApertura} onChange={(e) => setOrarioApertura(e.target.value)} placeholder={isFieldsDisabled ? "Non modificabile" : "Orario apertura"} disabled={isFieldsDisabled} className={`w-full px-3 py-2 border rounded-lg ${isFieldsDisabled ? 'bg-gray-50' : ''} text-gray-700`}/>
         </div>
       </div>
 
@@ -327,14 +329,14 @@ export default function InterventionDetailsSectionDetail({
             onFocus={() => isEquipmentSearchEnabled() && searchEquipments(equipmentSearchQuery)}
             placeholder={!isEquipmentSearchEnabled() ? "Seleziona cliente/destinazione" : "Cerca apparecchiatura..."}
             disabled={!isEquipmentSearchEnabled()}
-            className="w-full px-3 py-2 pr-10 border rounded-lg disabled:bg-gray-50"
+            className="w-full px-3 py-2 pr-10 border rounded-lg disabled:bg-gray-50 text-gray-700"
           />
           <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
           {isSearchingEquipments && <div className="absolute right-10 top-1/2 transform -translate-y-1/2 w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>}
           {showEquipmentDropdown && equipments.length > 0 && (
             <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
               {equipments.map((eq) => (
-                <div key={eq.id} onClick={() => handleEquipmentSelect(eq)} className="px-4 py-3 hover:bg-gray-50 cursor-pointer">
+                <div key={eq.id} onClick={() => handleEquipmentSelect(eq)} className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700">
                   <div>{eq.description}</div>
                   <div className="text-sm text-gray-500">{eq.brand_name} {eq.model} (S/N: {eq.serial_number})</div>
                 </div>
@@ -370,14 +372,14 @@ export default function InterventionDetailsSectionDetail({
             onFocus={() => !isFieldsDisabled && searchArticles(articleSearchQuery)}
             placeholder={isFieldsDisabled ? "Non modificabile" : "Cerca ricambi..."}
             disabled={isFieldsDisabled}
-            className="w-full px-3 py-2 pr-10 border rounded-lg disabled:bg-gray-50"
+            className="w-full px-3 py-2 pr-10 border rounded-lg disabled:bg-gray-50 text-gray-700"
           />
           <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
           {isSearchingArticles && <div className="absolute right-10 top-1/2 transform -translate-y-1/2 w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>}
           {showArticleDropdown && articles.length > 0 && (
             <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
               {articles.map((art) => (
-                <div key={art.id} onClick={() => handleArticleSelect(art)} className="px-4 py-3 hover:bg-gray-50 cursor-pointer">
+                <div key={art.id} onClick={() => handleArticleSelect(art)} className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700">
                   <div>{art.short_description}</div>
                   <div className="text-sm text-gray-500">PNC: {art.pnc_code} | Stock: {art.quantity_stock}</div>
                 </div>
