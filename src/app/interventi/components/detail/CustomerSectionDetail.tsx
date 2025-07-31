@@ -48,6 +48,7 @@ interface CustomerSectionDetailProps {
   onCustomerLocationsLoaded?: (hasLocations: boolean) => void;
   statusId?: number;
   isCreating?: boolean;
+  disabled?: boolean;
 }
 
 interface InterventionType {
@@ -80,6 +81,7 @@ export default function CustomerSectionDetail({
   onCustomerLocationsLoaded,
   statusId = 1, // Default to a non-disabling status
   isCreating = false,
+  disabled = false,
 }: CustomerSectionDetailProps) {
   const auth = useAuth();
 
@@ -307,6 +309,7 @@ export default function CustomerSectionDetail({
                   }}
                   placeholder="Cerca ragione sociale..."
                   className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900"
+                  disabled={disabled}
                 />
                 <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
                 {isSearching && (
@@ -339,6 +342,7 @@ export default function CustomerSectionDetail({
               value={ragioneSociale}
               readOnly
               className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+              disabled={disabled}
             />
           )}
         </div>
@@ -351,11 +355,11 @@ export default function CustomerSectionDetail({
               value={destinazione}
               onChange={(e) => setDestinazione(e.target.value)}
               className={`w-full px-3 py-2 border border-gray-300 rounded-lg appearance-none ${
-                isFieldsDisabled || loadingLocations || customerLocations.length === 0
+                isFieldsDisabled || loadingLocations || customerLocations.length === 0 || disabled
                   ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
                   : 'focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white text-gray-900'
               }`}
-              disabled={isFieldsDisabled || loadingLocations || customerLocations.length === 0 || !selectedCustomerId}
+              disabled={isFieldsDisabled || loadingLocations || customerLocations.length === 0 || !selectedCustomerId || disabled}
             >
               <option value="">
                 {isFieldsDisabled ? 'Campo non modificabile' :
@@ -385,11 +389,11 @@ export default function CustomerSectionDetail({
               value={tipologiaIntervento}
               onChange={(e) => setTipologiaIntervento(e.target.value)}
               className={`w-full px-3 py-2 border border-gray-300 rounded-lg appearance-none ${
-                isFieldsDisabled || loadingInterventionTypes
+                isFieldsDisabled || loadingInterventionTypes || disabled
                   ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
                   : 'focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white text-gray-900'
               }`}
-              disabled={isFieldsDisabled || loadingInterventionTypes}
+              disabled={isFieldsDisabled || loadingInterventionTypes || disabled}
             >
               <option value="">{loadingInterventionTypes ? 'Caricamento...' : 'Seleziona tipologia'}</option>
               {interventionTypes.map((type) => (
@@ -408,11 +412,11 @@ export default function CustomerSectionDetail({
               value={zona}
               onChange={(e) => setZona(e.target.value)}
               className={`w-full px-3 py-2 border border-gray-300 rounded-lg appearance-none ${
-                isFieldsDisabled || loadingZones
+                isFieldsDisabled || loadingZones || disabled
                   ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
                   : 'focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white text-gray-900'
               }`}
-              disabled={isFieldsDisabled || loadingZones}
+              disabled={isFieldsDisabled || loadingZones || disabled}
             >
               <option value="">{loadingZones ? 'Caricamento...' : 'Seleziona zona'}</option>
               {zones.map((zoneItem) => (
@@ -432,6 +436,7 @@ export default function CustomerSectionDetail({
             value={codiceCliente}
             readOnly
             className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+            disabled={disabled}
           />
         </div>
         <div>
@@ -441,6 +446,7 @@ export default function CustomerSectionDetail({
             value={telefonoFisso}
             readOnly
             className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+            disabled={disabled}
           />
         </div>
         <div>
@@ -450,6 +456,7 @@ export default function CustomerSectionDetail({
             value={numeroCellulare}
             readOnly
             className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+            disabled={disabled}
           />
         </div>
       </div>
@@ -457,7 +464,7 @@ export default function CustomerSectionDetail({
       <div className="text-center">
         <button 
           onClick={() => setIsHistoryDialogOpen(true)}
-          disabled={!selectedCustomerId}
+          disabled={!selectedCustomerId || disabled}
           className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             selectedCustomerId 
               ? 'bg-teal-50 text-teal-600 hover:bg-teal-100' 

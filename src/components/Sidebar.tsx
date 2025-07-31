@@ -16,6 +16,7 @@ import {
   LogOut,
   X,
 } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 interface SidebarProps {
   activeItem?: string;
@@ -257,42 +258,45 @@ export default function Sidebar({
       </div>
 
       {/* Logout Confirmation Dialog */}
-      {showLogoutDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Conferma Logout
-              </h3>
-              <button
-                onClick={handleCancelLogout}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X size={20} />
-              </button>
+      {showLogoutDialog && typeof window !== 'undefined' &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
+            <div className="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Conferma Logout
+                </h3>
+                <button
+                  onClick={handleCancelLogout}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <p className="text-gray-600 mb-6">
+                Sei sicuro di voler effettuare il logout? Dovrai accedere nuovamente per continuare.
+              </p>
+              
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={handleCancelLogout}
+                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Annulla
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
             </div>
-            
-            <p className="text-gray-600 mb-6">
-              Sei sicuro di voler effettuare il logout? Dovrai accedere nuovamente per continuare.
-            </p>
-            
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={handleCancelLogout}
-                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Annulla
-              </button>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )
+      }
     </div>
   );
 }

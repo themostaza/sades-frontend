@@ -29,6 +29,7 @@ interface CallDetailsSectionDetailProps {
   dataCreazione?: string;
   statusId?: number;
   isCreating?: boolean;
+  disabled?: boolean;
 }
 
 export default function CallDetailsSectionDetail({
@@ -42,6 +43,7 @@ export default function CallDetailsSectionDetail({
   dataCreazione,
   statusId = 1,
   isCreating = false,
+  // disabled = false,
 }: CallDetailsSectionDetailProps) {
   const auth = useAuth();
 
@@ -137,10 +139,12 @@ export default function CallDetailsSectionDetail({
   }, [showTechnicianDropdown]);
 
   useEffect(() => {
+    // Esegui la ricerca solo se la tendina è già aperta (evita chiamate quando la chiudi)
+    if (!showTechnicianDropdown) return;
     const timeoutId = setTimeout(() => {
       if (technicianSearchQuery.trim() && technicianSearchQuery.length >= 2) {
         searchTechnicians(technicianSearchQuery);
-      } else if (technicianSearchQuery.trim() === '' && showTechnicianDropdown) {
+      } else if (technicianSearchQuery.trim() === '') {
         searchTechnicians('');
       }
     }, 300);
@@ -168,7 +172,7 @@ export default function CallDetailsSectionDetail({
               onFocus={() => { if (!isFieldsDisabled) loadAllTechnicians(); }}
               placeholder={isFieldsDisabled ? "Non modificabile" : "Cerca tecnico..."}
               disabled={isFieldsDisabled}
-              className={`w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg ${isFieldsDisabled ? 'bg-gray-50' : ''}`}
+              className={`text-gray-700 w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg ${isFieldsDisabled ? 'bg-gray-50' : ''}`}
             />
             <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
             {isSearchingTechnicians && <div className="absolute right-10 top-1/2 transform -translate-y-1/2 w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>}

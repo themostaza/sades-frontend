@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { ArrowLeft, Clock, X, Plus, Eye, Download, Trash2, AlertTriangle } from 'lucide-react';
 import Image from 'next/image';
@@ -93,16 +93,16 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
       notes: '',
       hasGas: false,
       tipologiaCompressore: 'ermetico',
-      nuovaInstallazione: '',
-      tipologiaGasCaricato: '',
-      quantitaGasCaricato: '',
-      caricaMax: '',
+      nuovaInstallazione: 'Sì',
+      tipologiaGasCaricato: 'R404A',
+      quantitaGasCaricato: '12',
+      caricaMax: '120',
       modelloCompressore: '',
       matricolaCompressore: '',
       numeroUnivoco: '',
       serviziAggiuntivi: [],
-      tipologiaGasRecuperato: '',
-      quantitaGasRecuperato: '',
+      tipologiaGasRecuperato: 'R404A',
+      quantitaGasRecuperato: '12',
       hasImages: false,
       images: []
     }
@@ -128,6 +128,16 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
   // Stato per il dialog di conferma uscita
   const [showExitConfirmDialog, setShowExitConfirmDialog] = useState(false);
   
+  // Stati per ricerca live apparecchiature per ogni item
+  const [equipmentSearchQueries, setEquipmentSearchQueries] = useState<{ [itemId: string]: string }>({});
+  const [equipmentsResults, setEquipmentsResults] = useState<{ [itemId: string]: ConnectedEquipment[] }>({});
+  const [showEquipmentDropdowns, setShowEquipmentDropdowns] = useState<{ [itemId: string]: boolean }>({});
+  const [isSearchingEquipments, setIsSearchingEquipments] = useState<{ [itemId: string]: boolean }>({});
+
+  // --- [INIZIO: Refs per gestione click esterno dropdown ricerca apparecchiatura] ---
+  const equipmentRefs = useRef<{ [itemId: string]: HTMLDivElement | null }>({});
+  // --- [FINE: Refs per gestione click esterno dropdown ricerca apparecchiatura] ---
+
   // Carica i tipi di gas e compressori quando il componente si monta
   useEffect(() => {
     if (isOpen && token) {
@@ -135,6 +145,23 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
       checkExistingReport();
     }
   }, [isOpen, token]);
+
+  // --- [INIZIO: useEffect per chiusura dropdown su click esterno] ---
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      Object.keys(equipmentRefs.current).forEach(itemId => {
+        const ref = equipmentRefs.current[itemId];
+        if (ref && !ref.contains(event.target as Node)) {
+          setShowEquipmentDropdowns(prev => ({ ...prev, [itemId]: false }));
+        }
+      });
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [equipmentItems]);
+  // --- [FINE: useEffect per chiusura dropdown su click esterno] ---
 
   // Funzione per caricare i tipi di gas e compressori
   const loadGasAndCompressorTypes = async () => {
@@ -458,6 +485,41 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
     }
   };
 
+  // Funzione di ricerca live per apparecchiature
+  const searchEquipments = async (itemId: string, query: string = '') => {
+    if (!interventionData?.customer_id) {
+      setEquipmentsResults(prev => ({ ...prev, [itemId]: [] }));
+      setShowEquipmentDropdowns(prev => ({ ...prev, [itemId]: false }));
+      return;
+    }
+    try {
+      setIsSearchingEquipments(prev => ({ ...prev, [itemId]: true }));
+      let apiUrl = `/api/equipments?customer_id=${interventionData.customer_id}`;
+      if (query.trim()) {
+        apiUrl += `&query=${encodeURIComponent(query)}`;
+      }
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const response = await fetch(apiUrl, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        // Escludi già selezionati in altri items
+        const alreadySelectedIds = equipmentItems.map(item => item.selectedEquipment?.id).filter(Boolean);
+        const filtered = (data.data || []).filter((eq: ConnectedEquipment) => !alreadySelectedIds.includes(eq.id));
+        setEquipmentsResults(prev => ({ ...prev, [itemId]: filtered }));
+        setShowEquipmentDropdowns(prev => ({ ...prev, [itemId]: true }));
+      } else {
+        setEquipmentsResults(prev => ({ ...prev, [itemId]: [] }));
+        setShowEquipmentDropdowns(prev => ({ ...prev, [itemId]: false }));
+      }
+    } catch {
+      setEquipmentsResults(prev => ({ ...prev, [itemId]: [] }));
+      setShowEquipmentDropdowns(prev => ({ ...prev, [itemId]: false }));
+    } finally {
+      setIsSearchingEquipments(prev => ({ ...prev, [itemId]: false }));
+    }
+  };
+
   // Funzione per gestire il submit
   const handleSubmit = async () => {
     try {
@@ -496,8 +558,9 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
           compressor_unique_num: item.numeroUnivoco || null,
           compressor_unique_num_img_url: null, // TODO: implementare upload immagini
           additional_services: item.serviziAggiuntivi.length > 0 ? item.serviziAggiuntivi.join(', ') : null,
-          recovered_rech_gas_types_id: item.hasGas ? (getRechargeableGasTypeId(item.tipologiaGasRecuperato) || null) : null,
-          qty_gas_recovered: parseInt(item.quantitaGasRecuperato) || 0,
+          // Se è selezionato 'Ricerca perdite', NON inviare i campi recupero gas
+          recovered_rech_gas_types_id: item.hasGas && !item.serviziAggiuntivi.includes('Ricerca perdite') ? (getRechargeableGasTypeId(item.tipologiaGasRecuperato) || null) : null,
+          qty_gas_recovered: item.hasGas && !item.serviziAggiuntivi.includes('Ricerca perdite') ? (parseInt(item.quantitaGasRecuperato) || 0) : null,
           images: item.images.map(file => ({
             file_name: file.name,
             file_url: file.url
@@ -558,6 +621,12 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
       console.error('💥 Errore durante la creazione del rapportino:', error);
       alert(`Errore durante la creazione del rapportino: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
     }
+  };
+
+  // Funzione helper per capire se mostrare i campi recupero gas:
+  const shouldShowRecuperoGasFields = (item: EquipmentItem): boolean => {
+    // Nascondi solo se l'unico servizio selezionato è 'Ricerca perdite'
+    return !(item.serviziAggiuntivi.length === 1 && item.serviziAggiuntivi[0] === 'Ricerca perdite');
   };
 
   if (!isOpen) return null;
@@ -719,26 +788,65 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
           
           {equipmentItems.map((item, index) => (
             <div key={item.id} className="border border-gray-200 rounded-lg p-4 mb-4 last:mb-0">
-              {/* Apparecchiatura interessata - larghezza piena */}
-              <div className="mb-4">
+              {/* Apparecchiatura interessata - ricerca live */}
+              <div className="mb-4" ref={el => { equipmentRefs.current[item.id] = el; }}>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Apparecchiatura interessata
                 </label>
-                <select
-                  value={item.selectedEquipment?.id || ''}
-                  onChange={(e) => {
-                    const selectedEquip = interventionData.connected_equipment?.find(eq => eq.id === parseInt(e.target.value));
-                    updateEquipmentItem(item.id, 'selectedEquipment', selectedEquip || null);
-                  }}
-                  className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${item.selectedEquipment ? 'text-gray-700' : 'text-gray-500'}`}
-                >
-                  <option value="">Seleziona un&apos;apparecchiatura</option>
-                  {interventionData.connected_equipment?.map((equipment) => (
-                    <option key={equipment.id} value={equipment.id.toString()}>
-                      {equipment.model} - {equipment.description} (S/N: {equipment.serial_number})
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={equipmentSearchQueries[item.id] || ''}
+                    onChange={e => {
+                      const value = e.target.value;
+                      setEquipmentSearchQueries(prev => ({ ...prev, [item.id]: value }));
+                      searchEquipments(item.id, value);
+                    }}
+                    onFocus={() => searchEquipments(item.id, equipmentSearchQueries[item.id] || '')}
+                    placeholder="Cerca apparecchiatura..."
+                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
+                  />
+                  <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" strokeWidth="2" d="M21 21l-4.35-4.35m2.1-5.4A7.35 7.35 0 1110.35 3a7.35 7.35 0 018.4 8.4z"/></svg>
+                  </span>
+                  {isSearchingEquipments[item.id] && <div className="absolute right-10 top-1/2 transform -translate-y-1/2 w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>}
+                  {showEquipmentDropdowns[item.id] && (equipmentsResults[item.id]?.length || 0) > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {equipmentsResults[item.id].map(eq => (
+                        <div
+                          key={eq.id}
+                          onClick={() => {
+                            updateEquipmentItem(item.id, 'selectedEquipment', eq);
+                            setEquipmentSearchQueries(prev => ({ ...prev, [item.id]: '' }));
+                            setShowEquipmentDropdowns(prev => ({ ...prev, [item.id]: false }));
+                          }}
+                          className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700"
+                        >
+                          <div className="font-medium text-gray-700">{eq.model} - {eq.description}</div>
+                          <div className="text-sm text-gray-500">S/N: {eq.serial_number}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {item.selectedEquipment && (
+                  <div className="mt-2 p-2 bg-teal-50 border border-teal-200 rounded flex items-center justify-between">
+                    <div>
+                      <span className="font-medium text-gray-700">{item.selectedEquipment.model} - {item.selectedEquipment.description}</span>
+                      <span className="ml-2 text-sm text-gray-500">S/N: {item.selectedEquipment.serial_number}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        updateEquipmentItem(item.id, 'selectedEquipment', null);
+                        setEquipmentSearchQueries(prev => ({ ...prev, [item.id]: '' }));
+                      }}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors ml-2"
+                      title="Rimuovi apparecchiatura"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Pezzi di ricambio a larghezza piena */}
@@ -998,41 +1106,44 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                       )}
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Tipologia gas recuperato
-                        </label>
-                        <select
-                          value={item.tipologiaGasRecuperato}
-                          onChange={(e) => updateEquipmentItem(item.id, 'tipologiaGasRecuperato', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
-                        >
-                          <option value="R404A">R404A</option>
-                          <option value="R134A">R134A</option>
-                          <option value="R422A">R422A (BASSA) vedi R427A</option>
-                          <option value="R422D">R422D (ALTA)</option>
-                          <option value="R452A">R452A</option>
-                          <option value="R437A">R437A</option>
-                          <option value="R290">R290</option>
-                          <option value="R427A">R427A</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Quantità gas recuperato
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={item.quantitaGasRecuperato}
-                            onChange={(e) => updateEquipmentItem(item.id, 'quantitaGasRecuperato', e.target.value)}
-                            className={`w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${getTextColorClass(item.quantitaGasRecuperato)}`}
-                          />
-                          <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">gr</span>
+                    {/* Campi recupero gas: visibili solo se NON è selezionato 'Ricerca perdite' */}
+                    {shouldShowRecuperoGasFields(item) && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Tipologia gas recuperato
+                          </label>
+                          <select
+                            value={item.tipologiaGasRecuperato}
+                            onChange={(e) => updateEquipmentItem(item.id, 'tipologiaGasRecuperato', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
+                          >
+                            <option value="R404A">R404A</option>
+                            <option value="R134A">R134A</option>
+                            <option value="R422A">R422A (BASSA) vedi R427A</option>
+                            <option value="R422D">R422D (ALTA)</option>
+                            <option value="R452A">R452A</option>
+                            <option value="R437A">R437A</option>
+                            <option value="R290">R290</option>
+                            <option value="R427A">R427A</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Quantità gas recuperato
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={item.quantitaGasRecuperato}
+                              onChange={(e) => updateEquipmentItem(item.id, 'quantitaGasRecuperato', e.target.value)}
+                              className={`w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${getTextColorClass(item.quantitaGasRecuperato)}`}
+                            />
+                            <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">gr</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1212,80 +1323,6 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
             </div>
           )}
         </div>
-
-        {/* Crea nuova richiesta intervento */}
-        {/* <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Crea nuova richiesta intervento</h3>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={creaNuovaRichiesta}
-                onChange={(e) => setCreaNuovaRichiesta(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-teal-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
-            </label>
-          </div>
-          
-          {creaNuovaRichiesta && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Risolto nell immediato
-                </label>
-                <select
-                  value={risoltoNellImmediato}
-                  onChange={(e) => setRisoltoNellImmediato(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
-                >
-                  <option value="Sì">Sì</option>
-                  <option value="No">No</option>
-                </select>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Apparecchiatura interessata
-                  </label>
-                  <input
-                    type="text"
-                    value={apparecchiaturaInteressata}
-                    onChange={(e) => setApparecchiaturaInteressata(e.target.value)}
-                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${getTextColorClass(apparecchiaturaInteressata)}`}
-                    placeholder="*Codice e Nome macchin..*"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Pezzi di ricambio
-                  </label>
-                  <input
-                    type="text"
-                    value={pezziRicambio}
-                    onChange={(e) => setPezziRicambio(e.target.value)}
-                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${getTextColorClass(pezziRicambio)}`}
-                    placeholder="*Codice e Nome ricambio*..."
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Note intervento
-                </label>
-                <textarea
-                  value={noteNuovaRichiesta}
-                  onChange={(e) => setNoteNuovaRichiesta(e.target.value)}
-                  rows={3}
-                  className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-none ${getTextColorClass(noteNuovaRichiesta)}`}
-                  placeholder="*notes*"
-                />
-              </div>
-            </div>
-          )}
-        </div> */}
 
         {/* Bottom actions */}
         <div className="bg-gray-50 border-t border-gray-200 -mx-4 md:-mx-6 px-4 md:px-6 py-4">

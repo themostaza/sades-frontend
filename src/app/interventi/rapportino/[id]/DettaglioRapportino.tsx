@@ -703,15 +703,15 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
                             <div key={artIndex} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
                               <div className="flex-1">
                                 <div className="font-medium text-gray-900">
-                                  {article.article_name || `Articolo ID: ${article.article_id}`}
+                                  {article.article_name || 'Articolo'}
                                 </div>
+                                <div className="text-xs text-gray-500">ID: {article.article_id}</div>
                                 {article.article_description && (
                                   <div className="text-sm text-gray-600">{article.article_description}</div>
                                 )}
                               </div>
                               <div className="text-right">
                                 <div className="font-medium text-gray-900">Qt: {article.quantity}</div>
-                                <div className="text-sm text-gray-500">ID: {article.article_id}</div>
                               </div>
                             </div>
                           ))}
