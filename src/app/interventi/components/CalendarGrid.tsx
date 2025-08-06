@@ -535,9 +535,9 @@ export default function CalendarGrid({
                               <div className="font-bold text-base leading-tight break-words">
                                 {intervento.tecnico !== '-' ? intervento.tecnico : 'Non assegnato'}
                               </div>
-                              {/* Orario grande */}
+                              {/* Data e Orario */}
                               <div className="text-sm font-semibold mt-1 mb-1">
-                                {startTime}-{endTime}
+                                {day.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} {startTime}-{endTime}
                               </div>
                               {/* Cliente piccolo dopo orario */}
                               <div className="text-xs font-medium break-words opacity-90 mb-1">
@@ -616,9 +616,9 @@ export default function CalendarGrid({
                               <div className="font-bold text-base leading-tight break-words">
                                 {intervento.ragioneSociale}
                               </div>
-                              {/* Orario grande */}
+                              {/* Data e Orario */}
                               <div className="text-sm font-semibold mt-1 mb-1">
-                                {startTime}-{endTime}
+                                {currentDate.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} {startTime}-{endTime}
                               </div>
                               {/* Stato intervento sotto le info */}
                               <div className="text-xs font-semibold mt-1" style={{ color: intervento.statusColor || undefined }}>

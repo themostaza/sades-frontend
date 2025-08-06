@@ -279,7 +279,7 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                   Data
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
-                  Orario
+                  Ora calendario
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
                   Zona

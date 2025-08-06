@@ -47,6 +47,7 @@ export default function CalendarioView() {
     navigateWeek,
     navigateDay,
     fetchInterventiDaAssegnare,
+    fetchInterventiCalendario,
     saveIntervention
   } = useInterventions(viewMode, currentDate);
 
@@ -100,6 +101,14 @@ export default function CalendarioView() {
   const closeCalendarInterventoDialog = () => {
     setShowCalendarInterventoDialog(false);
     setSelectedCalendarIntervento(null);
+  };
+
+  // Funzione per gestire l'aggiornamento di un intervento
+  const handleInterventionUpdate = () => {
+    // Ricarica i dati degli interventi per riflettere le modifiche nel calendario
+    fetchInterventiCalendario();
+    // Ricarica anche gli interventi da assegnare nel caso l'intervento sia passato da "da assegnare" ad "assegnato"
+    fetchInterventiDaAssegnare();
   };
 
   // Prepara i dati iniziali per il DateTimeDialog
@@ -193,6 +202,7 @@ export default function CalendarioView() {
         isOpen={showCalendarInterventoDialog}
         intervention={selectedCalendarIntervento}
         onClose={closeCalendarInterventoDialog}
+        onInterventionUpdate={handleInterventionUpdate}
       />
     </div>
   );
