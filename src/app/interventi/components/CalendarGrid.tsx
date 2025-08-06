@@ -16,6 +16,7 @@ interface Intervento {
   callCode?: string;
   from_datetime?: string;
   to_datetime?: string;
+  calendar_notes?: string;
 }
 
 interface CalendarGridProps {
@@ -546,6 +547,12 @@ export default function CalendarGrid({
                               <div className="text-xs font-semibold mt-1" style={{ color: intervento.statusColor || undefined }}>
                                 {intervento.statusLabel || intervento.status}
                               </div>
+                              {/* Note calendario */}
+                              {intervento.calendar_notes && (
+                                <div className="text-[10px] mt-1 opacity-80 break-words line-clamp-2" style={{ color: intervento.statusColor || undefined }}>
+                                  {intervento.calendar_notes}
+                                </div>
+                              )}
                               {duration > 1 && (
                                 <div className="absolute bottom-1 right-2 text-[10px] opacity-75 bg-black bg-opacity-20 px-1 rounded">
                                   {duration}h
@@ -617,6 +624,12 @@ export default function CalendarGrid({
                               <div className="text-xs font-semibold mt-1" style={{ color: intervento.statusColor || undefined }}>
                                 {intervento.statusLabel || intervento.status}
                               </div>
+                              {/* Note calendario */}
+                              {intervento.calendar_notes && (
+                                <div className=" mt-1 opacity-80 break-words line-clamp-2" style={{ color: intervento.statusColor || undefined }}>
+                                  {intervento.calendar_notes}
+                                </div>
+                              )}
                               {duration > 1 && (
                                 <div className="absolute bottom-1 right-2 text-[10px] opacity-75 bg-black bg-opacity-20 px-1 rounded">
                                   {duration}h

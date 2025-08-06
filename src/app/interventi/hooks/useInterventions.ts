@@ -25,6 +25,7 @@ interface Intervento {
   callCode?: string;
   from_datetime?: string;
   to_datetime?: string;
+  calendar_notes?: string;
 }
 
 interface ApiResponse<T> {
@@ -61,6 +62,7 @@ interface InterventionFromApi {
   connected_equipment?: Array<{ id: number }>;
   connected_articles?: Array<{ id: number }>;
   cancelled_by?: string;
+  calendar_notes?: string;
 }
 
 interface Zone {
@@ -225,7 +227,8 @@ export function useInterventions(viewMode: 'weekly' | 'daily' = 'weekly', curren
         statusColor: intervention.status_color,
         callCode: intervention.call_code,
         from_datetime: intervention.from_datetime,
-        to_datetime: intervention.to_datetime
+        to_datetime: intervention.to_datetime,
+        calendar_notes: intervention.calendar_notes
       }));
       
       setInterventiCalendario(convertedInterventi);
@@ -302,7 +305,8 @@ export function useInterventions(viewMode: 'weekly' | 'daily' = 'weekly', curren
         statusColor: intervention.status_color,
         callCode: intervention.call_code,
         from_datetime: intervention.from_datetime,
-        to_datetime: intervention.to_datetime
+        to_datetime: intervention.to_datetime,
+        calendar_notes: intervention.calendar_notes
       }));
       
       // Ordina gli interventi dal più recente al meno recente (ID decrescente)

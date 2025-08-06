@@ -31,6 +31,7 @@ export default function InterventiPage() {
   // Stati per i dati API
   const [interventionsData, setInterventionsData] = useState<AssistanceIntervention[]>([]);
   const [zonesData, setZonesData] = useState<{id: number, label: string}[]>([]);
+  const [techniciansData, setTechniciansData] = useState<{id: number, name: string, surname: string | null}[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,9 +43,10 @@ export default function InterventiPage() {
   });
 
   // Stati per i filtri
-  const [selectedDate, setSelectedDate] = useState('');
+  const [dateRange, setDateRange] = useState<{from: string; to: string}>({from: '', to: ''});
   const [selectedZone, setSelectedZone] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
+  const [selectedTechnician, setSelectedTechnician] = useState('');
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const [viewMode, setViewMode] = useState<'lista' | 'calendario'>('lista');
@@ -181,6 +183,31 @@ export default function InterventiPage() {
     }
   };
 
+  // Funzione per recuperare i tecnici dall'API (solo per admin)
+  const fetchTechniciansData = async () => {
+    if (!isAdmin()) return;
+    
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (auth.token) {
+        headers['Authorization'] = `Bearer ${auth.token}`;
+      }
+
+      const response = await fetch('/api/users?role_id=2&skip=1000', { headers }); // role_id=2 per i tecnici, skip alto per prendere tutti
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch technicians data');
+      }
+      
+      const data = await response.json();
+      setTechniciansData(data.data || []);
+    } catch {
+    }
+  };
+
   // Funzione per recuperare i dati dall'API
   const fetchInterventionsData = async () => {
     try {
@@ -197,8 +224,13 @@ export default function InterventiPage() {
       if (searchTerm.trim()) {
         params.append('query', searchTerm.trim());
       }
-      if (selectedDate) {
-        params.append('date', selectedDate);
+      if (dateRange.from && !dateRange.to) {
+        // Single date selection
+        params.append('date', dateRange.from);
+      } else if (dateRange.from && dateRange.to) {
+        // Date range selection
+        params.append('from_date', dateRange.from);
+        params.append('to_date', dateRange.to);
       }
       if (selectedZone) {
         params.append('zone_id', selectedZone);
@@ -206,6 +238,9 @@ export default function InterventiPage() {
       if (selectedStatus) {
         const statusId = getStatusId(selectedStatus);
         params.append('status_id', statusId?.toString() || '');
+      }
+      if (selectedTechnician && isAdmin()) {
+        params.append('assigned_to_id', selectedTechnician);
       }
 
       if (userInfo && !isAdmin()) {
@@ -248,12 +283,19 @@ export default function InterventiPage() {
     if (!isAdmin() && !userInfo) return;
     
     fetchInterventionsData();
-  }, [currentPage, searchTerm, selectedDate, selectedZone, selectedStatus, auth.token, urlParamsRead, userInfo]);
+  }, [currentPage, searchTerm, dateRange, selectedZone, selectedStatus, selectedTechnician, auth.token, urlParamsRead, userInfo]);
 
   // Effetto per caricare le zone al mount del componente
   useEffect(() => {
     fetchZonesData();
   }, [auth.token]);
+
+  // Effetto per caricare i tecnici al mount del componente (solo per admin)
+  useEffect(() => {
+    if (userInfo && isAdmin()) {
+      fetchTechniciansData();
+    }
+  }, [auth.token, userInfo]);
 
   const handleSearch = (value: string) => {
     setSearchTerm(value);
@@ -273,6 +315,11 @@ export default function InterventiPage() {
       url.searchParams.delete('status');
       router.replace(url.pathname + (url.search ? url.search : ''), { scroll: false });
     }
+  };
+
+  const handleTechnicianFilter = (technicianId: string) => {
+    setSelectedTechnician(technicianId);
+    setCurrentPage(1);
   };
 
   const formatDate = (dateString: string) => {
@@ -401,19 +448,23 @@ export default function InterventiPage() {
         <MainPageTable
             interventionsData={interventionsData}
             zonesData={zonesData}
+            techniciansData={techniciansData}
             meta={meta}
             loading={loading}
             initialLoading={initialLoading}
             searchTerm={searchTerm}
-            selectedDate={selectedDate}
+            dateRange={dateRange}
             selectedZone={selectedZone}
             selectedStatus={selectedStatus}
+            selectedTechnician={selectedTechnician}
             showMobileFilters={showMobileFilters}
+            isAdmin={isAdmin()}
             handleSearch={handleSearch}
             handleStatusFilter={handleStatusFilter}
+            handleTechnicianFilter={handleTechnicianFilter}
             handleRowClick={handleRowClick}
             handlePageChange={handlePageChange}
-            setSelectedDate={setSelectedDate}
+            setDateRange={setDateRange}
             setSelectedZone={setSelectedZone}
             setShowMobileFilters={setShowMobileFilters}
             formatDate={formatDate}

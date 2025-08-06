@@ -20,6 +20,7 @@ interface Intervento {
   callCode?: string;
   from_datetime?: string;
   to_datetime?: string;
+  calendar_notes?: string;
 }
 
 interface User {

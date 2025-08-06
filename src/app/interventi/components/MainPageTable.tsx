@@ -1,9 +1,10 @@
 'use client';
 
 import React from 'react';
-import { Search, MapPin, X, Filter } from 'lucide-react';
+import { Search, MapPin, Filter, User } from 'lucide-react';
 import { AssistanceIntervention } from '../../../types/assistance-interventions';
 import { calculateStatus, getStatusColor, statusOptions } from '../../../utils/intervention-status';
+import DateRangePicker from '../../../components/DateRangePicker';
 
 // --- Componente di Paginazione Riutilizzabile ---
 interface PaginationControlsProps {
@@ -65,23 +66,27 @@ interface MainPageTableProps {
   // Dati
   interventionsData: AssistanceIntervention[];
   zonesData: { id: number; label: string }[];
+  techniciansData: { id: number; name: string; surname: string | null }[];
   meta: { page: number; totalPages: number; total: number; };
   loading: boolean;
   initialLoading: boolean;
   
   // Stati dei filtri
   searchTerm: string;
-  selectedDate: string;
+  dateRange: {from: string; to: string};
   selectedZone: string;
   selectedStatus: string;
+  selectedTechnician: string;
   showMobileFilters: boolean;
+  isAdmin: boolean;
 
   // Gestori di eventi
   handleSearch: (value: string) => void;
   handleStatusFilter: (status: string) => void;
+  handleTechnicianFilter: (technicianId: string) => void;
   handleRowClick: (id: number) => void;
   handlePageChange: (page: number) => void;
-  setSelectedDate: (date: string) => void;
+  setDateRange: (dateRange: {from: string; to: string}) => void;
   setSelectedZone: (zone: string) => void;
   setShowMobileFilters: (show: boolean) => void;
   formatDate: (date: string) => string;
@@ -91,19 +96,23 @@ interface MainPageTableProps {
 const MainPageTable: React.FC<MainPageTableProps> = ({
   interventionsData,
   zonesData,
+  techniciansData,
   meta,
   loading,
   initialLoading,
   searchTerm,
-  selectedDate,
+  dateRange,
   selectedZone,
   selectedStatus,
+  selectedTechnician,
   showMobileFilters,
+  isAdmin,
   handleSearch,
   handleStatusFilter,
+  handleTechnicianFilter,
   handleRowClick,
   handlePageChange,
-  setSelectedDate,
+  setDateRange,
   setSelectedZone,
   setShowMobileFilters,
   formatDate,
@@ -124,24 +133,14 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700 placeholder-gray-400"
             />
           </div>
-          {/* Data filter */}
-          <div className="relative flex-1 sm:flex-none sm:min-w-[180px]">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 bg-white text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+          {/* Date Range filter */}
+          <div className="flex-1 sm:flex-none sm:min-w-[200px]">
+            <DateRangePicker
+              value={dateRange}
+              onChange={setDateRange}
               placeholder="Filtra per data"
+              className="w-full"
             />
-            {selectedDate && (
-              <button
-                onClick={() => setSelectedDate('')}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                type="button"
-              >
-                <X size={16} />
-              </button>
-            )}
           </div>
           {/* Zona filter */}
           <div className="relative flex-1 sm:flex-none sm:min-w-[180px]">
@@ -151,7 +150,7 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
               onChange={(e) => setSelectedZone(e.target.value)}
               className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
             >
-              <option value="" className="text-gray-700">Filtra per zona</option>
+              <option value="" className="text-gray-400">Filtra per zona</option>
               {zonesData.map(zone => (
                 <option key={zone.id} value={zone.id} className="text-gray-700">{zone.label}</option>
               ))}
@@ -171,6 +170,24 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
               ))}
             </select>
           </div>
+          {/* Tecnico filter - visible only to admin */}
+          {isAdmin && (
+            <div className="relative flex-1 sm:flex-none sm:min-w-[180px]">
+              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+              <select
+                value={selectedTechnician}
+                onChange={(e) => handleTechnicianFilter(e.target.value)}
+                className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
+              >
+                <option value="" className="text-gray-400">Filtra per tecnico</option>
+                {techniciansData.map(technician => (
+                  <option key={technician.id} value={technician.id} className="text-gray-700">
+                    {technician.surname ? `${technician.name} ${technician.surname}` : technician.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {/* Mobile filter toggle, opzionale: puoi nasconderlo su desktop */}
           <button
             onClick={() => setShowMobileFilters(!showMobileFilters)}
@@ -183,25 +200,13 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
         {/* Mobile: mostra i filtri sotto la search bar se attivo il toggle */}
         {showMobileFilters && (
           <div className="flex flex-col gap-3 mt-3 sm:hidden">
-            {/* Data filter */}
-            <div className="relative">
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 bg-white text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                placeholder="Filtra per data"
-              />
-              {selectedDate && (
-                <button
-                  onClick={() => setSelectedDate('')}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  type="button"
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
+            {/* Date Range filter */}
+            <DateRangePicker
+              value={dateRange}
+              onChange={setDateRange}
+              placeholder="Filtra per data"
+              className="w-full"
+            />
             {/* Zona filter */}
             <div className="relative">
               <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
@@ -210,7 +215,7 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 onChange={(e) => setSelectedZone(e.target.value)}
                 className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
               >
-                <option value="" className="text-gray-700">Filtra per zona</option>
+                <option value="" className="text-gray-400">Filtra per zona</option>
                 {zonesData.map(zone => (
                   <option key={zone.id} value={zone.id} className="text-gray-700">{zone.label}</option>
                 ))}
@@ -230,6 +235,24 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 ))}
               </select>
             </div>
+            {/* Tecnico filter - visible only to admin */}
+            {isAdmin && (
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                <select
+                  value={selectedTechnician}
+                  onChange={(e) => handleTechnicianFilter(e.target.value)}
+                  className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
+                >
+                  <option value="" className="text-gray-400">Filtra per tecnico</option>
+                  {techniciansData.map(technician => (
+                    <option key={technician.id} value={technician.id} className="text-gray-700">
+                      {technician.surname ? `${technician.name} ${technician.surname}` : technician.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -301,7 +324,11 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                       {formatDate(intervention.date)}
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {intervention.time_slot}
+                      {intervention.from_datetime && intervention.to_datetime ? (
+                        `${new Date(intervention.from_datetime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} -> ${new Date(intervention.to_datetime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`
+                      ) : (
+                        intervention.time_slot || '-'
+                      )}
                     </td>
                     <td className="px-3 sm:px-6 py-4 text-sm text-gray-600">
                       <div className="break-words">{intervention.zone_label}</div>
