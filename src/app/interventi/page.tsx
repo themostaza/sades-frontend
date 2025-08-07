@@ -8,8 +8,9 @@ import DettaglioIntervento from './DettaglioIntervento';
 import CalendarioView from './CalendarioView';
 import RichiediAssenza from './RichiediAssenza';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AssistanceIntervention, AssistanceInterventionsApiResponse } from '../../types/assistance-interventions';
-import { getStatusColor, statusOptions, getStatusId } from '../../utils/intervention-status';
+import { AssistanceIntervention, AssistanceInterventionsApiResponse, UpdateAssistanceInterventionRequest } from '../../types/assistance-interventions';
+import { getStatusColor, statusOptions, getStatusId, calculateStatus } from '../../utils/intervention-status';
+import { updateAssistanceIntervention, fetchAssistanceInterventionDetail } from '../../utils/assistance-interventions-api';
 import MainPageTable from './components/MainPageTable';
 
 
@@ -26,11 +27,12 @@ interface UserInfo {
 export default function InterventiPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(20);
+  const [pageSize] = useState(50);
   
   // Stati per i dati API
   const [interventionsData, setInterventionsData] = useState<AssistanceIntervention[]>([]);
   const [zonesData, setZonesData] = useState<{id: number, label: string}[]>([]);
+  const [techniciansData, setTechniciansData] = useState<{id: number, name: string, surname: string | null}[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,9 +44,10 @@ export default function InterventiPage() {
   });
 
   // Stati per i filtri
-  const [selectedDate, setSelectedDate] = useState('');
+  const [dateRange, setDateRange] = useState<{from: string; to: string}>({from: '', to: ''});
   const [selectedZone, setSelectedZone] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
+  const [selectedTechnician, setSelectedTechnician] = useState('');
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const [viewMode, setViewMode] = useState<'lista' | 'calendario'>('lista');
@@ -58,6 +61,15 @@ export default function InterventiPage() {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [userLoading, setUserLoading] = useState(true);
   const [showRichiediAssenza, setShowRichiediAssenza] = useState(false);
+
+  // Stati per la selezione multipla
+  const [selectedInterventions, setSelectedInterventions] = useState<number[]>([]);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [bulkActionProgress, setBulkActionProgress] = useState({
+    current: 0,
+    total: 0,
+    currentInterventionId: null as number | null
+  });
 
   // Stato per tracciare se abbiamo letto i parametri URL
   const [urlParamsRead, setUrlParamsRead] = useState(false);
@@ -181,6 +193,31 @@ export default function InterventiPage() {
     }
   };
 
+  // Funzione per recuperare i tecnici dall'API (solo per admin)
+  const fetchTechniciansData = async () => {
+    if (!isAdmin()) return;
+    
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (auth.token) {
+        headers['Authorization'] = `Bearer ${auth.token}`;
+      }
+
+      const response = await fetch('/api/users?role_id=2&skip=1000', { headers }); // role_id=2 per i tecnici, skip alto per prendere tutti
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch technicians data');
+      }
+      
+      const data = await response.json();
+      setTechniciansData(data.data || []);
+    } catch {
+    }
+  };
+
   // Funzione per recuperare i dati dall'API
   const fetchInterventionsData = async () => {
     try {
@@ -197,8 +234,13 @@ export default function InterventiPage() {
       if (searchTerm.trim()) {
         params.append('query', searchTerm.trim());
       }
-      if (selectedDate) {
-        params.append('date', selectedDate);
+      if (dateRange.from && !dateRange.to) {
+        // Single date selection
+        params.append('date', dateRange.from);
+      } else if (dateRange.from && dateRange.to) {
+        // Date range selection
+        params.append('from_date', dateRange.from);
+        params.append('to_date', dateRange.to);
       }
       if (selectedZone) {
         params.append('zone_id', selectedZone);
@@ -206,6 +248,9 @@ export default function InterventiPage() {
       if (selectedStatus) {
         const statusId = getStatusId(selectedStatus);
         params.append('status_id', statusId?.toString() || '');
+      }
+      if (selectedTechnician && isAdmin()) {
+        params.append('assigned_to_id', selectedTechnician);
       }
 
       if (userInfo && !isAdmin()) {
@@ -248,12 +293,24 @@ export default function InterventiPage() {
     if (!isAdmin() && !userInfo) return;
     
     fetchInterventionsData();
-  }, [currentPage, searchTerm, selectedDate, selectedZone, selectedStatus, auth.token, urlParamsRead, userInfo]);
+  }, [currentPage, searchTerm, dateRange, selectedZone, selectedStatus, selectedTechnician, auth.token, urlParamsRead, userInfo]);
+
+  // Effetto per pulire la selezione quando cambiano i filtri o la pagina
+  useEffect(() => {
+    clearSelection();
+  }, [currentPage, searchTerm, dateRange, selectedZone, selectedStatus, selectedTechnician]);
 
   // Effetto per caricare le zone al mount del componente
   useEffect(() => {
     fetchZonesData();
   }, [auth.token]);
+
+  // Effetto per caricare i tecnici al mount del componente (solo per admin)
+  useEffect(() => {
+    if (userInfo && isAdmin()) {
+      fetchTechniciansData();
+    }
+  }, [auth.token, userInfo]);
 
   const handleSearch = (value: string) => {
     setSearchTerm(value);
@@ -275,6 +332,11 @@ export default function InterventiPage() {
     }
   };
 
+  const handleTechnicianFilter = (technicianId: string) => {
+    setSelectedTechnician(technicianId);
+    setCurrentPage(1);
+  };
+
   const formatDate = (dateString: string) => {
     if (!dateString || dateString.trim() === '') return '-';
     try {
@@ -294,6 +356,268 @@ export default function InterventiPage() {
 
   const isAdmin = () => {
     return userInfo?.role === 'amministrazione';
+  };
+
+  // Funzione per verificare se un intervento può essere annullato
+  const canInterventionBeCancelled = (intervention: AssistanceIntervention): boolean => {
+    const status = calculateStatus({
+      invoiced_by: intervention.invoiced_by ?? null,
+      cancelled_by: intervention.cancelled_by ?? null,
+      assigned_to: intervention.assigned_to ?? null,
+      date: intervention.date ?? null,
+      time_slot: intervention.time_slot ?? null,
+      from_datetime: intervention.from_datetime ?? null,
+      to_datetime: intervention.to_datetime ?? null,
+      report_id: intervention.report_id ?? null,
+      approved_by: intervention.approved_by ?? null,
+      report_is_failed: intervention.report_is_failed ?? null,
+    });
+
+    // Stati non annullabili: da_confermare, completato, non_completato, annullato, fatturato
+    const nonCancellableStatuses = ['da_confermare', 'completato', 'non_completato', 'annullato', 'fatturato'];
+    return !nonCancellableStatuses.includes(status.key);
+  };
+
+  // Funzioni per gestire la selezione multipla
+  const handleSelectIntervention = (interventionId: number, selected: boolean) => {
+    if (selected) {
+      setSelectedInterventions(prev => [...prev, interventionId]);
+    } else {
+      setSelectedInterventions(prev => prev.filter(id => id !== interventionId));
+    }
+  };
+
+  const handleSelectAll = (selected: boolean) => {
+    if (selected) {
+      setSelectedInterventions(interventionsData.map(intervention => intervention.id));
+    } else {
+      setSelectedInterventions([]);
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedInterventions([]);
+  };
+
+  // Funzione per duplicazione massiva
+  const handleBulkDuplicate = async (cancelOriginals: boolean = true, targetDate?: string) => {
+    if (selectedInterventions.length === 0) return;
+    
+    // Filtra solo gli interventi che possono essere duplicati
+    const selectedInterventionsData = interventionsData.filter(intervention => 
+      selectedInterventions.includes(intervention.id)
+    );
+    
+    // Stati dinamici che permettono la duplicazione
+    const duplicableStatuses = ['da_assegnare', 'attesa_preventivo', 'attesa_ricambio', 'in_carico'];
+    
+    const duplicableInterventions = selectedInterventionsData.filter(intervention => {
+      const status = calculateStatus({
+        invoiced_by: intervention.invoiced_by ?? null,
+        cancelled_by: intervention.cancelled_by ?? null,
+        assigned_to: intervention.assigned_to ?? null,
+        date: intervention.date ?? null,
+        time_slot: intervention.time_slot ?? null,
+        from_datetime: intervention.from_datetime ?? null,
+        to_datetime: intervention.to_datetime ?? null,
+        report_id: intervention.report_id ?? null,
+        approved_by: intervention.approved_by ?? null,
+        report_is_failed: intervention.report_is_failed ?? null,
+      });
+      return duplicableStatuses.includes(status.key);
+    });
+    
+    if (duplicableInterventions.length === 0) {
+      alert('Nessuno degli interventi selezionati può essere duplicato. Solo gli interventi con stati dinamici (da assegnare, attesa preventivo, attesa ricambio, in carico) possono essere duplicati.');
+      return;
+    }
+    
+    if (duplicableInterventions.length < selectedInterventions.length) {
+      const nonDuplicableCount = selectedInterventions.length - duplicableInterventions.length;
+      if (!confirm(`${nonDuplicableCount} intervento${nonDuplicableCount !== 1 ? 'i' : ''} selezionat${nonDuplicableCount !== 1 ? 'i' : 'o'} non può essere duplicat${nonDuplicableCount !== 1 ? 'i' : 'o'} (stato non dinamico). Vuoi procedere con la duplicazione dei rimanenti ${duplicableInterventions.length} intervento${duplicableInterventions.length !== 1 ? 'i' : ''}?`)) {
+        return;
+      }
+    }
+    
+    setBulkActionLoading(true);
+    setBulkActionProgress({
+      current: 0,
+      total: duplicableInterventions.length,
+      currentInterventionId: null
+    });
+    
+    try {
+      const duplicableIds = duplicableInterventions.map(intervention => intervention.id);
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (auth.token) {
+        headers['Authorization'] = `Bearer ${auth.token}`;
+      }
+
+      // Chiamata all'API di duplicazione massiva
+      const response = await fetch('/api/assistance-interventions/bulk-duplicate', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          intervention_ids: duplicableIds,
+          cancel_originals: cancelOriginals,
+          user_id: userInfo?.id || '',
+          target_date: targetDate
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to duplicate interventions: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        console.log(`✅ Duplicazione completata: ${result.results.duplicated.length} interventi duplicati`);
+        if (result.results.cancelled.length > 0) {
+          console.log(`✅ Annullamento completato: ${result.results.cancelled.length} interventi annullati`);
+        }
+        
+        // Ricarica i dati e pulisci la selezione
+        fetchInterventionsData();
+        clearSelection();
+      } else {
+        console.error('❌ Errori durante la duplicazione:', result.results.errors);
+        // Mostra gli errori all'utente
+        if (result.results.errors.length > 0) {
+          const errorMessages = result.results.errors.map((err: {intervention_id: number, error: string}) => `ID ${err.intervention_id}: ${err.error}`).join('\n');
+          alert(`Errori durante la duplicazione:\n${errorMessages}`);
+        }
+        
+        // Se alcune duplicazioni sono riuscite, ricarica comunque i dati
+        if (result.results.duplicated.length > 0) {
+          fetchInterventionsData();
+          clearSelection();
+        }
+      }
+      
+    } catch (error) {
+      console.error('💥 Errore durante la duplicazione massiva:', error);
+      alert('Errore durante la duplicazione degli interventi. Riprova.');
+    } finally {
+      setBulkActionLoading(false);
+      setBulkActionProgress({
+        current: 0,
+        total: 0,
+        currentInterventionId: null
+      });
+    }
+  };
+
+  // Funzione per annullamento massivo
+  const handleBulkCancel = async () => {
+    if (selectedInterventions.length === 0) return;
+    
+    // Filtra solo gli interventi che possono essere annullati
+    const selectedInterventionsData = interventionsData.filter(intervention => 
+      selectedInterventions.includes(intervention.id)
+    );
+    
+    const cancellableInterventions = selectedInterventionsData.filter(intervention => 
+      canInterventionBeCancelled(intervention)
+    );
+    
+    if (cancellableInterventions.length === 0) {
+      alert('Nessuno degli interventi selezionati può essere annullato. Gli interventi in stato "Da confermare", "Completato", "Non completato", "Annullato" o "Fatturato" non possono essere annullati.');
+      return;
+    }
+    
+    if (cancellableInterventions.length < selectedInterventions.length) {
+      const nonCancellableCount = selectedInterventions.length - cancellableInterventions.length;
+      if (!confirm(`${nonCancellableCount} intervento${nonCancellableCount !== 1 ? 'i' : ''} selezionat${nonCancellableCount !== 1 ? 'i' : 'o'} non può essere annullat${nonCancellableCount !== 1 ? 'i' : 'o'} (stato non annullabile). Vuoi procedere con l'annullamento dei rimanenti ${cancellableInterventions.length} intervento${cancellableInterventions.length !== 1 ? 'i' : ''}?`)) {
+        return;
+      }
+    }
+    
+    setBulkActionLoading(true);
+    setBulkActionProgress({
+      current: 0,
+      total: cancellableInterventions.length,
+      currentInterventionId: null
+    });
+    
+    let successCount = 0;
+    let errorCount = 0;
+    const cancellableIds = cancellableInterventions.map(intervention => intervention.id);
+
+    try {
+      for (let i = 0; i < cancellableIds.length; i++) {
+        const interventionId = cancellableIds[i];
+        
+        // Aggiorna il progresso
+        setBulkActionProgress({
+          current: i + 1,
+          total: cancellableIds.length,
+          currentInterventionId: interventionId
+        });
+
+        try {
+          // Prima recuperiamo i dettagli dell'intervento
+          const interventionDetail = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
+          
+          // Prepariamo i dati per l'aggiornamento mantenendo tutti i valori esistenti
+          const requestData: UpdateAssistanceInterventionRequest = {
+            customer_id: interventionDetail.customer_id || 0,
+            type_id: interventionDetail.type_id || 0,
+            zone_id: interventionDetail.zone_id || 0,
+            customer_location_id: interventionDetail.customer_location_id || '',
+            flg_home_service: interventionDetail.flg_home_service || false,
+            flg_discount_home_service: interventionDetail.flg_discount_home_service || false,
+            date: interventionDetail.date || null,
+            time_slot: interventionDetail.time_slot || null,
+            from_datetime: interventionDetail.from_datetime || null,
+            to_datetime: interventionDetail.to_datetime || null,
+            quotation_price: parseFloat(interventionDetail.quotation_price) || 0,
+            opening_hours: interventionDetail.opening_hours || '',
+            assigned_to: interventionDetail.assigned_to || '',
+            call_code: interventionDetail.call_code || '',
+            internal_notes: interventionDetail.internal_notes || '',
+            status_id: 8, // Status "annullato" ha ID 8
+            cancelled_by: userInfo?.id || '', // Campo cancelled_by con ID utente corrente
+            equipments: interventionDetail.connected_equipment?.map(eq => eq.id) || [],
+            articles: interventionDetail.connected_articles?.map(art => ({
+              article_id: art.id,
+              quantity: art.quantity
+            })) || []
+          };
+
+          // Chiamata API per aggiornare l'intervento
+          await updateAssistanceIntervention(interventionId, requestData, auth.token || '');
+          successCount++;
+          
+        } catch (error) {
+          console.error(`Errore nell'annullamento dell'intervento ${interventionId}:`, error);
+          errorCount++;
+        }
+      }
+
+      // Mostra risultato
+      if (successCount > 0) {
+        // Ricarica i dati
+        fetchInterventionsData();
+        clearSelection();
+      }
+
+      // Potresti aggiungere qui un toast notification per mostrare il risultato
+      // Per ora logghiamo il risultato
+      console.log(`Operazione completata: ${successCount} successi, ${errorCount} errori`);
+      
+    } finally {
+      setBulkActionLoading(false);
+      setBulkActionProgress({
+        current: 0,
+        total: 0,
+        currentInterventionId: null
+      });
+    }
   };
 
   if (initialLoading && interventionsData.length === 0) {
@@ -401,23 +725,36 @@ export default function InterventiPage() {
         <MainPageTable
             interventionsData={interventionsData}
             zonesData={zonesData}
+            techniciansData={techniciansData}
             meta={meta}
             loading={loading}
             initialLoading={initialLoading}
             searchTerm={searchTerm}
-            selectedDate={selectedDate}
+            dateRange={dateRange}
             selectedZone={selectedZone}
             selectedStatus={selectedStatus}
+            selectedTechnician={selectedTechnician}
             showMobileFilters={showMobileFilters}
+            isAdmin={isAdmin()}
+            selectedInterventions={selectedInterventions}
+            bulkActionLoading={bulkActionLoading}
+            bulkActionProgress={bulkActionProgress}
             handleSearch={handleSearch}
             handleStatusFilter={handleStatusFilter}
+            handleTechnicianFilter={handleTechnicianFilter}
             handleRowClick={handleRowClick}
             handlePageChange={handlePageChange}
-            setSelectedDate={setSelectedDate}
+            setDateRange={setDateRange}
             setSelectedZone={setSelectedZone}
             setShowMobileFilters={setShowMobileFilters}
             formatDate={formatDate}
             formatTechnician={formatTechnician}
+            handleSelectIntervention={handleSelectIntervention}
+            handleSelectAll={handleSelectAll}
+            clearSelection={clearSelection}
+            handleBulkCancel={handleBulkCancel}
+            handleBulkDuplicate={handleBulkDuplicate}
+            canInterventionBeCancelled={canInterventionBeCancelled}
         />
       )}
 
