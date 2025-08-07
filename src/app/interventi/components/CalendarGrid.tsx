@@ -567,8 +567,15 @@ export default function CalendarGrid({
       </div>
 
       {/* Griglia del calendario */}
-      <div className="overflow-x-auto">
-        <div className="min-w-full">
+      <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+        {/* Indicatore scroll per vista giornaliera con molti tecnici */}
+        {viewMode === 'daily' && getUniqueTechnicians().length > 6 && (
+          <div className="text-xs text-gray-500 mb-2 px-4 flex items-center gap-2">
+            <span>↔</span>
+            <span>Scorri orizzontalmente per vedere tutti i {getUniqueTechnicians().length} tecnici</span>
+          </div>
+        )}
+        <div className={viewMode === 'daily' ? `min-w-[${120 + (getUniqueTechnicians().length * 120)}px]` : "min-w-full"}>
           {viewMode === 'weekly' ? (
             /* Header giorni - Vista Settimanale */
             <div className="grid grid-cols-7 border-b border-gray-200">
@@ -601,12 +608,12 @@ export default function CalendarGrid({
             </div>
           ) : (
             /* Header tecnici - Vista Giornaliera */
-            <div className={`grid border-b border-gray-200`} style={{gridTemplateColumns: `120px repeat(${getUniqueTechnicians().length}, 1fr)`}}>
+            <div className={`grid border-b border-gray-200`} style={{gridTemplateColumns: `120px repeat(${getUniqueTechnicians().length}, minmax(120px, 1fr))`}}>
               <div className="p-4 bg-gray-50 border-r border-gray-200">
                 <span className="text-sm font-medium text-gray-500">Orario</span>
               </div>
               {getUniqueTechnicians().map((technician, index) => (
-                <div key={`${technician}-${index}`} className="p-4 bg-gray-50 border-r border-gray-200 last:border-r-0">
+                <div key={`${technician}-${index}`} className="p-3 bg-gray-50 border-r border-gray-200 last:border-r-0 min-w-[120px]">
                   <div className="text-center">
                     <div className="text-sm font-medium text-gray-900 truncate" title={technician}>
                       {technician}
@@ -622,7 +629,7 @@ export default function CalendarGrid({
             <div 
               key={timeSlot} 
               className={viewMode === 'weekly' ? "grid grid-cols-7 border-b border-gray-200 last:border-b-0 relative" : "grid border-b border-gray-200 last:border-b-0 relative"}
-              style={viewMode === 'daily' ? {gridTemplateColumns: `120px repeat(${getUniqueTechnicians().length}, 1fr)`} : undefined}
+              style={viewMode === 'daily' ? {gridTemplateColumns: `120px repeat(${getUniqueTechnicians().length}, minmax(120px, 1fr))`} : undefined}
             >
               {/* Colonna orario */}
               <div className="p-0 bg-gray-50 border-r border-gray-200 flex items-start h-[80px] relative">
@@ -766,7 +773,7 @@ export default function CalendarGrid({
                     const layoutData = calculateInterventionLayout(technicianInterventi);
                     
                     return (
-                      <div key={`${technician}-${timeSlot}-${techIndex}`} className="relative p-2 border-r border-gray-200 last:border-r-0 min-h-[80px]">
+                      <div key={`${technician}-${timeSlot}-${techIndex}`} className="relative p-2 border-r border-gray-200 last:border-r-0 min-h-[80px] min-w-[120px]">
                         {/* Mostra gli interventi con layout a colonne stile Google Calendar */}
                         {layoutData.map(({ intervention: intervento, column, totalColumns }) => {
                           const blockHeight = getBlockHeight(intervento);
@@ -833,32 +840,32 @@ export default function CalendarGrid({
                             >
                               {/* Contenuto cliccabile */}
                               <div 
-                                className="p-2 h-full cursor-pointer hover:opacity-90"
+                                className="p-1.5 h-full cursor-pointer hover:opacity-90"
                                 onClick={() => {
                                   bringInterventionToFront(intervento.id);
                                   onInterventionClick(intervento);
                                 }}
                               >
-                                {/* Cliente in grande e grassetto */}
-                                <div className="font-bold text-sm leading-tight break-words">
+                                {/* Cliente in grassetto - più compatto */}
+                                <div className="text-sm font-light leading-tight break-words mb-1" title={intervento.ragioneSociale}>
                                   {intervento.ragioneSociale}
                                 </div>
-                                {/* Data e Orario */}
-                                <div className="text-xs font-semibold mt-1 mb-1">
-                                  {currentDate.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} {startTime}-{endTime}
+                                {/* Orario più compatto */}
+                                <div className="text-sm mb-1">
+                                  {startTime}-{endTime}
                                 </div>
-                                {/* Stato intervento sotto le info */}
-                                <div className="text-xs font-semibold mt-1">
+                                {/* Stato intervento compatto */}
+                                <div className="text-sm font-light truncate" title={intervento.statusLabel || intervento.status}>
                                   {intervento.statusLabel || intervento.status}
                                 </div>
-                                {/* Note calendario - solo se c'è spazio */}
-                                {intervento.calendar_notes && totalColumns <= 2 && (
-                                  <div className="text-[10px] mt-1 opacity-80 break-words line-clamp-1">
+                                {/* Note calendario - solo se c'è spazio e una sola colonna */}
+                                {intervento.calendar_notes && totalColumns === 1 && blockHeight > 80 && (
+                                  <div className="text-[8px] mt-1 opacity-80 break-words line-clamp-1" title={intervento.calendar_notes}>
                                     {intervento.calendar_notes}
                                   </div>
                                 )}
                                 {duration > 1 && (
-                                  <div className="absolute bottom-1 right-1 text-[10px] opacity-75 bg-black bg-opacity-30 px-1 rounded text-white">
+                                  <div className="absolute bottom-0.5 right-0.5 text-[8px] opacity-75 bg-black bg-opacity-40 px-1 rounded text-white">
                                     {duration}h
                                   </div>
                                 )}

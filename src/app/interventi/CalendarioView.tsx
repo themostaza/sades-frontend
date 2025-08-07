@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useInterventions } from './hooks/useInterventions';
 import InterventionsList from './components/InterventionsList';
 import CalendarGrid from './components/CalendarGrid';
@@ -35,6 +36,7 @@ export default function CalendarioView() {
   // Stati locali per la vista calendario
   const [viewMode, setViewMode] = useState<'weekly' | 'daily'>('weekly');
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [isInterventionsListCollapsed, setIsInterventionsListCollapsed] = useState(false);
 
   // Hook personalizzato per la gestione degli interventi
   const {
@@ -153,44 +155,87 @@ export default function CalendarioView() {
   };
 
   return (
-    <div className="flex gap-6">
-      {/* Lista Interventi da assegnare - Colonna sinistra */}
-      <InterventionsList
-        interventions={interventiDaAssegnare}
-        zones={zones}
-        selectedZone={selectedZone}
-        onZoneChange={setSelectedZone}
-        onOpenDateTimeDialog={openDateTimeDialog}
-        onRetry={fetchInterventiDaAssegnare}
-        loading={loadingInterventiDaAssegnare}
-        error={errorInterventiDaAssegnare}
-      />
+    <div className="flex gap-4 h-full">
+      {/* Lista Interventi da assegnare - Colonna sinistra collassabile */}
+      <div className={`flex-shrink-0 transition-all duration-300 ease-in-out ${
+        isInterventionsListCollapsed ? 'w-12' : 'w-80'
+      }`}>
+        {isInterventionsListCollapsed ? (
+          /* Barra collassata con pulsante per espandere */
+          <div className="h-full bg-white rounded-lg border border-gray-200 flex flex-col">
+            <div className="p-3 border-b border-gray-200">
+              <button
+                onClick={() => setIsInterventionsListCollapsed(false)}
+                className="w-full h-10 flex items-center justify-center text-gray-600 hover:text-teal-600 hover:bg-gray-50 rounded-lg transition-colors"
+                title="Espandi lista interventi"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+            <div className="flex-1 flex items-center justify-center">
+              <div className="transform -rotate-90 text-xs font-medium text-gray-500 whitespace-nowrap">
+                Interventi da assegnare ({interventiDaAssegnare.length})
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Lista completa con pulsante per collassare */
+          <div className="h-full flex flex-col">
+            <div className="flex items-center gap-2 mb-4">
+              <button
+                onClick={() => setIsInterventionsListCollapsed(true)}
+                className="flex-shrink-0 p-2 text-gray-600 hover:text-teal-600 hover:bg-gray-50 rounded-lg transition-colors"
+                title="Collassa lista interventi"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <h3 className="text-sm font-medium text-gray-700 truncate">
+                Interventi da assegnare ({interventiDaAssegnare.length})
+              </h3>
+            </div>
+            <div className="flex-1 min-h-0">
+              <InterventionsList
+                interventions={interventiDaAssegnare}
+                zones={zones}
+                selectedZone={selectedZone}
+                onZoneChange={setSelectedZone}
+                onOpenDateTimeDialog={openDateTimeDialog}
+                onRetry={fetchInterventiDaAssegnare}
+                loading={loadingInterventiDaAssegnare}
+                error={errorInterventiDaAssegnare}
+              />
+            </div>
+          </div>
+        )}
+      </div>
 
-      {/* Calendario - Colonna destra */}
-      <CalendarGrid
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        currentWeek={currentWeek}
-        currentDate={currentDate}
-        onWeekChange={(direction) => {
-          navigateWeek(direction);
-          setCurrentDate(new Date(currentWeek.getTime() + (direction === 'next' ? 7 : -7) * 24 * 60 * 60 * 1000));
-        }}
-        onDayChange={(direction, date) => {
-          if (direction === 'set' && date) {
-            setCurrentDate(date);
-          } else if (direction === 'prev' || direction === 'next') {
-            const newDate = navigateDay(direction);
-            setCurrentDate(newDate);
-          }
-        }}
-        interventions={interventiCalendario}
-        onInterventionClick={openCalendarInterventoDialog}
-        technicianFilter={calendarTechnicianFilter}
-        onTechnicianFilterChange={setCalendarTechnicianFilter}
-        statusFilter={calendarStatusFilter}
-        onStatusFilterChange={setCalendarStatusFilter}
-      />
+      {/* Calendario - Colonna destra (ora occupa più spazio) */}
+      <div className="flex-1 min-w-0">
+        <CalendarGrid
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          currentWeek={currentWeek}
+          currentDate={currentDate}
+          onWeekChange={(direction) => {
+            navigateWeek(direction);
+            setCurrentDate(new Date(currentWeek.getTime() + (direction === 'next' ? 7 : -7) * 24 * 60 * 60 * 1000));
+          }}
+          onDayChange={(direction, date) => {
+            if (direction === 'set' && date) {
+              setCurrentDate(date);
+            } else if (direction === 'prev' || direction === 'next') {
+              const newDate = navigateDay(direction);
+              setCurrentDate(newDate);
+            }
+          }}
+          interventions={interventiCalendario}
+          onInterventionClick={openCalendarInterventoDialog}
+          technicianFilter={calendarTechnicianFilter}
+          onTechnicianFilterChange={setCalendarTechnicianFilter}
+          statusFilter={calendarStatusFilter}
+          onStatusFilterChange={setCalendarStatusFilter}
+        />
+      </div>
 
       {/* Dialog per selezione data e orario */}
       <DateTimeDialog
