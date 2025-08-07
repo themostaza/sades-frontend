@@ -176,9 +176,13 @@ export default function CalendarioView() {
           navigateWeek(direction);
           setCurrentDate(new Date(currentWeek.getTime() + (direction === 'next' ? 7 : -7) * 24 * 60 * 60 * 1000));
         }}
-        onDayChange={(direction) => {
-          const newDate = navigateDay(direction);
-          setCurrentDate(newDate);
+        onDayChange={(direction, date) => {
+          if (direction === 'set' && date) {
+            setCurrentDate(date);
+          } else if (direction === 'prev' || direction === 'next') {
+            const newDate = navigateDay(direction);
+            setCurrentDate(newDate);
+          }
         }}
         interventions={interventiCalendario}
         onInterventionClick={openCalendarInterventoDialog}

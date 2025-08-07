@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { Search, MapPin, Filter, User } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, MapPin, Filter, User, X, AlertCircle, Copy } from 'lucide-react';
 import { AssistanceIntervention } from '../../../types/assistance-interventions';
 import { calculateStatus, getStatusColor, statusOptions } from '../../../utils/intervention-status';
 import DateRangePicker from '../../../components/DateRangePicker';
@@ -80,6 +80,15 @@ interface MainPageTableProps {
   showMobileFilters: boolean;
   isAdmin: boolean;
 
+  // Stati per selezione multipla
+  selectedInterventions: number[];
+  bulkActionLoading: boolean;
+  bulkActionProgress: {
+    current: number;
+    total: number;
+    currentInterventionId: number | null;
+  };
+
   // Gestori di eventi
   handleSearch: (value: string) => void;
   handleStatusFilter: (status: string) => void;
@@ -91,6 +100,14 @@ interface MainPageTableProps {
   setShowMobileFilters: (show: boolean) => void;
   formatDate: (date: string) => string;
   formatTechnician: (name: string, surname: string | null) => string;
+  
+  // Gestori per selezione multipla
+  handleSelectIntervention: (interventionId: number, selected: boolean) => void;
+  handleSelectAll: (selected: boolean) => void;
+  clearSelection: () => void;
+  handleBulkCancel: () => void;
+  handleBulkDuplicate: (cancelOriginals?: boolean, targetDate?: string) => void;
+  canInterventionBeCancelled: (intervention: AssistanceIntervention) => boolean;
 }
 
 const MainPageTable: React.FC<MainPageTableProps> = ({
@@ -107,6 +124,9 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
   selectedTechnician,
   showMobileFilters,
   isAdmin,
+  selectedInterventions,
+  bulkActionLoading,
+  bulkActionProgress,
   handleSearch,
   handleStatusFilter,
   handleTechnicianFilter,
@@ -117,7 +137,88 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
   setShowMobileFilters,
   formatDate,
   formatTechnician,
+  handleSelectIntervention,
+  handleSelectAll,
+  clearSelection,
+  handleBulkCancel,
+  handleBulkDuplicate,
+  canInterventionBeCancelled,
 }) => {
+  const [showBulkCancelConfirm, setShowBulkCancelConfirm] = useState(false);
+  const [showBulkDuplicateConfirm, setShowBulkDuplicateConfirm] = useState(false);
+  const [duplicateWithCancel, setDuplicateWithCancel] = useState(true);
+  const [duplicateDate, setDuplicateDate] = useState(() => {
+    // Default: domani
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  });
+
+  // Verifica se tutti gli interventi selezionati possono essere annullati
+  const selectedInterventionsData = interventionsData.filter(intervention => 
+    selectedInterventions.includes(intervention.id)
+  );
+  
+  const canCancelAnySelected = selectedInterventions.length > 0 && 
+    selectedInterventionsData.length > 0 &&
+    selectedInterventionsData.every(intervention => canInterventionBeCancelled(intervention));
+
+  const handleBulkCancelClick = () => {
+    setShowBulkCancelConfirm(true);
+  };
+
+  const handleBulkCancelConfirm = () => {
+    setShowBulkCancelConfirm(false);
+    handleBulkCancel();
+  };
+
+  const handleBulkCancelCancel = () => {
+    setShowBulkCancelConfirm(false);
+  };
+
+  const handleBulkDuplicateClick = () => {
+    // Reset della data a domani ogni volta che si apre il dialog
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setDuplicateDate(tomorrow.toISOString().split('T')[0]);
+    setShowBulkDuplicateConfirm(true);
+  };
+
+  const handleBulkDuplicateConfirm = () => {
+    setShowBulkDuplicateConfirm(false);
+    handleBulkDuplicate(duplicateWithCancel, duplicateDate);
+  };
+
+  const handleBulkDuplicateCancel = () => {
+    setShowBulkDuplicateConfirm(false);
+  };
+
+  // Stati dinamici che permettono la duplicazione
+  const duplicableStatuses = ['da_assegnare', 'attesa_preventivo', 'attesa_ricambio', 'in_carico'];
+
+  // Verifica se un intervento può essere duplicato (solo stati dinamici)
+  const canInterventionBeDuplicated = (intervention: AssistanceIntervention): boolean => {
+    const status = calculateStatus({
+      invoiced_by: intervention.invoiced_by ?? null,
+      cancelled_by: intervention.cancelled_by ?? null,
+      assigned_to: intervention.assigned_to ?? null,
+      date: intervention.date ?? null,
+      time_slot: intervention.time_slot ?? null,
+      from_datetime: intervention.from_datetime ?? null,
+      to_datetime: intervention.to_datetime ?? null,
+      report_id: intervention.report_id ?? null,
+      approved_by: intervention.approved_by ?? null,
+      report_is_failed: intervention.report_is_failed ?? null,
+    });
+
+    return duplicableStatuses.includes(status.key);
+  };
+
+  // Verifica se tutti gli interventi selezionati possono essere duplicati
+  const canDuplicateAnySelected = selectedInterventions.length > 0 && 
+    selectedInterventionsData.length > 0 &&
+    selectedInterventionsData.every(intervention => canInterventionBeDuplicated(intervention));
+
   return (
     <>
       <div className="mb-6">
@@ -257,6 +358,90 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
         )}
       </div>
 
+      {/* Barra delle azioni massive - solo per admin */}
+      {isAdmin && selectedInterventions.length > 0 && (
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-blue-900">
+                {selectedInterventions.length} intervento{selectedInterventions.length !== 1 ? 'i' : ''} selezionat{selectedInterventions.length !== 1 ? 'i' : 'o'}
+              </span>
+              <button
+                onClick={clearSelection}
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                Deseleziona tutto
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleBulkDuplicateClick}
+                disabled={bulkActionLoading || !canDuplicateAnySelected}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                title={!canDuplicateAnySelected ? 'Solo gli interventi con stati dinamici (da assegnare, attesa preventivo, attesa ricambio, in carico) possono essere duplicati' : 'Duplica gli interventi selezionati per una data futura'}
+              >
+                {bulkActionLoading ? (
+                  <>
+                    <div className="w-4 h-4 border border-white border-t-transparent rounded-full animate-spin"></div>
+                    {bulkActionProgress.total > 0 
+                      ? `Duplicando ${bulkActionProgress.current}/${bulkActionProgress.total}...`
+                      : 'Duplicando...'
+                    }
+                  </>
+                ) : (
+                  <>
+                    <Copy size={16} />
+                    Duplica interventi
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleBulkCancelClick}
+                disabled={bulkActionLoading || !canCancelAnySelected}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                title={!canCancelAnySelected ? 'Nessuno degli interventi selezionati può essere annullato' : 'Annulla gli interventi selezionati'}
+              >
+                {bulkActionLoading ? (
+                  <>
+                    <div className="w-4 h-4 border border-white border-t-transparent rounded-full animate-spin"></div>
+                    {bulkActionProgress.total > 0 
+                      ? `Annullando ${bulkActionProgress.current}/${bulkActionProgress.total}...`
+                      : 'Annullando...'
+                    }
+                  </>
+                ) : (
+                  <>
+                    <X size={16} />
+                    Annulla selezionati
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+          
+          {/* Barra di progresso */}
+          {bulkActionLoading && bulkActionProgress.total > 0 && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-xs text-blue-700 mb-1">
+                <span>Progresso annullamento</span>
+                <span>{Math.round((bulkActionProgress.current / bulkActionProgress.total) * 100)}%</span>
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${(bulkActionProgress.current / bulkActionProgress.total) * 100}%` }}
+                ></div>
+              </div>
+              {bulkActionProgress.currentInterventionId && (
+                <div className="text-xs text-blue-600 mt-1">
+                  Elaborando intervento ID: {bulkActionProgress.currentInterventionId}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {/* Top Pagination */}
         <PaginationControls
@@ -269,9 +454,19 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
         />
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[800px]">
+          <table className="w-full min-w-[850px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                {isAdmin && (
+                  <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
+                    <input
+                      type="checkbox"
+                      checked={selectedInterventions.length === interventionsData.length && interventionsData.length > 0}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="w-4 h-4 text-teal-600 bg-gray-100 border-gray-300 rounded focus:ring-teal-500 focus:ring-2"
+                    />
+                  </th>
+                )}
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">
                   Azienda
                 </th>
@@ -298,7 +493,7 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
             <tbody className="bg-white divide-y divide-gray-200">
               {loading && !initialLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center">
+                  <td colSpan={isAdmin ? 8 : 7} className="px-6 py-8 text-center">
                     <div className="flex flex-col items-center">
                       <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mb-2"></div>
                       <p className="text-sm text-gray-600">Aggiornamento in corso...</p>
@@ -307,39 +502,52 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 </tr>
               ) : interventionsData.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={isAdmin ? 8 : 7} className="px-6 py-8 text-center text-gray-500">
                     Nessun intervento trovato
                   </td>
                 </tr>
               ) : (
                 interventionsData.map((intervention) => (
-                  <tr key={intervention.id} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => handleRowClick(intervention.id)}>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-900">
+                  <tr key={intervention.id} className="hover:bg-gray-50 transition-colors">
+                    {isAdmin && (
+                      <td className="px-3 sm:px-6 py-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedInterventions.includes(intervention.id)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            handleSelectIntervention(intervention.id, e.target.checked);
+                          }}
+                          className="w-4 h-4 text-teal-600 bg-gray-100 border-gray-300 rounded focus:ring-teal-500 focus:ring-2"
+                        />
+                      </td>
+                    )}
+                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-900 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
                       <div>
                         <div className="font-medium break-words">{intervention.company_name}</div>
                         <div className="text-xs text-gray-500">#{intervention.call_code} ({intervention.id})</div>
                       </div>
                     </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
                       {formatDate(intervention.date)}
                     </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
                       {intervention.from_datetime && intervention.to_datetime ? (
                         `${new Date(intervention.from_datetime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} -> ${new Date(intervention.to_datetime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`
                       ) : (
                         intervention.time_slot || '-'
                       )}
                     </td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-600">
+                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
                       <div className="break-words">{intervention.zone_label}</div>
                     </td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-600">
+                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
                       <div className="break-words">{formatTechnician(intervention.assigned_to_name, intervention.assigned_to_surname)}</div>
                     </td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-600">
+                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
                       <div className="break-words">{intervention.type_label}</div>
                     </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
                       <span
                         className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(
                           calculateStatus({
@@ -386,6 +594,111 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
           className="border-t border-gray-200"
         />
       </div>
+
+      {/* Dialog di conferma per duplicazione massiva */}
+      {showBulkDuplicateConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                <Copy className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Duplica interventi selezionati
+                </h3>
+              </div>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-gray-500 mb-4">
+                Sei sicuro di voler duplicare {selectedInterventions.length} intervento{selectedInterventions.length !== 1 ? 'i' : ''}? 
+                Tutti gli interventi selezionati verranno duplicati con stato &quot;Da assegnare&quot;.
+              </p>
+              
+              {/* Selettore data */}
+              <div className="mb-4">
+                <label htmlFor="duplicateDate" className="block text-sm font-medium text-gray-700 mb-2">
+                  Data di duplicazione:
+                </label>
+                <input
+                  type="date"
+                  id="duplicateDate"
+                  value={duplicateDate}
+                  min={new Date().toISOString().split('T')[0]} // Minimo oggi
+                  onChange={(e) => setDuplicateDate(e.target.value)}
+                  className="text-gray-700 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              
+              {/* Checkbox annullamento */}
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="duplicateWithCancel"
+                  checked={duplicateWithCancel}
+                  onChange={(e) => setDuplicateWithCancel(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                />
+                <label htmlFor="duplicateWithCancel" className="ml-2 text-sm text-gray-700">
+                  Annulla automaticamente gli interventi originali
+                </label>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={handleBulkDuplicateCancel}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleBulkDuplicateConfirm}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Conferma duplicazione
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog di conferma per annullamento massivo */}
+      {showBulkCancelConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-red-600" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Annulla interventi selezionati
+                </h3>
+              </div>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-gray-500">
+                Sei sicuro di voler annullare {selectedInterventions.length} intervento{selectedInterventions.length !== 1 ? 'i' : ''}? 
+                Questa operazione non può essere annullata. Tutti gli interventi selezionati passeranno allo status &quot;Annullato&quot;.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={handleBulkCancelCancel}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleBulkCancelConfirm}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Conferma annullamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

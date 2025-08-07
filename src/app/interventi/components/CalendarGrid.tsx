@@ -25,7 +25,7 @@ interface CalendarGridProps {
   currentWeek: Date;
   currentDate: Date;
   onWeekChange: (direction: 'prev' | 'next') => void;
-  onDayChange: (direction: 'prev' | 'next') => void;
+  onDayChange: (direction: 'prev' | 'next' | 'set', date?: Date) => void;
   interventions: Intervento[];
   onInterventionClick: (intervention: Intervento) => void;
   // Filtri
@@ -72,6 +72,8 @@ export default function CalendarGrid({
 }: CalendarGridProps) {
   const [showTechnicianMultiSelect, setShowTechnicianMultiSelect] = useState(false);
   const [showStatusMultiSelect, setShowStatusMultiSelect] = useState(false);
+  // Stato per gestire z-index dinamico degli interventi sovrapposti
+  const [interventionZIndexes, setInterventionZIndexes] = useState<Record<string, number>>({});
 
   // Genera i giorni lavorativi della settimana corrente (Lunedì-Sabato)
   const getWeekDays = (date: Date) => {
@@ -138,19 +140,7 @@ export default function CalendarGrid({
     return status ? status.toLowerCase().trim() : '';
   };
 
-  // Funzione per ottenere il colore dello status (fallback)
-  const getStatusColor = (status: Intervento['status']) => {
-    switch (status) {
-      case 'In carico':
-        return 'bg-blue-500';
-      case 'Completato':
-        return 'bg-pink-500';
-      case 'Da assegnare':
-        return 'bg-green-500';
-      default:
-        return 'bg-gray-500';
-    }
-  };
+
 
   // Funzione per ottenere gli interventi che iniziano in un time slot specifico
   const getInterventiForTimeSlot = (dayOrTechnician: Date | string, timeSlot: string): Intervento[] => {
@@ -261,6 +251,127 @@ export default function CalendarGrid({
     return datetime.substring(11, 16);
   };
 
+  // Funzione per verificare se due interventi si sovrappongono temporalmente
+  const doInterventsOverlap = (intervention1: Intervento, intervention2: Intervento): boolean => {
+    if (!intervention1.from_datetime || !intervention1.to_datetime || 
+        !intervention2.from_datetime || !intervention2.to_datetime) {
+      return false;
+    }
+    
+    const start1 = new Date(intervention1.from_datetime);
+    const end1 = new Date(intervention1.to_datetime);
+    const start2 = new Date(intervention2.from_datetime);
+    const end2 = new Date(intervention2.to_datetime);
+    
+    return start1 < end2 && start2 < end1;
+  };
+
+  // Funzione per ottenere interventi sovrapposti in un time slot
+  const getOverlappingInterventions = (dayOrTechnician: Date | string, timeSlot: string): Intervento[] => {
+    const slotInterventions = getInterventiForTimeSlot(dayOrTechnician, timeSlot);
+    const overlapping: Intervento[] = [];
+    
+    for (let i = 0; i < slotInterventions.length; i++) {
+      for (let j = i + 1; j < slotInterventions.length; j++) {
+        if (doInterventsOverlap(slotInterventions[i], slotInterventions[j])) {
+          if (!overlapping.some(int => int.id === slotInterventions[i].id)) {
+            overlapping.push(slotInterventions[i]);
+          }
+          if (!overlapping.some(int => int.id === slotInterventions[j].id)) {
+            overlapping.push(slotInterventions[j]);
+          }
+        }
+      }
+    }
+    
+    return overlapping;
+  };
+
+  // Funzione per portare un intervento dietro agli altri
+  const sendInterventionToBack = (interventionId: string) => {
+    setInterventionZIndexes(prev => {
+      const currentZIndex = prev[interventionId] || 20;
+      // Diminuisce di 3, con minimo di 5
+      const newZIndex = Math.max(5, currentZIndex - 3);
+      return {
+        ...prev,
+        [interventionId]: newZIndex
+      };
+    });
+  };
+
+  // Funzione per portare un intervento in primo piano
+  const bringInterventionToFront = (interventionId: string) => {
+    setInterventionZIndexes(prev => {
+      // Trova il z-index più alto attualmente in uso
+      const maxZIndex = Math.max(
+        20, // z-index base
+        ...Object.values(prev)
+      );
+      return {
+        ...prev,
+        [interventionId]: maxZIndex + 1
+      };
+    });
+  };
+
+  // Funzione per ottenere il z-index di un intervento
+  const getInterventionZIndex = (interventionId: string, defaultIndex: number): number => {
+    return interventionZIndexes[interventionId] || (20 + defaultIndex);
+  };
+
+  // Funzione per calcolare il layout a colonne degli interventi sovrapposti (stile Google Calendar)
+  const calculateInterventionLayout = (interventions: Intervento[]): Array<{intervention: Intervento, column: number, totalColumns: number}> => {
+    if (interventions.length <= 1) {
+      return interventions.map(intervention => ({ intervention, column: 0, totalColumns: 1 }));
+    }
+
+    // Ordina gli interventi per ora di inizio
+    const sortedInterventions = [...interventions].sort((a, b) => {
+      const timeA = a.from_datetime || a.data;
+      const timeB = b.from_datetime || b.data;
+      return new Date(timeA).getTime() - new Date(timeB).getTime();
+    });
+
+    // Array per tenere traccia delle colonne occupate
+    const columns: Array<{endTime: Date, interventions: Intervento[]}> = [];
+    const layout: Array<{intervention: Intervento, column: number, totalColumns: number}> = [];
+
+    sortedInterventions.forEach(intervention => {
+      const startTime = new Date(intervention.from_datetime || intervention.data);
+      const endTime = new Date(intervention.to_datetime || intervention.data);
+
+      // Trova la prima colonna libera
+      let columnIndex = 0;
+      for (let i = 0; i < columns.length; i++) {
+        if (columns[i].endTime <= startTime) {
+          columnIndex = i;
+          break;
+        }
+        columnIndex = i + 1;
+      }
+
+      // Se non esiste la colonna, creala
+      if (!columns[columnIndex]) {
+        columns[columnIndex] = { endTime: new Date(0), interventions: [] };
+      }
+
+      // Aggiorna la colonna
+      columns[columnIndex].endTime = endTime;
+      columns[columnIndex].interventions.push(intervention);
+
+      layout.push({
+        intervention,
+        column: columnIndex,
+        totalColumns: Math.max(columns.length, columnIndex + 1)
+      });
+    });
+
+    // Aggiorna totalColumns per tutti gli elementi
+    const maxColumns = Math.max(...layout.map(item => item.totalColumns));
+    return layout.map(item => ({ ...item, totalColumns: maxColumns }));
+  };
+
   const weekDays = getWeekDays(currentWeek);
   const dayNames = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
 
@@ -282,6 +393,33 @@ export default function CalendarGrid({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Gestisce i shortcuts da tastiera per cambiare vista
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Ignora se l'utente sta scrivendo in un input/textarea
+      const target = event.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      switch (event.key.toLowerCase()) {
+        case 'g':
+          event.preventDefault();
+          onViewModeChange('daily');
+          break;
+        case 's':
+          event.preventDefault();
+          onViewModeChange('weekly');
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyPress);
+    return () => {
+      document.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [onViewModeChange]);
 
   return (
     <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -438,7 +576,18 @@ export default function CalendarGrid({
                 <span className="text-sm font-medium text-gray-500">Orario</span>
               </div>
               {weekDays.map((day, index) => (
-                <div key={day.toISOString()} className="p-4 bg-gray-50 border-r border-gray-200 last:border-r-0">
+                <button 
+                  key={day.toISOString()} 
+                  className="p-4 bg-gray-50 border-r border-gray-200 last:border-r-0 hover:bg-gray-100 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-inset"
+                  onClick={() => {
+                    // Imposta la data corrente al giorno cliccato
+                    const newDate = new Date(day);
+                    onDayChange('set', newDate);
+                    // Passa alla vista giornaliera
+                    onViewModeChange('daily');
+                  }}
+                  title={`Apri vista giornaliera per ${dayNames[index]} ${day.getDate()}`}
+                >
                   <div className="text-center">
                     <div className="text-sm font-medium text-gray-900">
                       {dayNames[index]}
@@ -447,7 +596,7 @@ export default function CalendarGrid({
                       {day.getDate()}
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           ) : (
@@ -486,6 +635,7 @@ export default function CalendarGrid({
               {viewMode === 'weekly' 
                 ? weekDays.map((day) => {
                     const dayInterventi = getInterventiForTimeSlot(day, timeSlot);
+                    const overlappingInterventi = getOverlappingInterventions(day, timeSlot);
                     
                     return (
                       <div key={`${day.toISOString()}-${timeSlot}`} className="relative p-2 border-r border-gray-200 last:border-r-0 min-h-[80px]">
@@ -501,63 +651,109 @@ export default function CalendarGrid({
                              intervento.orario === 'pomeriggio' ? '18:00' : 
                              intervento.orario === 'tutto_il_giorno' ? '18:00' : '—');
                           const duration = getInterventoDurationInHours(intervento);
+                          const isOverlapping = overlappingInterventi.some(ov => ov.id === intervento.id);
+                          const zIndex = getInterventionZIndex(intervento.id, index);
 
-                          // Badge-like: background chiaro, bordo e testo con statusColor
-                          let backgroundColor = undefined;
-                          let borderColor = undefined;
-                          let textColor = undefined;
-                          let fallbackClass = '';
+                          // Background OPACO per evitare trasparenze
+                          let backgroundColor = '#ffffff';
+                          let borderColor = '#e5e7eb';
+                          let textColor = '#374151';
+                          
                           if (intervento.statusColor) {
-                            backgroundColor = hexToRgba(intervento.statusColor, 0.18);
+                            backgroundColor = hexToRgba(intervento.statusColor, 0.9); // Opacità alta
                             borderColor = intervento.statusColor;
-                            textColor = intervento.statusColor;
+                            textColor = '#ffffff'; // Testo bianco per contrasto
                           } else {
-                            fallbackClass = getStatusColor(intervento.status);
+                            // Colori di fallback opachi
+                            switch (intervento.status) {
+                              case 'In carico':
+                                backgroundColor = '#3b82f6';
+                                textColor = '#ffffff';
+                                break;
+                              case 'Completato':
+                                backgroundColor = '#ec4899';
+                                textColor = '#ffffff';
+                                break;
+                              case 'Da assegnare':
+                                backgroundColor = '#10b981';
+                                textColor = '#ffffff';
+                                break;
+                              default:
+                                backgroundColor = '#6b7280';
+                                textColor = '#ffffff';
+                            }
                           }
 
                           return (
                             <div
                               key={intervento.id}
-                              className={`absolute left-2 right-2 p-2 rounded text-xs cursor-pointer hover:opacity-90 shadow-md ${fallbackClass}`}
+                              className="absolute left-2 right-2 rounded text-xs shadow-lg group"
                               style={{
                                 height: blockHeight,
                                 top: `${8 + (index * 4)}px`,
-                                zIndex: 20 + index,
-                                border: borderColor ? `1.5px solid ${borderColor}` : '1px solid rgba(255,255,255,0.3)',
+                                zIndex: zIndex,
+                                border: `2px solid ${borderColor}`,
                                 backgroundColor: backgroundColor,
                                 color: textColor,
                                 fontWeight: 500,
                               }}
                               title={`${intervento.ragioneSociale} - ${startTime} alle ${endTime} (${duration}h)`}
-                              onClick={() => onInterventionClick(intervento)}
                             >
-                              {/* Tecnico in grande e grassetto */}
-                              <div className="font-bold text-base leading-tight break-words">
-                                {intervento.tecnico !== '-' ? intervento.tecnico : 'Non assegnato'}
-                              </div>
-                              {/* Data e Orario */}
-                              <div className="text-sm font-semibold mt-1 mb-1">
-                                {day.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} {startTime}-{endTime}
-                              </div>
-                              {/* Cliente piccolo dopo orario */}
-                              <div className="text-xs font-medium break-words opacity-90 mb-1">
-                                {intervento.ragioneSociale}
-                              </div>
-                              {/* Stato intervento sotto le info */}
-                              <div className="text-xs font-semibold mt-1" style={{ color: intervento.statusColor || undefined }}>
-                                {intervento.statusLabel || intervento.status}
-                              </div>
-                              {/* Note calendario */}
-                              {intervento.calendar_notes && (
-                                <div className="text-[10px] mt-1 opacity-80 break-words line-clamp-2" style={{ color: intervento.statusColor || undefined }}>
-                                  {intervento.calendar_notes}
-                                </div>
+                              {/* Pulsante "Porta dietro" - visibile solo se c'è sovrapposizione */}
+                              {isOverlapping && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    sendInterventionToBack(intervento.id);
+                                  }}
+                                  className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow-md transition-colors z-10 opacity-0 group-hover:opacity-100"
+                                  title="Porta dietro questo intervento"
+                                >
+                                  ↓
+                                </button>
                               )}
-                              {duration > 1 && (
-                                <div className="absolute bottom-1 right-2 text-[10px] opacity-75 bg-black bg-opacity-20 px-1 rounded">
-                                  {duration}h
-                                </div>
+                              
+                              {/* Indicatore sovrapposizione */}
+                              {isOverlapping && (
+                                <div className="absolute top-1 left-1 w-2 h-2 bg-orange-400 rounded-full shadow-sm" title="Intervento sovrapposto"></div>
                               )}
+                              
+                              {/* Contenuto cliccabile */}
+                              <div 
+                                className="p-2 h-full cursor-pointer hover:opacity-90"
+                                onClick={() => {
+                                  bringInterventionToFront(intervento.id);
+                                  onInterventionClick(intervento);
+                                }}
+                              >
+                                {/* Tecnico in grande e grassetto */}
+                                <div className="font-bold text-base leading-tight break-words">
+                                  {intervento.tecnico !== '-' ? intervento.tecnico : 'Non assegnato'}
+                                </div>
+                                {/* Data e Orario */}
+                                <div className="text-sm font-semibold mt-1 mb-1">
+                                  {day.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} {startTime}-{endTime}
+                                </div>
+                                {/* Cliente piccolo dopo orario */}
+                                <div className="text-xs font-medium break-words opacity-90 mb-1">
+                                  {intervento.ragioneSociale}
+                                </div>
+                                {/* Stato intervento sotto le info */}
+                                <div className="text-xs font-semibold mt-1">
+                                  {intervento.statusLabel || intervento.status}
+                                </div>
+                                {/* Note calendario */}
+                                {intervento.calendar_notes && (
+                                  <div className="text-[10px] mt-1 opacity-80 break-words line-clamp-2">
+                                    {intervento.calendar_notes}
+                                  </div>
+                                )}
+                                {duration > 1 && (
+                                  <div className="absolute bottom-1 right-2 text-[10px] opacity-75 bg-black bg-opacity-30 px-1 rounded text-white">
+                                    {duration}h
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           );
                         })}
@@ -567,11 +763,12 @@ export default function CalendarGrid({
                 : /* Vista giornaliera - colonne tecnici */
                   getUniqueTechnicians().map((technician, techIndex) => {
                     const technicianInterventi = getInterventiForTimeSlot(technician, timeSlot);
+                    const layoutData = calculateInterventionLayout(technicianInterventi);
                     
                     return (
                       <div key={`${technician}-${timeSlot}-${techIndex}`} className="relative p-2 border-r border-gray-200 last:border-r-0 min-h-[80px]">
-                        {/* Mostra solo gli interventi che iniziano in questo slot per questo tecnico */}
-                        {technicianInterventi.map((intervento, index) => {
+                        {/* Mostra gli interventi con layout a colonne stile Google Calendar */}
+                        {layoutData.map(({ intervention: intervento, column, totalColumns }) => {
                           const blockHeight = getBlockHeight(intervento);
                           const startTime = getTimeFromDatetime(intervento.from_datetime || '') || 
                             (intervento.orario === 'mattina' ? '08:00' : 
@@ -583,58 +780,89 @@ export default function CalendarGrid({
                              intervento.orario === 'tutto_il_giorno' ? '18:00' : '—');
                           const duration = getInterventoDurationInHours(intervento);
 
-                          // Badge-like: background chiaro, bordo e testo con statusColor
-                          let backgroundColor = undefined;
-                          let borderColor = undefined;
-                          let textColor = undefined;
-                          let fallbackClass = '';
+                          // Calcola posizione e larghezza per il layout a colonne
+                          const columnWidth = totalColumns > 1 ? `${(100 / totalColumns) - 1}%` : 'calc(100% - 16px)';
+                          const leftPosition = totalColumns > 1 ? `${(column * 100 / totalColumns) + 1}%` : '8px';
+
+                          // Background OPACO per vista giornaliera
+                          let backgroundColor = '#ffffff';
+                          let borderColor = '#e5e7eb';
+                          let textColor = '#374151';
+                          
                           if (intervento.statusColor) {
-                            backgroundColor = hexToRgba(intervento.statusColor, 0.18);
+                            backgroundColor = hexToRgba(intervento.statusColor, 0.9);
                             borderColor = intervento.statusColor;
-                            textColor = intervento.statusColor;
+                            textColor = '#ffffff';
                           } else {
-                            fallbackClass = getStatusColor(intervento.status);
+                            // Colori di fallback opachi
+                            switch (intervento.status) {
+                              case 'In carico':
+                                backgroundColor = '#3b82f6';
+                                textColor = '#ffffff';
+                                break;
+                              case 'Completato':
+                                backgroundColor = '#ec4899';
+                                textColor = '#ffffff';
+                                break;
+                              case 'Da assegnare':
+                                backgroundColor = '#10b981';
+                                textColor = '#ffffff';
+                                break;
+                              default:
+                                backgroundColor = '#6b7280';
+                                textColor = '#ffffff';
+                            }
                           }
 
                           return (
                             <div
                               key={intervento.id}
-                              className={`absolute left-2 right-2 p-2 rounded text-xs cursor-pointer hover:opacity-90 shadow-md ${fallbackClass}`}
+                              className="absolute rounded text-xs shadow-lg group"
                               style={{
                                 height: blockHeight,
-                                top: `${8 + (index * 4)}px`,
-                                zIndex: 20 + index,
-                                border: borderColor ? `1.5px solid ${borderColor}` : '1px solid rgba(255,255,255,0.3)',
+                                top: '8px',
+                                left: leftPosition,
+                                width: columnWidth,
+                                zIndex: 20 + column,
+                                border: `2px solid ${borderColor}`,
                                 backgroundColor: backgroundColor,
                                 color: textColor,
                                 fontWeight: 500,
                               }}
                               title={`${intervento.ragioneSociale} - ${startTime} alle ${endTime} (${duration}h)`}
-                              onClick={() => onInterventionClick(intervento)}
                             >
-                              {/* Cliente in grande e grassetto (invece del tecnico) */}
-                              <div className="font-bold text-base leading-tight break-words">
-                                {intervento.ragioneSociale}
-                              </div>
-                              {/* Data e Orario */}
-                              <div className="text-sm font-semibold mt-1 mb-1">
-                                {currentDate.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} {startTime}-{endTime}
-                              </div>
-                              {/* Stato intervento sotto le info */}
-                              <div className="text-xs font-semibold mt-1" style={{ color: intervento.statusColor || undefined }}>
-                                {intervento.statusLabel || intervento.status}
-                              </div>
-                              {/* Note calendario */}
-                              {intervento.calendar_notes && (
-                                <div className=" mt-1 opacity-80 break-words line-clamp-2" style={{ color: intervento.statusColor || undefined }}>
-                                  {intervento.calendar_notes}
+                              {/* Contenuto cliccabile */}
+                              <div 
+                                className="p-2 h-full cursor-pointer hover:opacity-90"
+                                onClick={() => {
+                                  bringInterventionToFront(intervento.id);
+                                  onInterventionClick(intervento);
+                                }}
+                              >
+                                {/* Cliente in grande e grassetto */}
+                                <div className="font-bold text-sm leading-tight break-words">
+                                  {intervento.ragioneSociale}
                                 </div>
-                              )}
-                              {duration > 1 && (
-                                <div className="absolute bottom-1 right-2 text-[10px] opacity-75 bg-black bg-opacity-20 px-1 rounded">
-                                  {duration}h
+                                {/* Data e Orario */}
+                                <div className="text-xs font-semibold mt-1 mb-1">
+                                  {currentDate.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} {startTime}-{endTime}
                                 </div>
-                              )}
+                                {/* Stato intervento sotto le info */}
+                                <div className="text-xs font-semibold mt-1">
+                                  {intervento.statusLabel || intervento.status}
+                                </div>
+                                {/* Note calendario - solo se c'è spazio */}
+                                {intervento.calendar_notes && totalColumns <= 2 && (
+                                  <div className="text-[10px] mt-1 opacity-80 break-words line-clamp-1">
+                                    {intervento.calendar_notes}
+                                  </div>
+                                )}
+                                {duration > 1 && (
+                                  <div className="absolute bottom-1 right-1 text-[10px] opacity-75 bg-black bg-opacity-30 px-1 rounded text-white">
+                                    {duration}h
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           );
                         })}
