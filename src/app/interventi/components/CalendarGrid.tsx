@@ -1,8 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getStatusColor } from '../../../utils/intervention-status';
 import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { useCalendarNotes } from '../../../hooks/useCalendarNotes';
+import CalendarNoteDialog from './CalendarNoteDialog';
+import { useAuth } from '../../../contexts/AuthContext';
+import { CalendarNote } from '@/types/calendar-notes';
+
 
 interface Intervento {
   id: string;
@@ -18,6 +23,7 @@ interface Intervento {
   from_datetime?: string;
   to_datetime?: string;
   calendar_notes?: string;
+  manual_check?: boolean;
 }
 
 interface CalendarGridProps {
@@ -73,8 +79,19 @@ export default function CalendarGrid({
 }: CalendarGridProps) {
   const [showTechnicianMultiSelect, setShowTechnicianMultiSelect] = useState(false);
   const [showStatusMultiSelect, setShowStatusMultiSelect] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
   // Stato per gestire z-index dinamico degli interventi sovrapposti
   const [interventionZIndexes, setInterventionZIndexes] = useState<Record<string, number>>({});
+
+  // Calendar Notes state
+  const { notes, fetchNotes } = useCalendarNotes();
+  const { token } = useAuth();
+  const [techIdMap, setTechIdMap] = useState<Record<string, string>>({});
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [selectedTechName, setSelectedTechName] = useState<string>('');
+  const [selectedTechId, setSelectedTechId] = useState<string | undefined>(undefined);
+  const [selectedNote, setSelectedNote] = useState<CalendarNote | null>(null);
 
   // Genera i giorni lavorativi della settimana corrente (Lunedì-Sabato)
   const getWeekDays = (date: Date) => {
@@ -371,9 +388,10 @@ export default function CalendarGrid({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (!target.closest('.technician-multi-select') && !target.closest('.status-multi-select')) {
+      if (!target.closest('.technician-multi-select') && !target.closest('.status-multi-select') && !target.closest('.date-picker-popover') && !target.closest('.date-picker-toggle')) {
         setShowTechnicianMultiSelect(false);
         setShowStatusMultiSelect(false);
+        setShowDatePicker(false);
       }
     };
 
@@ -410,6 +428,57 @@ export default function CalendarGrid({
     };
   }, [onViewModeChange]);
 
+  // When opening the popover, try to open the native date picker immediately
+  useEffect(() => {
+    if (showDatePicker && dateInputRef.current) {
+      dateInputRef.current.focus();
+      if (typeof dateInputRef.current.showPicker === 'function') {
+        dateInputRef.current.showPicker();
+      }
+    }
+  }, [showDatePicker]);
+
+  // Fetch calendar notes for the selected day in daily view
+  useEffect(() => {
+    if (viewMode !== 'daily') return;
+    const day = currentDate.toISOString().split('T')[0];
+    fetchNotes({ start_date: day, end_date: day, limit: 20, page: 1 });
+  }, [viewMode, currentDate, fetchNotes]);
+
+  // Build technician name -> id map from users
+  useEffect(() => {
+    if (viewMode !== 'daily') return;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    fetch('/api/users?skip=200', { headers })
+      .then(r => (r.ok ? r.json() : Promise.reject(r)))
+      .then((data: { data?: Array<{ id: string; name: string; surname: string }> }) => {
+        const map: Record<string, string> = {};
+        (data.data || []).forEach((u) => {
+          const full = `${u.name} ${u.surname}`.trim();
+          if (full) map[full] = u.id;
+        });
+        setTechIdMap(map);
+      })
+      .catch(() => {});
+  }, [viewMode, token]);
+
+  const openNoteDialog = (technician: string) => {
+    const currentDayString = currentDate.toISOString().split('T')[0];
+    const existing = notes.find(n => n.user_name === technician && (n.note_date || '').startsWith(currentDayString));
+    setSelectedTechName(technician);
+    setSelectedTechId(techIdMap[technician]);
+    setSelectedNote(existing || null);
+    setNoteDialogOpen(true);
+  };
+
+  const closeNoteDialog = () => {
+    setNoteDialogOpen(false);
+    // refetch notes for freshness
+    const day = currentDate.toISOString().split('T')[0];
+    fetchNotes({ start_date: day, end_date: day, limit: 20, page: 1 });
+  };
+
   return (
     <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden">
       {/* Header del calendario + filtri */}
@@ -427,22 +496,47 @@ export default function CalendarGrid({
           </select>
 
           {/* Navigazione */}
-          <div className="flex items-center gap-2 min-w-[220px]">
+          <div className="flex items-center gap-2 min-w-[220px] relative">
             <button
               onClick={() => viewMode === 'weekly' ? onWeekChange('prev') : onDayChange('prev')}
               className="p-2 hover:bg-gray-100 rounded-full"
             >
               <ChevronLeft size={20} className="text-gray-600" />
             </button>
-            <h2 className="text-base font-medium text-gray-900 min-w-[120px] text-center">
+            <button
+              type="button"
+              className="date-picker-toggle text-base font-medium text-gray-900 min-w-[120px] text-center hover:underline"
+              onClick={() => setShowDatePicker(true)}
+              title="Seleziona giornata"
+            >
               {viewMode === 'weekly' ? getCurrentMonthYear() : getCurrentDayFormatted()}
-            </h2>
+            </button>
             <button
               onClick={() => viewMode === 'weekly' ? onWeekChange('next') : onDayChange('next')}
               className="p-2 hover:bg-gray-100 rounded-full"
             >
               <ChevronRight size={20} className="text-gray-600" />
             </button>
+
+            {showDatePicker && (
+              <div className="date-picker-popover absolute left-1/2 -translate-x-1/2 top-full mt-2 z-40 bg-white border border-gray-200 rounded shadow-md p-3">
+                <input
+                  type="date"
+                  className="border rounded px-2 py-1 text-sm text-gray-700"
+                  ref={dateInputRef}
+                  value={currentDate.toISOString().split('T')[0]}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (!value) return;
+                    const [y, m, d] = value.split('-').map(Number);
+                    const newDate = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+                    onDayChange('set', new Date(newDate));
+                    onViewModeChange('daily');
+                    setShowDatePicker(false);
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
         
@@ -607,6 +701,33 @@ export default function CalendarGrid({
                     <div className="text-sm font-medium text-gray-900 truncate" title={technician}>
                       {technician}
                     </div>
+                    <div className="mt-1 flex justify-center">
+                      {(() => {
+                        const day = currentDate.toISOString().split('T')[0];
+                        const note = notes.find(n => n.user_name === technician && (n.note_date || '').startsWith(day));
+                        if (note) {
+                          const preview = note.note?.length > 24 ? `${note.note.substring(0, 24)}…` : note.note;
+                          return (
+                            <button
+                              className="text-xs px-2 py-0.5 rounded border border-yellow-200 text-yellow-700 bg-yellow-50 hover:bg-yellow-100"
+                              title={note.note}
+                              onClick={() => openNoteDialog(technician)}
+                            >
+                              {preview || 'nota'}
+                            </button>
+                          );
+                        }
+                        return (
+                          <button
+                            className="text-xs text-gray-500 underline hover:text-gray-700"
+                            onClick={() => openNoteDialog(technician)}
+                            title="Crea nota"
+                          >
+                            nota
+                          </button>
+                        );
+                      })()}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -731,6 +852,17 @@ export default function CalendarGrid({
                                 <div className="text-xs font-semibold mt-1">
                                   {intervento.statusLabel || intervento.status}
                                 </div>
+                                {/* Badge manual_check */}
+                                {intervento.manual_check === false && (
+                                  <span className="inline-flex px-2 py-0.5 mt-1 text-[10px] font-semibold rounded-full bg-red-100 text-red-800">
+                                    non verificato!
+                                  </span>
+                                )}
+                                {intervento.manual_check === true && (
+                                  <span className="inline-flex px-2 py-0.5 mt-1 text-[10px] font-semibold rounded-full bg-green-100 text-green-800">
+                                    Verificato.
+                                  </span>
+                                )}
                                 {/* Note calendario */}
                                 {intervento.calendar_notes && (
                                   <div className="text-[10px] mt-1 opacity-80 break-words line-clamp-2">
@@ -751,8 +883,36 @@ export default function CalendarGrid({
                   })
                 : /* Vista giornaliera - colonne tecnici */
                   getUniqueTechnicians().map((technician, techIndex) => {
-                    const technicianInterventi = getInterventiForTimeSlot(technician, timeSlot);
-                    const layoutData = calculateInterventionLayout(technicianInterventi);
+                    // Costruisce il layout a colonne per TUTTI gli interventi della giornata di questo tecnico
+                    const currentDayString = currentDate.toISOString().split('T')[0];
+                    const techDayInterventi = interventions.filter((i) => {
+                      if (i.tecnico !== technician) return false;
+                      if (i.from_datetime) {
+                        return i.from_datetime.substring(0, 10) === currentDayString;
+                      }
+                      try {
+                        const d = new Date(i.data);
+                        if (isNaN(d.getTime())) return false;
+                        return d.toISOString().split('T')[0] === currentDayString;
+                      } catch {
+                        return false;
+                      }
+                    });
+                    const techLayout = calculateInterventionLayout(techDayInterventi);
+                    // In questa cella mostriamo SOLO gli interventi che iniziano in questo timeSlot,
+                    // ma usando le colonne calcolate sull'intera giornata per gestire gli accavallamenti
+                    const layoutData = techLayout.filter(({ intervention }) => {
+                      const startTime = intervention.from_datetime
+                        ? intervention.from_datetime.substring(11, 16)
+                        : (intervention.orario === 'mattina'
+                          ? '08:00'
+                          : intervention.orario === 'pomeriggio'
+                            ? '14:00'
+                            : intervention.orario === 'tutto_il_giorno'
+                              ? '08:00'
+                              : timeSlot);
+                      return startTime === timeSlot;
+                    });
                     
                     return (
                       <div key={`${technician}-${timeSlot}-${techIndex}`} className="relative p-2 border-r border-gray-200 last:border-r-0 min-h-[80px] min-w-[120px]">
@@ -830,6 +990,17 @@ export default function CalendarGrid({
                                 <div className="text-sm font-light truncate" title={intervento.statusLabel || intervento.status}>
                                   {intervento.statusLabel || intervento.status}
                                 </div>
+                                {/* Badge manual_check */}
+                                {intervento.manual_check === false && (
+                                  <span className="inline-flex px-2 py-0.5 mt-1 text-[10px] font-semibold rounded-full bg-red-100 text-red-800">
+                                    non verificato!
+                                  </span>
+                                )}
+                                {intervento.manual_check === true && (
+                                  <span className="inline-flex px-2 py-0.5 mt-1 text-[10px] font-semibold rounded-full bg-green-100 text-green-800">
+                                    Verificato.
+                                  </span>
+                                )}
                                 {/* Note calendario - solo se c'è spazio e una sola colonna */}
                                 {intervento.calendar_notes && totalColumns === 1 && blockHeight > 80 && (
                                   <div className="text-[8px] mt-1 opacity-80 break-words line-clamp-1" title={intervento.calendar_notes}>
@@ -853,6 +1024,17 @@ export default function CalendarGrid({
           ))}
         </div>
       </div>
+      {noteDialogOpen && (
+        <CalendarNoteDialog
+          open={noteDialogOpen}
+          onClose={closeNoteDialog}
+          technicianName={selectedTechName}
+          technicianId={selectedTechId}
+          dateISO={currentDate.toISOString().split('T')[0]}
+          existingNote={selectedNote}
+        />
+      )}
     </div>
   );
 }
+

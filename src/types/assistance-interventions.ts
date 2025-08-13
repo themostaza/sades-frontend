@@ -48,6 +48,7 @@ export interface AssistanceIntervention {
   calendar_notes?: string;
   assigned_to?: string | null;
   approved_by?: string | null;
+  manual_check?: boolean;
 }
 
 export interface AssistanceInterventionDetail {
@@ -95,6 +96,7 @@ export interface AssistanceInterventionDetail {
   connected_equipment: ConnectedEquipment[];
   connected_articles: ConnectedArticle[];
   calendar_notes?: string;
+  manual_check?: boolean;
 }
 
 export interface CreateAssistanceInterventionRequest {
@@ -150,6 +152,7 @@ export interface UpdateAssistanceInterventionRequest {
     quantity: number;
   }>;
   calendar_notes?: string;
+  manual_check?: boolean;
 }
 
 export interface AssistanceInterventionsApiResponse {

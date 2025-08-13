@@ -107,6 +107,8 @@ interface MainPageTableProps {
   clearSelection: () => void;
   handleBulkCancel: () => void;
   handleBulkDuplicate: (cancelOriginals?: boolean, targetDate?: string) => void;
+  handleBulkVerify: () => void;
+  handleBulkUnverify: () => void;
   canInterventionBeCancelled: (intervention: AssistanceIntervention) => boolean;
 }
 
@@ -142,6 +144,8 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
   clearSelection,
   handleBulkCancel,
   handleBulkDuplicate,
+  handleBulkVerify,
+  handleBulkUnverify,
   canInterventionBeCancelled,
 }) => {
   const toStatusKey = (label?: string | null) =>
@@ -151,6 +155,8 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
       .replace(/\s+/g, '_');
   const [showBulkCancelConfirm, setShowBulkCancelConfirm] = useState(false);
   const [showBulkDuplicateConfirm, setShowBulkDuplicateConfirm] = useState(false);
+  const [showBulkVerifyConfirm, setShowBulkVerifyConfirm] = useState(false);
+  const [showBulkUnverifyConfirm, setShowBulkUnverifyConfirm] = useState(false);
   const [duplicateWithCancel, setDuplicateWithCancel] = useState(true);
   const [duplicateDate, setDuplicateDate] = useState(() => {
     // Default: domani
@@ -211,6 +217,16 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
   const canDuplicateAnySelected = selectedInterventions.length > 0 && 
     selectedInterventionsData.length > 0 &&
     selectedInterventionsData.every(intervention => canInterventionBeDuplicated(intervention));
+
+  // Verifica se tutti i selezionati sono non verificati (manual_check === false)
+  const canBulkVerify = selectedInterventions.length > 0 &&
+    selectedInterventionsData.length > 0 &&
+    selectedInterventionsData.every(intervention => intervention.manual_check === false);
+
+  // Verifica se tutti i selezionati sono verificati (manual_check === true)
+  const canBulkUnverify = selectedInterventions.length > 0 &&
+    selectedInterventionsData.length > 0 &&
+    selectedInterventionsData.every(intervention => intervention.manual_check === true);
 
   return (
     <>
@@ -409,6 +425,22 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                   </>
                 )}
               </button>
+              <button
+                onClick={() => setShowBulkVerifyConfirm(true)}
+                disabled={bulkActionLoading || !canBulkVerify}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                title={!canBulkVerify ? 'Seleziona solo interventi non verificati' : 'Segna come verificati'}
+              >
+                Verifica selezionati
+              </button>
+              <button
+                onClick={() => setShowBulkUnverifyConfirm(true)}
+                disabled={bulkActionLoading || !canBulkUnverify}
+                className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                title={!canBulkUnverify ? 'Seleziona solo interventi verificati' : 'Segna come non verificati'}
+              >
+                Rimuovi verifica
+              </button>
             </div>
           </div>
           
@@ -526,7 +558,7 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
                       {intervention.from_datetime && intervention.to_datetime ? (
-                        `${new Date(intervention.from_datetime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} -> ${new Date(intervention.to_datetime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`
+                        `${intervention.from_datetime.substring(11, 16)} -> ${intervention.to_datetime.substring(11, 16)}`
                       ) : (
                         intervention.time_slot || '-'
                       )}
@@ -541,11 +573,23 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                       <div className="break-words">{intervention.type_label}</div>
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
-                      <span
-                        className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(toStatusKey(intervention.status_label))}`}
-                      >
-                        {intervention.status_label}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span
+                          className={`inline-flex w-fit px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(toStatusKey(intervention.status_label))}`}
+                        >
+                          {intervention.status_label}
+                        </span>
+                        {intervention.manual_check === false && (
+                          <span className="inline-flex w-fit px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                            non verificato!
+                          </span>
+                        )}
+                        {intervention.manual_check === true && (
+                          <span className="inline-flex w-fit px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                            Verificato.
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -663,6 +707,80 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
               >
                 Conferma annullamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog di conferma per verifica massiva */}
+      {showBulkVerifyConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                <span className="w-6 h-6 text-green-600">✔</span>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Segna come verificati
+                </h3>
+              </div>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-gray-500">
+                Confermi di voler segnare {selectedInterventions.length} intervento{selectedInterventions.length !== 1 ? 'i' : ''} come verificat{selectedInterventions.length !== 1 ? 'i' : 'o'}?
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowBulkVerifyConfirm(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => { setShowBulkVerifyConfirm(false); handleBulkVerify(); }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Conferma
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog di conferma per rimozione verifica massiva */}
+      {showBulkUnverifyConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                <span className="w-6 h-6 text-yellow-700">↺</span>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Segna come non verificati
+                </h3>
+              </div>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-gray-500">
+                Confermi di voler segnare {selectedInterventions.length} intervento{selectedInterventions.length !== 1 ? 'i' : ''} come non verificat{selectedInterventions.length !== 1 ? 'i' : 'o'}?
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowBulkUnverifyConfirm(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => { setShowBulkUnverifyConfirm(false); handleBulkUnverify(); }}
+                className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+              >
+                Conferma
               </button>
             </div>
           </div>

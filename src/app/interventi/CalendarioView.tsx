@@ -22,6 +22,7 @@ interface Intervento {
   from_datetime?: string;
   to_datetime?: string;
   calendar_notes?: string;
+  manual_check?: boolean;
 }
 
 interface User {
