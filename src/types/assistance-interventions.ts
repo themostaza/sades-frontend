@@ -2,9 +2,13 @@
 
 export interface ConnectedEquipment {
   id: number;
-  model: string;
+  model: string | null;
   description: string;
-  serial_number: string;
+  serial_number: string | null;
+  linked_serials?: string | null;
+  brand_name?: string;
+  subfamily_name?: string;
+  customer_name?: string;
 }
 
 export interface ConnectedArticle {

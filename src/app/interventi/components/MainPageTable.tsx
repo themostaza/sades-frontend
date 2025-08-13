@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Search, MapPin, Filter, User, X, AlertCircle, Copy } from 'lucide-react';
 import { AssistanceIntervention } from '../../../types/assistance-interventions';
-import { getStatusColor, statusOptions } from '../../../utils/intervention-status';
+import { getStatusColor, statusOptions, toStatusKey } from '../../../utils/intervention-status';
 import DateRangePicker from '../../../components/DateRangePicker';
 
 // --- Componente di Paginazione Riutilizzabile ---
@@ -148,11 +148,7 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
   handleBulkUnverify,
   canInterventionBeCancelled,
 }) => {
-  const toStatusKey = (label?: string | null) =>
-    (label || '')
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, '_');
+  
   const [showBulkCancelConfirm, setShowBulkCancelConfirm] = useState(false);
   const [showBulkDuplicateConfirm, setShowBulkDuplicateConfirm] = useState(false);
   const [showBulkVerifyConfirm, setShowBulkVerifyConfirm] = useState(false);

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, MapPin, User, FileText, Clock, ChevronRight } from 'lucide-react';
+import { getStatusColor, toStatusKey } from '../../../utils/intervention-status';
 import { useAuth } from '../../../contexts/AuthContext';
 import { AssistanceIntervention, AssistanceInterventionsApiResponse } from '../../../types/assistance-interventions';
 
@@ -205,11 +206,20 @@ export default function CustomerHistoryDialog({
                           #{intervention.call_code}
                         </span>
                         <span
-                          className="px-2 py-1 text-xs font-medium rounded-full text-white"
-                          style={{ backgroundColor: intervention.status_color }}
+                          className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(toStatusKey(intervention.status_label))}`}
                         >
                           {intervention.status_label}
                         </span>
+                        {intervention.manual_check === false && (
+                          <span className="px-2 py-1 text-[10px] font-semibold rounded-full bg-red-100 text-red-800">
+                            non verificato!
+                          </span>
+                        )}
+                        {intervention.manual_check === true && (
+                          <span className="px-2 py-1 text-[10px] font-semibold rounded-full bg-green-100 text-green-800">
+                            Verificato.
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-gray-600">
                         {intervention.type_label}
