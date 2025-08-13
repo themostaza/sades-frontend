@@ -9,7 +9,7 @@ import CalendarioView from './CalendarioView';
 import RichiediAssenza from './RichiediAssenza';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AssistanceIntervention, AssistanceInterventionsApiResponse, UpdateAssistanceInterventionRequest } from '../../types/assistance-interventions';
-import { getStatusColor, statusOptions, getStatusId, calculateStatus } from '../../utils/intervention-status';
+import { getStatusColor, statusOptions, getStatusId } from '../../utils/intervention-status';
 import { updateAssistanceIntervention, fetchAssistanceInterventionDetail } from '../../utils/assistance-interventions-api';
 import MainPageTable from './components/MainPageTable';
 
@@ -360,22 +360,13 @@ export default function InterventiPage() {
 
   // Funzione per verificare se un intervento può essere annullato
   const canInterventionBeCancelled = (intervention: AssistanceIntervention): boolean => {
-    const status = calculateStatus({
-      invoiced_by: intervention.invoiced_by ?? null,
-      cancelled_by: intervention.cancelled_by ?? null,
-      assigned_to: intervention.assigned_to ?? null,
-      date: intervention.date ?? null,
-      time_slot: intervention.time_slot ?? null,
-      from_datetime: intervention.from_datetime ?? null,
-      to_datetime: intervention.to_datetime ?? null,
-      report_id: intervention.report_id ?? null,
-      approved_by: intervention.approved_by ?? null,
-      report_is_failed: intervention.report_is_failed ?? null,
-    });
-
+    const statusKey = (intervention.status_label || '')
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '_');
     // Stati non annullabili: da_confermare, completato, non_completato, annullato, fatturato
     const nonCancellableStatuses = ['da_confermare', 'completato', 'non_completato', 'annullato', 'fatturato'];
-    return !nonCancellableStatuses.includes(status.key);
+    return !nonCancellableStatuses.includes(statusKey);
   };
 
   // Funzioni per gestire la selezione multipla
@@ -399,6 +390,144 @@ export default function InterventiPage() {
     setSelectedInterventions([]);
   };
 
+  // Funzione per verifica manuale massiva (manual_check=true)
+  const handleBulkVerify = async () => {
+    if (selectedInterventions.length === 0) return;
+    const selectedInterventionsData = interventionsData.filter(intervention => 
+      selectedInterventions.includes(intervention.id)
+    );
+    // Devono essere tutti non verificati
+    const verifyEligible = selectedInterventionsData.filter(intervention => intervention.manual_check === false);
+    if (verifyEligible.length !== selectedInterventionsData.length) {
+      alert('Seleziona solo interventi non verificati per procedere.');
+      return;
+    }
+
+    setBulkActionLoading(true);
+    setBulkActionProgress({ current: 0, total: verifyEligible.length, currentInterventionId: null });
+
+    let successCount = 0;
+    let errorCount = 0;
+    const ids = verifyEligible.map(i => i.id);
+
+    try {
+      for (let i = 0; i < ids.length; i++) {
+        const interventionId = ids[i];
+        setBulkActionProgress({ current: i + 1, total: ids.length, currentInterventionId: interventionId });
+        try {
+          const interventionDetail = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
+          const requestData: UpdateAssistanceInterventionRequest = {
+            customer_id: interventionDetail.customer_id || 0,
+            type_id: interventionDetail.type_id || 0,
+            zone_id: interventionDetail.zone_id || 0,
+            customer_location_id: interventionDetail.customer_location_id || '',
+            flg_home_service: interventionDetail.flg_home_service || false,
+            flg_discount_home_service: interventionDetail.flg_discount_home_service || false,
+            date: interventionDetail.date || null,
+            time_slot: interventionDetail.time_slot || null,
+            from_datetime: interventionDetail.from_datetime || null,
+            to_datetime: interventionDetail.to_datetime || null,
+            quotation_price: parseFloat(interventionDetail.quotation_price) || 0,
+            opening_hours: interventionDetail.opening_hours || '',
+            assigned_to: interventionDetail.assigned_to || '',
+            call_code: interventionDetail.call_code || '',
+            internal_notes: interventionDetail.internal_notes || '',
+            status_id: interventionDetail.status_id,
+            equipments: interventionDetail.connected_equipment?.map(eq => eq.id) || [],
+            articles: interventionDetail.connected_articles?.map(art => ({
+              article_id: art.id,
+              quantity: art.quantity
+            })) || [],
+            calendar_notes: interventionDetail.calendar_notes || '',
+            manual_check: true,
+          };
+          await updateAssistanceIntervention(interventionId, requestData, auth.token || '');
+          successCount++;
+        } catch (error) {
+          console.error(`Errore nella verifica dell'intervento ${interventionId}:`, error);
+          errorCount++;
+        }
+      }
+      if (successCount > 0) {
+        fetchInterventionsData();
+        clearSelection();
+      }
+      console.log(`Verifica completata: ${successCount} successi, ${errorCount} errori`);
+    } finally {
+      setBulkActionLoading(false);
+      setBulkActionProgress({ current: 0, total: 0, currentInterventionId: null });
+    }
+  };
+
+  // Funzione per rimuovere la verifica manuale massiva (manual_check=false)
+  const handleBulkUnverify = async () => {
+    if (selectedInterventions.length === 0) return;
+    const selectedInterventionsData = interventionsData.filter(intervention => 
+      selectedInterventions.includes(intervention.id)
+    );
+    // Devono essere tutti verificati
+    const unverifyEligible = selectedInterventionsData.filter(intervention => intervention.manual_check === true);
+    if (unverifyEligible.length !== selectedInterventionsData.length) {
+      alert('Seleziona solo interventi verificati per procedere.');
+      return;
+    }
+
+    setBulkActionLoading(true);
+    setBulkActionProgress({ current: 0, total: unverifyEligible.length, currentInterventionId: null });
+
+    let successCount = 0;
+    let errorCount = 0;
+    const ids = unverifyEligible.map(i => i.id);
+
+    try {
+      for (let i = 0; i < ids.length; i++) {
+        const interventionId = ids[i];
+        setBulkActionProgress({ current: i + 1, total: ids.length, currentInterventionId: interventionId });
+        try {
+          const interventionDetail = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
+          const requestData: UpdateAssistanceInterventionRequest = {
+            customer_id: interventionDetail.customer_id || 0,
+            type_id: interventionDetail.type_id || 0,
+            zone_id: interventionDetail.zone_id || 0,
+            customer_location_id: interventionDetail.customer_location_id || '',
+            flg_home_service: interventionDetail.flg_home_service || false,
+            flg_discount_home_service: interventionDetail.flg_discount_home_service || false,
+            date: interventionDetail.date || null,
+            time_slot: interventionDetail.time_slot || null,
+            from_datetime: interventionDetail.from_datetime || null,
+            to_datetime: interventionDetail.to_datetime || null,
+            quotation_price: parseFloat(interventionDetail.quotation_price) || 0,
+            opening_hours: interventionDetail.opening_hours || '',
+            assigned_to: interventionDetail.assigned_to || '',
+            call_code: interventionDetail.call_code || '',
+            internal_notes: interventionDetail.internal_notes || '',
+            status_id: interventionDetail.status_id,
+            equipments: interventionDetail.connected_equipment?.map(eq => eq.id) || [],
+            articles: interventionDetail.connected_articles?.map(art => ({
+              article_id: art.id,
+              quantity: art.quantity
+            })) || [],
+            calendar_notes: interventionDetail.calendar_notes || '',
+            manual_check: false,
+          };
+          await updateAssistanceIntervention(interventionId, requestData, auth.token || '');
+          successCount++;
+        } catch (error) {
+          console.error(`Errore nella rimozione verifica per l'intervento ${interventionId}:`, error);
+          errorCount++;
+        }
+      }
+      if (successCount > 0) {
+        fetchInterventionsData();
+        clearSelection();
+      }
+      console.log(`Rimozione verifica completata: ${successCount} successi, ${errorCount} errori`);
+    } finally {
+      setBulkActionLoading(false);
+      setBulkActionProgress({ current: 0, total: 0, currentInterventionId: null });
+    }
+  };
+
   // Funzione per duplicazione massiva
   const handleBulkDuplicate = async (cancelOriginals: boolean = true, targetDate?: string) => {
     if (selectedInterventions.length === 0) return;
@@ -412,19 +541,11 @@ export default function InterventiPage() {
     const duplicableStatuses = ['da_assegnare', 'attesa_preventivo', 'attesa_ricambio', 'in_carico'];
     
     const duplicableInterventions = selectedInterventionsData.filter(intervention => {
-      const status = calculateStatus({
-        invoiced_by: intervention.invoiced_by ?? null,
-        cancelled_by: intervention.cancelled_by ?? null,
-        assigned_to: intervention.assigned_to ?? null,
-        date: intervention.date ?? null,
-        time_slot: intervention.time_slot ?? null,
-        from_datetime: intervention.from_datetime ?? null,
-        to_datetime: intervention.to_datetime ?? null,
-        report_id: intervention.report_id ?? null,
-        approved_by: intervention.approved_by ?? null,
-        report_is_failed: intervention.report_is_failed ?? null,
-      });
-      return duplicableStatuses.includes(status.key);
+      const statusKey = (intervention.status_label || '')
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '_');
+      return duplicableStatuses.includes(statusKey);
     });
     
     if (duplicableInterventions.length === 0) {
@@ -754,6 +875,8 @@ export default function InterventiPage() {
             clearSelection={clearSelection}
             handleBulkCancel={handleBulkCancel}
             handleBulkDuplicate={handleBulkDuplicate}
+            handleBulkVerify={handleBulkVerify}
+            handleBulkUnverify={handleBulkUnverify}
             canInterventionBeCancelled={canInterventionBeCancelled}
         />
       )}

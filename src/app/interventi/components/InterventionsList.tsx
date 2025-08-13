@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Calendar, ExternalLink } from 'lucide-react';
+import { getStatusColor } from '../../../utils/intervention-status';
 
 interface Intervento {
   id: string;
@@ -44,6 +45,11 @@ export default function InterventionsList({
   loading,
   error
 }: InterventionsListProps) {
+  const toStatusKey = (label?: string) =>
+    (label || '')
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '_');
   // Filtra gli interventi in base alla zona selezionata
   const filteredInterventions = interventions.filter(intervento => 
     !selectedZone || intervento.zona === (zones.find(z => z.id.toString() === selectedZone)?.label || '')
@@ -116,8 +122,7 @@ export default function InterventionsList({
                   {/* Badge status */}
                   {intervento.statusLabel && (
                     <span 
-                      className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
-                      style={{ backgroundColor: intervento.statusColor || '#6B7280' }}
+                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${getStatusColor(toStatusKey(intervento.statusLabel))}`}
                     >
                       {intervento.statusLabel}
                     </span>

@@ -82,6 +82,7 @@ export default function InterventionDetailsSectionDetail({
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [showEquipmentDropdown, setShowEquipmentDropdown] = useState(false);
   const [isSearchingEquipments, setIsSearchingEquipments] = useState(false);
+  const [isEquipmentInputFocused, setIsEquipmentInputFocused] = useState(false);
 
   const [articleSearchQuery, setArticleSearchQuery] = useState('');
   const [articles, setArticles] = useState<ArticleListItem[]>([]);
@@ -91,9 +92,7 @@ export default function InterventionDetailsSectionDetail({
   const isEquipmentSearchEnabled = () => {
     if (isFieldsDisabled) return false;
     if (!selectedCustomerId) return false;
-    // RIMOSSO: if (isCreating && hasCustomerLocations && !destinazione) return false;
-    // In visualizzazione dettaglio, la destinazione resta obbligatoria
-    if (!isCreating && !destinazione) return false;
+    // Ricerca abilitata anche senza destinazione: filtriamo solo per customer_id
     return true;
   };
 
@@ -198,11 +197,12 @@ export default function InterventionDetailsSectionDetail({
   };
 
   useEffect(() => {
+    if (!isEquipmentInputFocused) return;
     const delayDebounceFn = setTimeout(() => {
       searchEquipments(equipmentSearchQuery);
     }, 300);
     return () => clearTimeout(delayDebounceFn);
-  }, [equipmentSearchQuery, selectedCustomerId, destinazione]);
+  }, [equipmentSearchQuery, isEquipmentInputFocused]);
 
   useEffect(() => {
     if (isCreating) {
@@ -323,13 +323,32 @@ export default function InterventionDetailsSectionDetail({
       </div>
 
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Apparecchiatura interessata</label>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-medium text-gray-700">Apparecchiatura interessata</label>
+          {selectedCustomerId && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${destinazione ? 'bg-teal-100 text-teal-800' : 'bg-gray-100 text-gray-800'}`}>
+              {destinazione ? 'Da: Destinazione' : 'Da: Cliente'}
+            </span>
+          )}
+        </div>
         <div className="relative equipment-search-container">
           <input
             type="text"
             value={equipmentSearchQuery}
             onChange={(e) => setEquipmentSearchQuery(e.target.value)}
-            onFocus={() => isEquipmentSearchEnabled() && searchEquipments(equipmentSearchQuery)}
+            onFocus={() => {
+              setIsEquipmentInputFocused(true);
+              if (isEquipmentSearchEnabled()) {
+                searchEquipments(equipmentSearchQuery);
+              }
+            }}
+            onBlur={() => {
+              // Manteniamo aperto il dropdown per permettere la selezione con onMouseDown
+              setTimeout(() => {
+                setIsEquipmentInputFocused(false);
+                setShowEquipmentDropdown(false);
+              }, 150);
+            }}
             placeholder={!isEquipmentSearchEnabled() ? "Seleziona cliente/destinazione" : "Cerca apparecchiatura..."}
             disabled={!isEquipmentSearchEnabled()}
             className="w-full px-3 py-2 pr-10 border rounded-lg disabled:bg-gray-50 text-gray-700"
@@ -339,9 +358,14 @@ export default function InterventionDetailsSectionDetail({
           {showEquipmentDropdown && equipments.length > 0 && (
             <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
               {equipments.map((eq) => (
-                <div key={eq.id} onClick={() => handleEquipmentSelect(eq)} className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700">
+                <div key={eq.id} onMouseDown={() => handleEquipmentSelect(eq)} className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700">
                   <div className="font-medium text-gray-700">{eq.description}</div>
-                  <div className="text-sm text-gray-500">{eq.brand_name} {eq.model} (S/N: {eq.serial_number})</div>
+                  <div className="text-sm text-gray-500">{eq.brand_name} {eq.model} (S/N: {eq.serial_number}) | ID: {eq.id}</div>
+                  <div className="text-xs text-gray-500">
+                    <span className="mr-2">{eq.subfamily_name}</span>
+                    <span className="mr-2">• Cliente: {eq.customer_name}</span>
+                    {eq.linked_serials && <span>• Linked: {eq.linked_serials}</span>}
+                  </div>
                 </div>
               ))}
             </div>
@@ -356,7 +380,7 @@ export default function InterventionDetailsSectionDetail({
               <div key={eq.id} className="flex items-center justify-between bg-gray-100 p-3 rounded-lg">
                 <div>
                   <div className="font-medium text-gray-700">{eq.description}</div>
-                  <div className="text-sm text-gray-500">{eq.brand_name} {eq.model}</div>
+                  <div className="text-sm text-gray-500">Modello: {eq.model} | S/N: {eq.serial_number} | ID: {eq.id}</div>
                 </div>
                 {!isFieldsDisabled && <button onClick={() => removeEquipment(eq.id)} className="text-red-500"><X size={16} /></button>}
               </div>

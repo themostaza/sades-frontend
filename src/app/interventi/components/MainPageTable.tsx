@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Search, MapPin, Filter, User, X, AlertCircle, Copy } from 'lucide-react';
+import { Search, MapPin, Filter, User, X, AlertCircle, Copy, FileText } from 'lucide-react';
 import { AssistanceIntervention } from '../../../types/assistance-interventions';
-import { calculateStatus, getStatusColor, statusOptions } from '../../../utils/intervention-status';
+import { getStatusColor, statusOptions, toStatusKey } from '../../../utils/intervention-status';
 import DateRangePicker from '../../../components/DateRangePicker';
 
 // --- Componente di Paginazione Riutilizzabile ---
@@ -107,6 +107,8 @@ interface MainPageTableProps {
   clearSelection: () => void;
   handleBulkCancel: () => void;
   handleBulkDuplicate: (cancelOriginals?: boolean, targetDate?: string) => void;
+  handleBulkVerify: () => void;
+  handleBulkUnverify: () => void;
   canInterventionBeCancelled: (intervention: AssistanceIntervention) => boolean;
 }
 
@@ -142,10 +144,15 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
   clearSelection,
   handleBulkCancel,
   handleBulkDuplicate,
+  handleBulkVerify,
+  handleBulkUnverify,
   canInterventionBeCancelled,
 }) => {
+  
   const [showBulkCancelConfirm, setShowBulkCancelConfirm] = useState(false);
   const [showBulkDuplicateConfirm, setShowBulkDuplicateConfirm] = useState(false);
+  const [showBulkVerifyConfirm, setShowBulkVerifyConfirm] = useState(false);
+  const [showBulkUnverifyConfirm, setShowBulkUnverifyConfirm] = useState(false);
   const [duplicateWithCancel, setDuplicateWithCancel] = useState(true);
   const [duplicateDate, setDuplicateDate] = useState(() => {
     // Default: domani
@@ -198,26 +205,24 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
 
   // Verifica se un intervento può essere duplicato (solo stati dinamici)
   const canInterventionBeDuplicated = (intervention: AssistanceIntervention): boolean => {
-    const status = calculateStatus({
-      invoiced_by: intervention.invoiced_by ?? null,
-      cancelled_by: intervention.cancelled_by ?? null,
-      assigned_to: intervention.assigned_to ?? null,
-      date: intervention.date ?? null,
-      time_slot: intervention.time_slot ?? null,
-      from_datetime: intervention.from_datetime ?? null,
-      to_datetime: intervention.to_datetime ?? null,
-      report_id: intervention.report_id ?? null,
-      approved_by: intervention.approved_by ?? null,
-      report_is_failed: intervention.report_is_failed ?? null,
-    });
-
-    return duplicableStatuses.includes(status.key);
+    const statusKey = toStatusKey(intervention.status_label);
+    return duplicableStatuses.includes(statusKey);
   };
 
   // Verifica se tutti gli interventi selezionati possono essere duplicati
   const canDuplicateAnySelected = selectedInterventions.length > 0 && 
     selectedInterventionsData.length > 0 &&
     selectedInterventionsData.every(intervention => canInterventionBeDuplicated(intervention));
+
+  // Verifica se tutti i selezionati sono non verificati (manual_check === false)
+  const canBulkVerify = selectedInterventions.length > 0 &&
+    selectedInterventionsData.length > 0 &&
+    selectedInterventionsData.every(intervention => intervention.manual_check === false);
+
+  // Verifica se tutti i selezionati sono verificati (manual_check === true)
+  const canBulkUnverify = selectedInterventions.length > 0 &&
+    selectedInterventionsData.length > 0 &&
+    selectedInterventionsData.every(intervention => intervention.manual_check === true);
 
   return (
     <>
@@ -416,6 +421,22 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                   </>
                 )}
               </button>
+              <button
+                onClick={() => setShowBulkVerifyConfirm(true)}
+                disabled={bulkActionLoading || !canBulkVerify}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                title={!canBulkVerify ? 'Seleziona solo interventi non verificati' : 'Segna come verificati'}
+              >
+                Verifica selezionati
+              </button>
+              <button
+                onClick={() => setShowBulkUnverifyConfirm(true)}
+                disabled={bulkActionLoading || !canBulkUnverify}
+                className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                title={!canBulkUnverify ? 'Seleziona solo interventi verificati' : 'Segna come non verificati'}
+              >
+                Rimuovi verifica
+              </button>
             </div>
           </div>
           
@@ -488,12 +509,15 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[130px]">
                   Status
                 </th>
+                <th className="px-3 sm:px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                  
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading && !initialLoading ? (
                 <tr>
-                  <td colSpan={isAdmin ? 8 : 7} className="px-6 py-8 text-center">
+                  <td colSpan={isAdmin ? 9 : 8} className="px-6 py-8 text-center">
                     <div className="flex flex-col items-center">
                       <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mb-2"></div>
                       <p className="text-sm text-gray-600">Aggiornamento in corso...</p>
@@ -502,7 +526,7 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 </tr>
               ) : interventionsData.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 8 : 7} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={isAdmin ? 9 : 8} className="px-6 py-8 text-center text-gray-500">
                     Nessun intervento trovato
                   </td>
                 </tr>
@@ -533,7 +557,7 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
                       {intervention.from_datetime && intervention.to_datetime ? (
-                        `${new Date(intervention.from_datetime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} -> ${new Date(intervention.to_datetime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`
+                        `${intervention.from_datetime.substring(11, 16)} -> ${intervention.to_datetime.substring(11, 16)}`
                       ) : (
                         intervention.time_slot || '-'
                       )}
@@ -548,35 +572,37 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                       <div className="break-words">{intervention.type_label}</div>
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
-                      <span
-                        className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(
-                          calculateStatus({
-                            invoiced_by: intervention.invoiced_by ?? null,
-                            cancelled_by: intervention.cancelled_by ?? null,
-                            assigned_to: intervention.assigned_to ?? null,
-                            date: intervention.date ?? null,
-                            time_slot: intervention.time_slot ?? null,
-                            from_datetime: intervention.from_datetime ?? null,
-                            to_datetime: intervention.to_datetime ?? null,
-                            report_id: intervention.report_id ?? null,
-                            approved_by: intervention.approved_by ?? null,
-                            report_is_failed: intervention.report_is_failed ?? null,
-                          }).key
-                        )}`}
-                      >
-                        {calculateStatus({
-                          invoiced_by: intervention.invoiced_by ?? null,
-                          cancelled_by: intervention.cancelled_by ?? null,
-                          assigned_to: intervention.assigned_to ?? null,
-                          date: intervention.date ?? null,
-                          time_slot: intervention.time_slot ?? null,
-                          from_datetime: intervention.from_datetime ?? null,
-                          to_datetime: intervention.to_datetime ?? null,
-                          report_id: intervention.report_id ?? null,
-                          approved_by: intervention.approved_by ?? null,
-                          report_is_failed: intervention.report_is_failed ?? null,
-                        }).label}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span
+                          className={`inline-flex w-fit px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(toStatusKey(intervention.status_label))}`}
+                        >
+                          {intervention.status_label}
+                        </span>
+                        {intervention.manual_check === false && (
+                          <span className="inline-flex w-fit px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                            non verificato!
+                          </span>
+                        )}
+                        {intervention.manual_check === true && (
+                          <span className="inline-flex w-fit px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                            Verificato.
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 sm:px-3 py-4 text-center">
+                      {intervention.report_id ? (
+                        <a
+                          href={`/interventi/rapportino/${intervention.report_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-teal-600 hover:text-teal-800 inline-flex items-center justify-center"
+                          title="Apri rapportino"
+                        >
+                          <FileText size={18} />
+                        </a>
+                      ) : null}
                     </td>
                   </tr>
                 ))
@@ -694,6 +720,80 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
               >
                 Conferma annullamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog di conferma per verifica massiva */}
+      {showBulkVerifyConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                <span className="w-6 h-6 text-green-600">✔</span>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Segna come verificati
+                </h3>
+              </div>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-gray-500">
+                Confermi di voler segnare {selectedInterventions.length} intervento{selectedInterventions.length !== 1 ? 'i' : ''} come verificat{selectedInterventions.length !== 1 ? 'i' : 'o'}?
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowBulkVerifyConfirm(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => { setShowBulkVerifyConfirm(false); handleBulkVerify(); }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Conferma
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog di conferma per rimozione verifica massiva */}
+      {showBulkUnverifyConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                <span className="w-6 h-6 text-yellow-700">↺</span>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Segna come non verificati
+                </h3>
+              </div>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-gray-500">
+                Confermi di voler segnare {selectedInterventions.length} intervento{selectedInterventions.length !== 1 ? 'i' : ''} come non verificat{selectedInterventions.length !== 1 ? 'i' : 'o'}?
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowBulkUnverifyConfirm(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => { setShowBulkUnverifyConfirm(false); handleBulkUnverify(); }}
+                className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+              >
+                Conferma
               </button>
             </div>
           </div>

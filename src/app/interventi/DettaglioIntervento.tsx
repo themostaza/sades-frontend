@@ -13,7 +13,7 @@ import { AssistanceInterventionDetail, UpdateAssistanceInterventionRequest } fro
 import { fetchAssistanceInterventionDetail, updateAssistanceIntervention, downloadAssistanceInterventionPDF, downloadPDFFile } from '../../utils/assistance-interventions-api';
 import CreaRapportino from './CreaRapportino';
 import CancelInterventionButton from './components/small_components/CancelInterventionButton';
-import { calculateStatus, getStatusId } from '../../utils/intervention-status';
+import { getStatusId, toStatusKey } from '../../utils/intervention-status';
 
 interface DettaglioInterventoProps {
   isOpen: boolean;
@@ -287,8 +287,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       }
       
       // Popola tutti i campi con i dati ricevuti
-      const statusInfo = calculateStatus(data);
-      setSelectedStatus(statusInfo.key);
+      setSelectedStatus(toStatusKey(data.status_label));
       setRagioneSociale(data.company_name);
       setTipologiaIntervento(data.type_id.toString());
       setZona(data.zone_id.toString());
@@ -347,10 +346,10 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
           model: eq.model,
           description: eq.description,
           serial_number: eq.serial_number,
-          linked_serials: null,
-          brand_name: '',
-          subfamily_name: '',
-          customer_name: ''
+          linked_serials: eq.linked_serials ?? null,
+          brand_name: eq.brand_name || '',
+          subfamily_name: eq.subfamily_name || '',
+          customer_name: eq.customer_name || ''
         }));
         setSelectedEquipments(equipments);
       }
@@ -428,21 +427,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     }
   }, [isOpen, interventionId]);
 
-  // useEffect per recalcolare lo status dinamicamente quando cambiano i valori correlati
-  useEffect(() => {
-    // Non calcolare durante il caricamento iniziale per evitare modifiche non necessarie
-    if (isInitialLoad || isLoading || !interventionData) {
-      return;
-    }
-
-    // Recalcola lo status basandosi sui valori attuali
-    const newStatus = calculateStatus(interventionData);
-    
-    // Aggiorna solo se lo status è davvero cambiato
-    if (newStatus.key !== selectedStatus) {
-      setSelectedStatus(newStatus.key);
-    }
-  }, [selectedStatus, isInitialLoad, isLoading, interventionData]);
+  // Allineamento: nessun ricalcolo client-side dello status; si usa quello del server
 
   // AutoSave con debounce su tutti i campi modificabili
   useEffect(() => {
@@ -597,7 +582,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         assigned_to: selectedTechnician?.id || '',
         call_code: codiceChiamata,
         internal_notes: noteInterne,
-                status_id: getStatusId(selectedStatus) ?? 1,
+        status_id: interventionData?.status_id ?? (getStatusId(selectedStatus) ?? 1),
         equipments: selectedEquipments.map(eq => eq.id),
         articles: selectedArticles.map(art => ({
           article_id: art.article.id,
@@ -614,10 +599,10 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         const updatedData = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
         setInterventionData(updatedData);
         
-        // Aggiorna lo status calcolato con i nuovi dati
-        const newStatusInfo = calculateStatus(updatedData);
-        if (newStatusInfo.key !== selectedStatus) {
-          setSelectedStatus(newStatusInfo.key);
+        // Aggiorna lo status usando la label del server
+        const newKey = toStatusKey(updatedData.status_label);
+        if (newKey !== selectedStatus) {
+          setSelectedStatus(newKey);
         }
         
       } catch (reloadError) {
@@ -761,7 +746,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   const shouldShowCancelButton = () => {
     // Il tasto per annullare deve esserci solo nel caso in cui siamo nello status "completato" o inferiori
     // Non può esserci in "Non completato" (7), "Fatturato" (9), "Collocamento" (10) e "Annullato" (8)
-    const statusId = getStatusId(selectedStatus);
+    const statusId = interventionData?.status_id ?? getStatusId(selectedStatus);
     return statusId !== null && statusId <= 6 && selectedStatus !== 'annullato';
   };
 
@@ -870,9 +855,8 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         const updatedData = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
         setInterventionData(updatedData);
         
-        // Aggiorna lo status calcolato con i nuovi dati
-        const newStatusInfo = calculateStatus(updatedData);
-        setSelectedStatus(newStatusInfo.key);
+        // Aggiorna lo status usando la label del server
+        setSelectedStatus(toStatusKey(updatedData.status_label));
         
       } catch (reloadError) {
         console.error('❌ Conferma rapporto: Error reloading data:', reloadError);
@@ -945,9 +929,8 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         const updatedData = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
         setInterventionData(updatedData);
         
-        // Aggiorna lo status calcolato con i nuovi dati
-        const newStatusInfo = calculateStatus(updatedData);
-        setSelectedStatus(newStatusInfo.key);
+        // Aggiorna lo status usando la label del server
+        setSelectedStatus(toStatusKey(updatedData.status_label));
         
       } catch (reloadError) {
         console.error('❌ Manda in fatturazione: Error reloading data:', reloadError);
@@ -1020,9 +1003,8 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         const updatedData = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
         setInterventionData(updatedData);
         
-        // Aggiorna lo status calcolato con i nuovi dati
-        const newStatusInfo = calculateStatus(updatedData);
-        setSelectedStatus(newStatusInfo.key);
+        // Aggiorna lo status usando la label del server
+        setSelectedStatus(toStatusKey(updatedData.status_label));
         
       } catch (reloadError) {
         console.error('❌ Annulla intervento: Error reloading data:', reloadError);
@@ -1175,8 +1157,10 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
             selectedCustomerId={selectedCustomerId}
             setSelectedCustomerId={setSelectedCustomerId}
             onCustomerLocationsLoaded={handleCustomerLocationsLoaded}
-            statusId={getStatusId(selectedStatus) ?? undefined}
+            statusId={interventionData?.status_id ?? undefined}
             disabled={isTechnician}
+            hasSelectedEquipments={selectedEquipments.length > 0}
+            onClearSelectedEquipments={() => setSelectedEquipments([])}
           />
 
           {/* Intervention Details Section */}
@@ -1206,7 +1190,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
             noteInterne={noteInterne}
             setNoteInterne={setNoteInterne}
             onCustomerLocationsLoaded={handleCustomerLocationsLoaded}
-            statusId={getStatusId(selectedStatus) ?? undefined}
+            statusId={interventionData?.status_id ?? undefined}
             disabled={isTechnician}
           />
 
@@ -1222,7 +1206,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
               codiceChiamata={codiceChiamata}
               setCodiceChiamata={setCodiceChiamata}
               dataCreazione={dataCreazione}
-              statusId={getStatusId(selectedStatus) ?? undefined}
+              statusId={interventionData?.status_id ?? undefined}
               disabled={isTechnician}
             />
           )}

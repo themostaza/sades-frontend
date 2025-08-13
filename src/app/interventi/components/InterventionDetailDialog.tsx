@@ -19,6 +19,7 @@ interface Intervento {
   from_datetime?: string;
   to_datetime?: string;
   calendar_notes?: string;
+  manual_check?: boolean;
 }
 
 interface User {
@@ -40,7 +41,7 @@ interface InterventionDetailDialogProps {
   isOpen: boolean;
   intervention: Intervento | null;
   onClose: () => void;
-  onInterventionUpdate?: () => void; // Callback per notificare il padre delle modifiche
+  onInterventionUpdate?: () => void;
 }
 
 // Funzione per convertire HEX in rgba con opacità
@@ -60,8 +61,51 @@ export default function InterventionDetailDialog({
   onClose,
   onInterventionUpdate
 }: InterventionDetailDialogProps) {
+  const initialWidth = () => {
+    if (typeof window === 'undefined') return 0;
+    const stored = window.localStorage.getItem('interventionDetailWidth');
+    if (stored) {
+      const val = parseInt(stored, 10);
+      if (!isNaN(val)) return val;
+    }
+    const fallback = Math.round(window.innerWidth * 0.4);
+    return Math.max(320, Math.min(fallback, Math.round(window.innerWidth * 0.85)));
+  };
+  const [panelWidth, setPanelWidth] = useState<number>(initialWidth);
+  const isResizingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
+
+  const onMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizingRef.current) return;
+    const delta = e.clientX - startXRef.current;
+    const newWidth = Math.max(320, Math.min(startWidthRef.current + delta, Math.round(window.innerWidth * 0.85)));
+    setPanelWidth(newWidth);
+  }, []);
+
+  const onMouseUp = useCallback(() => {
+    if (!isResizingRef.current) return;
+    isResizingRef.current = false;
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+    try {
+      window.localStorage.setItem('interventionDetailWidth', String(panelWidth));
+    } catch {}
+  }, [onMouseMove, panelWidth]);
+
+  const startResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isResizingRef.current = true;
+    startXRef.current = e.clientX;
+    startWidthRef.current = panelWidth;
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [onMouseMove, onMouseUp, panelWidth]);
   const [calendarNotes, setCalendarNotes] = useState<string>('');
   const [savingCalendarNotes, setSavingCalendarNotes] = useState(false);
+  const [manualCheck, setManualCheck] = useState<boolean | null>(null);
+  const [savingManualCheck, setSavingManualCheck] = useState(false);
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   const interventionDataDebounceTimeout = useRef<NodeJS.Timeout | null>(null);
   
@@ -115,6 +159,7 @@ export default function InterventionDetailDialog({
           if (response.ok) {
             const data = await response.json();
             setCalendarNotes(data.calendar_notes || '');
+            setManualCheck(typeof data.manual_check === 'boolean' ? data.manual_check : null);
             
             // Carica i dati aggiuntivi dell'intervento
             setInternalNotes(data.internal_notes || '');
@@ -162,12 +207,14 @@ export default function InterventionDetailDialog({
             });
           } else {
             setCalendarNotes('');
+            setManualCheck(null);
             setInternalNotes('');
             setConnectedEquipment([]);
             setConnectedArticles([]);
           }
         } catch {
           setCalendarNotes('');
+          setManualCheck(null);
           setInternalNotes('');
           setConnectedEquipment([]);
           setConnectedArticles([]);
@@ -177,6 +224,7 @@ export default function InterventionDetailDialog({
     } else if (!isOpen) {
       // Reset quando si chiude
       setCalendarNotes('');
+      setManualCheck(null);
       setInternalNotes('');
       setConnectedEquipment([]);
       setConnectedArticles([]);
@@ -349,6 +397,7 @@ export default function InterventionDetailDialog({
             quantity: typeof art.quantity === 'number' ? art.quantity : 1
           })) || [],
           calendar_notes: value,
+          manual_check: typeof currentData.manual_check === 'boolean' ? currentData.manual_check : undefined,
         };
         
         await fetch(`/api/assistance-interventions/${intervention.id}`, {
@@ -442,6 +491,7 @@ export default function InterventionDetailDialog({
           quantity: typeof art.quantity === 'number' ? art.quantity : 1
         })) || [],
         calendar_notes: calendarNotes,
+        manual_check: typeof currentData.manual_check === 'boolean' ? currentData.manual_check : undefined,
       };
       
       const response = await fetch(`/api/assistance-interventions/${intervention.id}`, {
@@ -514,6 +564,64 @@ export default function InterventionDetailDialog({
     }
   };
 
+  // Toggle manual_check con salvataggio immediato
+  const handleManualCheckToggle = async (checked: boolean) => {
+    if (!intervention) return;
+    setManualCheck(checked);
+    try {
+      setSavingManualCheck(true);
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (auth.token) {
+        headers['Authorization'] = `Bearer ${auth.token}`;
+      }
+      // Recupera i dati attuali per non sovrascrivere altri campi
+      const getResponse = await fetch(`/api/assistance-interventions/${intervention.id}`, { headers });
+      if (!getResponse.ok) return;
+      const currentData = await getResponse.json();
+      const updatePayload = {
+        customer_id: currentData.customer_id,
+        type_id: currentData.type_id,
+        zone_id: currentData.zone_id,
+        customer_location_id: currentData.customer_location_id,
+        flg_home_service: currentData.flg_home_service,
+        flg_discount_home_service: currentData.flg_discount_home_service,
+        date: currentData.date,
+        time_slot: currentData.time_slot,
+        from_datetime: currentData.from_datetime,
+        to_datetime: currentData.to_datetime,
+        quotation_price: parseFloat(currentData.quotation_price) || 0,
+        opening_hours: currentData.opening_hours || '',
+        assigned_to: currentData.assigned_to,
+        call_code: currentData.call_code,
+        internal_notes: currentData.internal_notes || '',
+        status_id: currentData.status_id,
+        approved_by: currentData.approved_by,
+        approved_at: currentData.approved_at,
+        cancelled_by: currentData.cancelled_by,
+        cancelled_at: currentData.cancelled_at,
+        invoiced_by: currentData.invoiced_by,
+        invoiced_at: currentData.invoiced_at,
+        equipments: (currentData.connected_equipment as ConnectedEquipment[] | undefined)?.map((eq) => eq.id) || [],
+        articles: (currentData.connected_articles as ConnectedArticle[] | undefined)?.map((art) => ({
+          article_id: art.id,
+          quantity: typeof art.quantity === 'number' ? art.quantity : 1
+        })) || [],
+        calendar_notes: currentData.calendar_notes || '',
+        manual_check: checked,
+      };
+      await fetch(`/api/assistance-interventions/${intervention.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(updatePayload),
+      });
+      if (onInterventionUpdate) onInterventionUpdate();
+    } finally {
+      setSavingManualCheck(false);
+    }
+  };
+
   // Effetto per autosalvataggio quando cambiano i dati dell'intervento
   useEffect(() => {
     if (!intervention) return;
@@ -554,7 +662,12 @@ export default function InterventionDetailDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex bg-black bg-opacity-40">
-      <div className="bg-white shadow-2xl w-full max-w-[40vw] h-full p-0 relative flex flex-col overflow-hidden transform transition-transform duration-300 ease-in-out">
+      <div className="bg-white shadow-2xl h-full p-0 relative flex flex-col overflow-hidden transform transition-transform duration-300 ease-in-out" style={{ width: panelWidth }}>
+        <div
+          className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize z-20 hover:bg-teal-200"
+          onMouseDown={startResize}
+          title="Trascina per ridimensionare"
+        />
         {/* Sidebar content */}
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
@@ -802,6 +915,26 @@ export default function InterventionDetailDialog({
               >
                 {intervention.statusLabel || intervention.status}
               </span>
+            </div>
+            <div>
+              <span className="block text-xs text-gray-500 font-semibold uppercase mb-1">Completamento manuale</span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleManualCheckToggle(!(manualCheck === true))}
+                  className={`${manualCheck ? 'bg-green-500' : 'bg-gray-300'} relative inline-flex h-6 w-11 items-center rounded-full transition-colors`}
+                  title="Segna come completato/non completato"
+                >
+                  <span className={`inline-block h-5 w-5 transform bg-white rounded-full transition-transform ${manualCheck ? 'translate-x-5' : 'translate-x-1'}`}></span>
+                </button>
+                {savingManualCheck && <span className="text-xs text-gray-400">salvataggio…</span>}
+                {manualCheck === true && (
+                  <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Verificato.</span>
+                )}
+                {manualCheck === false && (
+                  <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">non verificato!</span>
+                )}
+              </div>
             </div>
             {intervention.callCode && (
               <div>

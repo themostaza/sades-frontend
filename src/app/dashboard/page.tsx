@@ -4,7 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { InfoIcon, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
-import { AssistanceIntervention, AssistanceInterventionsApiResponse } from '../../types/assistance-interventions';
+import { AssistanceIntervention } from '../../types/assistance-interventions';
+import { fetchAssistanceInterventions } from '../../utils/assistance-interventions-api';
+import { toStatusKey } from '../../utils/intervention-status';
 
 // Interface for absences
 interface Absence {
@@ -51,27 +53,16 @@ export default function DashboardPage() {
   // Fetch interventions data
   const fetchInterventions = React.useCallback(async () => {
     try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (auth.token) {
-        headers['Authorization'] = `Bearer ${auth.token}`;
-      }
-      // Fetch a larger dataset to get all interventions for filtering
-      const response = await fetch('/api/assistance-interventions?skip=100', {
-        headers,
-      });
-      if (!response.ok) {
-        if (response.status === 401) {
-          auth.logout();
-          return;
-        }
-        throw new Error('Failed to fetch interventions');
-      }
-      const data: AssistanceInterventionsApiResponse = await response.json();
+      // Usa l'helper centralizzato e una pagina ampia per la dashboard
+      const data = await fetchAssistanceInterventions({ page: 1, skip: 1000 }, auth.token || undefined);
       setInterventions(data.data || []);
     } catch (err) {
       console.error('Error fetching interventions:', err);
+      // Gestione logout su 401
+      if (err instanceof Error && err.message.includes('401')) {
+        auth.logout();
+        return;
+      }
       throw err;
     }
   }, [auth]);
@@ -178,9 +169,7 @@ export default function DashboardPage() {
   // Calculate status counts for all intervention states
   const getStatusCounts = () => {
     const statusCounts = interventions.reduce((acc, intervention) => {
-      const statusLabel = intervention.status_label.toLowerCase();
-      // Convert status_label to our internal key format (with underscores)
-      const statusKey = statusLabel.replace(/\s+/g, '_');
+      const statusKey = toStatusKey(intervention.status_label);
       acc[statusKey] = (acc[statusKey] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);

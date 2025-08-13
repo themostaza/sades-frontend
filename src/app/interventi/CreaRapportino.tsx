@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { ArrowLeft, Clock, X, Plus, Eye, Download, Trash2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Clock, X, Plus, Eye, Download, Trash2, AlertTriangle, Search } from 'lucide-react';
 import Image from 'next/image';
 import { AssistanceInterventionDetail, ConnectedArticle, ConnectedEquipment } from '../../types/assistance-interventions';
 import { FileUploaderRegular } from "@uploadcare/react-uploader/next";
@@ -128,15 +128,16 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
   // Stato per il dialog di conferma uscita
   const [showExitConfirmDialog, setShowExitConfirmDialog] = useState(false);
   
-  // Stati per ricerca live apparecchiature per ogni item
+  // Stati per ricerca apparecchiature per ogni item e dialog selezione
   const [equipmentSearchQueries, setEquipmentSearchQueries] = useState<{ [itemId: string]: string }>({});
   const [equipmentsResults, setEquipmentsResults] = useState<{ [itemId: string]: ConnectedEquipment[] }>({});
-  const [showEquipmentDropdowns, setShowEquipmentDropdowns] = useState<{ [itemId: string]: boolean }>({});
   const [isSearchingEquipments, setIsSearchingEquipments] = useState<{ [itemId: string]: boolean }>({});
-
-  // --- [INIZIO: Refs per gestione click esterno dropdown ricerca apparecchiatura] ---
-  const equipmentRefs = useRef<{ [itemId: string]: HTMLDivElement | null }>({});
-  // --- [FINE: Refs per gestione click esterno dropdown ricerca apparecchiatura] ---
+  const [showEquipmentSelectorDialogs, setShowEquipmentSelectorDialogs] = useState<{ [itemId: string]: boolean }>({});
+  // Stati per selezione ricambi per ogni item
+  const [articleSearchQueries, setArticleSearchQueries] = useState<{ [itemId: string]: string }>({});
+  const [articleResults, setArticleResults] = useState<{ [itemId: string]: ConnectedArticle[] }>({});
+  const [isSearchingArticles, setIsSearchingArticles] = useState<{ [itemId: string]: boolean }>({});
+  const [showArticleSelectorDialogs, setShowArticleSelectorDialogs] = useState<{ [itemId: string]: boolean }>({});
 
   // Carica i tipi di gas e compressori quando il componente si monta
   useEffect(() => {
@@ -146,22 +147,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
     }
   }, [isOpen, token]);
 
-  // --- [INIZIO: useEffect per chiusura dropdown su click esterno] ---
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      Object.keys(equipmentRefs.current).forEach(itemId => {
-        const ref = equipmentRefs.current[itemId];
-        if (ref && !ref.contains(event.target as Node)) {
-          setShowEquipmentDropdowns(prev => ({ ...prev, [itemId]: false }));
-        }
-      });
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [equipmentItems]);
-  // --- [FINE: useEffect per chiusura dropdown su click esterno] ---
+  // La selezione apparecchiatura avviene in un dialog dedicato
 
   // Funzione per caricare i tipi di gas e compressori
   const loadGasAndCompressorTypes = async () => {
@@ -489,12 +475,14 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
   const searchEquipments = async (itemId: string, query: string = '') => {
     if (!interventionData?.customer_id) {
       setEquipmentsResults(prev => ({ ...prev, [itemId]: [] }));
-      setShowEquipmentDropdowns(prev => ({ ...prev, [itemId]: false }));
       return;
     }
     try {
       setIsSearchingEquipments(prev => ({ ...prev, [itemId]: true }));
       let apiUrl = `/api/equipments?customer_id=${interventionData.customer_id}`;
+      if (interventionData.customer_location_id) {
+        apiUrl += `&customer_location_id=${encodeURIComponent(interventionData.customer_location_id)}`;
+      }
       if (query.trim()) {
         apiUrl += `&query=${encodeURIComponent(query)}`;
       }
@@ -507,17 +495,50 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
         const alreadySelectedIds = equipmentItems.map(item => item.selectedEquipment?.id).filter(Boolean);
         const filtered = (data.data || []).filter((eq: ConnectedEquipment) => !alreadySelectedIds.includes(eq.id));
         setEquipmentsResults(prev => ({ ...prev, [itemId]: filtered }));
-        setShowEquipmentDropdowns(prev => ({ ...prev, [itemId]: true }));
       } else {
         setEquipmentsResults(prev => ({ ...prev, [itemId]: [] }));
-        setShowEquipmentDropdowns(prev => ({ ...prev, [itemId]: false }));
       }
     } catch {
       setEquipmentsResults(prev => ({ ...prev, [itemId]: [] }));
-      setShowEquipmentDropdowns(prev => ({ ...prev, [itemId]: false }));
     } finally {
       setIsSearchingEquipments(prev => ({ ...prev, [itemId]: false }));
     }
+  };
+
+  // Ricerca ricambi come in InterventionDetailsSectionDetail
+  const searchArticles = async (itemId: string, query: string = '') => {
+    try {
+      setIsSearchingArticles(prev => ({ ...prev, [itemId]: true }));
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const response = await fetch(`/api/articles?query=${encodeURIComponent(query)}`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        const currentItem = equipmentItems.find(ei => ei.id === itemId);
+        const excludeIds = (currentItem?.selectedArticles || []).map(a => a.article.id);
+        const mapped: ConnectedArticle[] = (data.data || [])
+          .filter((art: ConnectedArticle) => !excludeIds.includes(art.id))
+          .map((art: ConnectedArticle) => ({
+            id: art.id,
+            pnc_code: art.pnc_code ?? null,
+            short_description: art.short_description ?? '',
+            description: art.description ?? '',
+            quantity: 0,
+          }));
+        setArticleResults(prev => ({ ...prev, [itemId]: mapped }));
+      } else {
+        setArticleResults(prev => ({ ...prev, [itemId]: [] }));
+      }
+    } catch {
+      setArticleResults(prev => ({ ...prev, [itemId]: [] }));
+    } finally {
+      setIsSearchingArticles(prev => ({ ...prev, [itemId]: false }));
+    }
+  };
+
+  const getPlannedArticleQty = (articleId: string): number => {
+    const planned = interventionData.connected_articles?.find(a => a.id === articleId);
+    return planned?.quantity ?? 0;
   };
 
   // Funzione per gestire il submit
@@ -543,24 +564,9 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
         failure_reason: interventoNonRiuscito ? motivoNonRiuscito : null,
         status: "DRAFT" as const, // Inizialmente sempre DRAFT
         items: validItems.map(item => ({
-          intervention_equipment_id: item.selectedEquipment?.id || 0,
+          equipment_id: item.selectedEquipment?.id ?? null,
           note: item.notes,
           fl_gas: item.hasGas,
-          gas_compressor_types_id: item.hasGas ? (getGasCompressorTypeId(item.tipologiaCompressore) || null) : null,
-          is_new_installation: item.nuovaInstallazione === 'Sì',
-          rechargeable_gas_types_id: item.hasGas ? (getRechargeableGasTypeId(item.tipologiaGasCaricato) || null) : null,
-          qty_gas_recharged: parseInt(item.quantitaGasCaricato) || 0,
-          max_charge: parseInt(item.caricaMax) || 0,
-          compressor_model: item.modelloCompressore || null,
-          compressor_model_img_url: null, // TODO: implementare upload immagini
-          compressor_serial_num: item.matricolaCompressore || null,
-          compressor_serial_num_img_url: null, // TODO: implementare upload immagini
-          compressor_unique_num: item.numeroUnivoco || null,
-          compressor_unique_num_img_url: null, // TODO: implementare upload immagini
-          additional_services: item.serviziAggiuntivi.length > 0 ? item.serviziAggiuntivi.join(', ') : null,
-          // Se è selezionato 'Ricerca perdite', NON inviare i campi recupero gas
-          recovered_rech_gas_types_id: item.hasGas && !item.serviziAggiuntivi.includes('Ricerca perdite') ? (getRechargeableGasTypeId(item.tipologiaGasRecuperato) || null) : null,
-          qty_gas_recovered: item.hasGas && !item.serviziAggiuntivi.includes('Ricerca perdite') ? (parseInt(item.quantitaGasRecuperato) || 0) : null,
           images: item.images.map(file => ({
             file_name: file.name,
             file_url: file.url
@@ -568,7 +574,31 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
           articles: item.selectedArticles.map(article => ({
             article_id: article.article.id,
             quantity: article.quantity
-          }))
+          })),
+          // Campi gestione gas: invia SOLO se toggle attivo
+          ...(item.hasGas
+            ? {
+                gas_compressor_types_id: getGasCompressorTypeId(item.tipologiaCompressore) || null,
+                is_new_installation: item.nuovaInstallazione === 'Sì',
+                rechargeable_gas_types_id: getRechargeableGasTypeId(item.tipologiaGasCaricato) || null,
+                qty_gas_recharged: parseInt(item.quantitaGasCaricato) || 0,
+                max_charge: parseInt(item.caricaMax) || 0,
+                compressor_model: item.modelloCompressore || null,
+                compressor_model_img_url: null, // TODO: implementare upload immagini
+                compressor_serial_num: item.matricolaCompressore || null,
+                compressor_serial_num_img_url: null, // TODO: implementare upload immagini
+                compressor_unique_num: item.numeroUnivoco || null,
+                compressor_unique_num_img_url: null, // TODO: implementare upload immagini
+                additional_services: item.serviziAggiuntivi.length > 0 ? item.serviziAggiuntivi.join(', ') : null,
+                // Campi recupero gas: invia SOLO se i campi sono visibili
+                ...(shouldShowRecuperoGasFields(item)
+                  ? {
+                      recovered_rech_gas_types_id: getRechargeableGasTypeId(item.tipologiaGasRecuperato) || null,
+                      qty_gas_recovered: parseInt(item.quantitaGasRecuperato) || 0,
+                    }
+                  : {})
+              }
+            : {})
         }))
       };
 
@@ -738,7 +768,9 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                 <input
                   type="number"
                   value={oreLavoro}
-                  onChange={(e) => setOreLavoro(parseInt(e.target.value) || 0)}
+                  onChange={(e) => setOreLavoro(parseFloat(e.target.value) || 0)}
+                  onFocus={(e) => e.target.select()}
+                  inputMode="decimal"
                   min="0"
                   step="0.5"
                   className={`w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700`}
@@ -755,7 +787,9 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                 <input
                   type="number"
                   value={oreViaggio}
-                  onChange={(e) => setOreViaggio(parseInt(e.target.value) || 0)}
+                  onChange={(e) => setOreViaggio(parseFloat(e.target.value) || 0)}
+                  onFocus={(e) => e.target.select()}
+                  inputMode="decimal"
                   min="0"
                   step="0.5"
                   className={`w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700`}
@@ -788,8 +822,8 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
           
           {equipmentItems.map((item, index) => (
             <div key={item.id} className="border border-gray-200 rounded-lg p-4 mb-4 last:mb-0">
-              {/* Apparecchiatura interessata - ricerca live */}
-              <div className="mb-4" ref={el => { equipmentRefs.current[item.id] = el; }}>
+              {/* Apparecchiatura interessata - selezione via dialog */}
+              <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Apparecchiatura interessata
                 </label>
@@ -797,50 +831,139 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                   <input
                     type="text"
                     value={equipmentSearchQueries[item.id] || ''}
-                    onChange={e => {
-                      const value = e.target.value;
-                      setEquipmentSearchQueries(prev => ({ ...prev, [item.id]: value }));
-                      searchEquipments(item.id, value);
+                    onChange={() => {}}
+                    onClick={() => {
+                      setShowEquipmentSelectorDialogs(prev => ({ ...prev, [item.id]: true }));
+                      // Popola i risultati iniziali
+                      searchEquipments(item.id, equipmentSearchQueries[item.id] || '');
                     }}
-                    onFocus={() => searchEquipments(item.id, equipmentSearchQueries[item.id] || '')}
                     placeholder="Cerca apparecchiatura..."
-                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
+                    readOnly
+                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700 cursor-pointer"
                   />
-                  <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" strokeWidth="2" d="M21 21l-4.35-4.35m2.1-5.4A7.35 7.35 0 1110.35 3a7.35 7.35 0 018.4 8.4z"/></svg>
-                  </span>
-                  {isSearchingEquipments[item.id] && <div className="absolute right-10 top-1/2 transform -translate-y-1/2 w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>}
-                  {showEquipmentDropdowns[item.id] && (equipmentsResults[item.id]?.length || 0) > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                      {equipmentsResults[item.id].map(eq => (
-                        <div
-                          key={eq.id}
-                          onClick={() => {
-                            updateEquipmentItem(item.id, 'selectedEquipment', eq);
-                            setEquipmentSearchQueries(prev => ({ ...prev, [item.id]: '' }));
-                            setShowEquipmentDropdowns(prev => ({ ...prev, [item.id]: false }));
-                          }}
-                          className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700"
-                        >
-                          <div className="font-medium text-gray-700">{eq.model} - {eq.description}</div>
-                          <div className="text-sm text-gray-500">S/N: {eq.serial_number}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
                 </div>
+
+                {/* Dialog selezione apparecchiatura */}
+                {showEquipmentSelectorDialogs[item.id] && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-4 md:p-6 max-w-3xl md:max-w-4xl w-full mx-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900">Seleziona apparecchiatura</h3>
+                        <button
+                          onClick={() => setShowEquipmentSelectorDialogs(prev => ({ ...prev, [item.id]: false }))}
+                          className="text-gray-500 hover:text-gray-700"
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+
+                      {/* Apparecchiature già associate all'intervento */}
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-gray-700">Apparecchiature già associate</label>
+                        </div>
+                        <div className="border rounded-lg max-h-56 overflow-y-auto">
+                          {(interventionData.connected_equipment || []).length === 0 ? (
+                            <div className="px-4 py-3 text-sm text-gray-500">Nessuna apparecchiatura associata</div>
+                          ) : (
+                            (interventionData.connected_equipment || []).map((eq) => {
+                              const alreadySelectedIds = equipmentItems
+                                .filter(ei => ei.id !== item.id)
+                                .map(ei => ei.selectedEquipment?.id)
+                                .filter(Boolean) as number[];
+                              const isDisabled = alreadySelectedIds.includes(eq.id);
+                              return (
+                                <div
+                                  key={eq.id}
+                                  onClick={() => {
+                                    if (isDisabled) return;
+                                    updateEquipmentItem(item.id, 'selectedEquipment', eq);
+                                    setEquipmentSearchQueries(prev => ({ ...prev, [item.id]: '' }));
+                                    setShowEquipmentSelectorDialogs(prev => ({ ...prev, [item.id]: false }));
+                                  }}
+                                  className={`px-4 py-3 ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'} text-gray-700`}
+                                >
+                                  <div className="font-medium text-gray-700">{eq.description}</div>
+                                  <div className="text-sm text-gray-500">{eq.brand_name || ''} {eq.model} (S/N: {eq.serial_number}) | ID: {eq.id}</div>
+                                  <div className="text-xs text-gray-500">
+                                    {eq.subfamily_name && <span className="mr-2">{eq.subfamily_name}</span>}
+                                    {eq.customer_name && <span className="mr-2">• Cliente: {eq.customer_name}</span>}
+                                    {eq.linked_serials && <span>• Linked: {eq.linked_serials}</span>}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Ricerca apparecchiature */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-gray-700">Cerca altre apparecchiature</label>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${interventionData.customer_location_id ? 'bg-teal-100 text-teal-800' : 'bg-gray-100 text-gray-800'}`}>
+                            {interventionData.customer_location_id ? 'Da: Destinazione' : 'Da: Cliente'}
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={equipmentSearchQueries[item.id] || ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setEquipmentSearchQueries(prev => ({ ...prev, [item.id]: value }));
+                              searchEquipments(item.id, value);
+                            }}
+                            onFocus={() => searchEquipments(item.id, equipmentSearchQueries[item.id] || '')}
+                            placeholder="Cerca apparecchiatura..."
+                            className="w-full px-3 py-2 pr-10 border rounded-lg text-gray-700"
+                          />
+                          <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                          {isSearchingEquipments[item.id] && (
+                            <div className="absolute right-10 top-1/2 transform -translate-y-1/2 w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+                          )}
+                        </div>
+                        {(equipmentsResults[item.id]?.length || 0) > 0 && (
+                          <div className="mt-2 border rounded-lg max-h-60 overflow-y-auto">
+                            {equipmentsResults[item.id].map(eq => (
+                              <div
+                                key={eq.id}
+                                onClick={() => {
+                                  updateEquipmentItem(item.id, 'selectedEquipment', eq);
+                                  setEquipmentSearchQueries(prev => ({ ...prev, [item.id]: '' }));
+                                  setShowEquipmentSelectorDialogs(prev => ({ ...prev, [item.id]: false }));
+                                }}
+                                className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700"
+                              >
+                                <div className="font-medium text-gray-700">{eq.description}</div>
+                                <div className="text-sm text-gray-500">{eq.brand_name || ''} {eq.model} (S/N: {eq.serial_number}) | ID: {eq.id}</div>
+                                <div className="text-xs text-gray-500">
+                                  {eq.subfamily_name && <span className="mr-2">{eq.subfamily_name}</span>}
+                                  {eq.customer_name && <span className="mr-2">• Cliente: {eq.customer_name}</span>}
+                                  {eq.linked_serials && <span>• Linked: {eq.linked_serials}</span>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {item.selectedEquipment && (
-                  <div className="mt-2 p-2 bg-teal-50 border border-teal-200 rounded flex items-center justify-between">
+                  <div className="mt-2 flex items-center justify-between bg-gray-100 p-3 rounded-lg">
                     <div>
-                      <span className="font-medium text-gray-700">{item.selectedEquipment.model} - {item.selectedEquipment.description}</span>
-                      <span className="ml-2 text-sm text-gray-500">S/N: {item.selectedEquipment.serial_number}</span>
+                      <div className="font-medium text-gray-700">{item.selectedEquipment.description}</div>
+                      <div className="text-sm text-gray-500">Modello: {item.selectedEquipment.model} | S/N: {item.selectedEquipment.serial_number} | ID: {item.selectedEquipment.id}</div>
                     </div>
                     <button
                       onClick={() => {
                         updateEquipmentItem(item.id, 'selectedEquipment', null);
                         setEquipmentSearchQueries(prev => ({ ...prev, [item.id]: '' }));
                       }}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors ml-2"
+                      className="text-red-500"
                       title="Rimuovi apparecchiatura"
                     >
                       <X size={16} />
@@ -849,71 +972,155 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                 )}
               </div>
 
-              {/* Pezzi di ricambio a larghezza piena */}
+              {/* Pezzi di ricambio - selezione via dialog */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Pezzi di ricambio usati
                 </label>
-                <select
-                  value=""
-                  onChange={(e) => {
-                    if (e.target.value === "") return;
-                    
-                    const selectedArticle = interventionData.connected_articles?.find(art => art.id === e.target.value);
-                    if (selectedArticle) {
-                      const newSelectedArticles = [...item.selectedArticles, { article: selectedArticle, quantity: 1 }];
-                      updateEquipmentItem(item.id, 'selectedArticles', newSelectedArticles);
-                    }
-                    
-                    e.target.value = "";
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-500"
-                >
-                  <option value="">Aggiungi un ricambio</option>
-                  {interventionData.connected_articles && interventionData.connected_articles.length > 0 ? (
-                    interventionData.connected_articles
-                      .filter(article => !item.selectedArticles.some(selected => selected.article.id === article.id))
-                      .map((article) => (
-                        <option key={article.id} value={article.id}>
-                          {article.short_description} - {article.description}
-                        </option>
-                      ))
-                  ) : (
-                    <option value="" disabled>Nessun ricambio disponibile</option>
-                  )}
-                </select>
-                
-                {/* Lista ricambi selezionati con quantità integrate */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={articleSearchQueries[item.id] || ''}
+                    onChange={() => {}}
+                    onClick={() => {
+                      setShowArticleSelectorDialogs(prev => ({ ...prev, [item.id]: true }));
+                      searchArticles(item.id, articleSearchQueries[item.id] || '');
+                    }}
+                    placeholder="Cerca o scegli tra i ricambi preventivati..."
+                    readOnly
+                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700 cursor-pointer"
+                  />
+                  <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                </div>
+
+                {/* Dialog selezione ricambi */}
+                {showArticleSelectorDialogs[item.id] && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-4 md:p-6 max-w-3xl md:max-w-4xl w-full mx-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900">Seleziona pezzi di ricambio</h3>
+                        <button
+                          onClick={() => setShowArticleSelectorDialogs(prev => ({ ...prev, [item.id]: false }))}
+                          className="text-gray-500 hover:text-gray-700"
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+
+                      {/* Ricambi già associati all'intervento */}
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-gray-700">Ricambi preventivati</label>
+                          <span className="text-xs text-gray-500">Quantità indicate nella pianificazione</span>
+                        </div>
+                        <div className="border rounded-lg max-h-56 overflow-y-auto">
+                          {(interventionData.connected_articles || []).length === 0 ? (
+                            <div className="px-4 py-3 text-sm text-gray-500">Nessun ricambio preventivato</div>
+                          ) : (
+                            (interventionData.connected_articles || [])
+                              .filter(article => !item.selectedArticles.some(sel => sel.article.id === article.id))
+                              .map((article) => (
+                                <div
+                                  key={article.id}
+                                  onClick={() => {
+                                    const newSelectedArticles = [...item.selectedArticles, { article, quantity: 1 }];
+                                    updateEquipmentItem(item.id, 'selectedArticles', newSelectedArticles);
+                                    setShowArticleSelectorDialogs(prev => ({ ...prev, [item.id]: false }));
+                                  }}
+                                  className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700"
+                                >
+                                  <div className="font-medium text-gray-700">{article.short_description}</div>
+                                  <div className="text-sm text-gray-500">PNC: {article.pnc_code} | Prev: {article.quantity} | <span className="text-gray-600 ml-1">ID: {article.id}</span></div>
+                                </div>
+                              ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Ricerca ricambi */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Cerca altri ricambi</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={articleSearchQueries[item.id] || ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setArticleSearchQueries(prev => ({ ...prev, [item.id]: value }));
+                              searchArticles(item.id, value);
+                            }}
+                            placeholder="Cerca ricambi..."
+                            className="w-full px-3 py-2 pr-10 border rounded-lg text-gray-700"
+                          />
+                          <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                          {isSearchingArticles[item.id] && (
+                            <div className="absolute right-10 top-1/2 transform -translate-y-1/2 w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+                          )}
+                        </div>
+                        {(articleResults[item.id]?.length || 0) > 0 && (
+                          <div className="mt-2 border rounded-lg max-h-60 overflow-y-auto">
+                            {articleResults[item.id].map(art => (
+                              <div
+                                key={art.id}
+                                onClick={() => {
+                                  const newSelectedArticles = [...item.selectedArticles, { article: art, quantity: 1 }];
+                                  updateEquipmentItem(item.id, 'selectedArticles', newSelectedArticles);
+                                  setArticleSearchQueries(prev => ({ ...prev, [item.id]: '' }));
+                                  setShowArticleSelectorDialogs(prev => ({ ...prev, [item.id]: false }));
+                                }}
+                                className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700"
+                              >
+                                <div className="font-medium text-gray-700">{art.short_description}</div>
+                                <div className="text-sm text-gray-500">PNC: {art.pnc_code} | <span className="text-gray-600 ml-1">ID: {art.id}</span></div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Lista ricambi selezionati con quantità e info preventivo */}
                 {item.selectedArticles.length > 0 && (
                   <div className="mt-3 space-y-2">
                     <div className="text-sm font-medium text-gray-700">Ricambi selezionati:</div>
-                    {item.selectedArticles.map((selectedArticle) => (
-                      <div key={selectedArticle.article.id} className="flex items-center justify-between bg-teal-50 border border-teal-200 p-3 rounded-lg">
-                        <div className="flex-1">
-                          <span className="text-gray-900 font-medium">{selectedArticle.article.short_description}</span>
-                          <div className="text-sm text-gray-600">{selectedArticle.article.description}</div>
-                        </div>
-                        <div className="flex items-center gap-3 ml-3">
-                          <div className="flex items-center gap-2">
-                            <label className="text-sm text-gray-600">Qt:</label>
-                            <input
-                              type="number"
-                              value={selectedArticle.quantity}
-                              onChange={(e) => updateArticleQuantity(item.id, selectedArticle.article.id, parseInt(e.target.value) || 1)}
-                              min="1"
-                              className="w-16 px-2 py-1 border border-gray-300 rounded text-gray-700 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                            />
+                    {item.selectedArticles.map((selectedArticle) => {
+                      const planned = getPlannedArticleQty(selectedArticle.article.id);
+                      const currentTotal = equipmentItems.reduce((sum, it) => sum + (it.selectedArticles.find(sa => sa.article.id === selectedArticle.article.id)?.quantity || 0), 0);
+                      const diff = Math.max(0, currentTotal - planned);
+                      return (
+                        <div key={selectedArticle.article.id} className="flex items-center justify-between bg-teal-50 border border-teal-200 p-3 rounded-lg">
+                          <div className="flex-1">
+                            <span className="text-gray-900 font-medium">{selectedArticle.article.short_description}</span>
+                            <div className="text-sm text-gray-600">{selectedArticle.article.description}</div>
                           </div>
-                          <button
-                            onClick={() => removeArticleFromItem(item.id, selectedArticle.article.id)}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
-                            title="Rimuovi ricambio"
-                          >
-                            <X size={16} />
-                          </button>
+                          <div className="flex items-center gap-3 ml-3">
+                            <div className="flex items-center gap-2">
+                              <label className="text-sm text-gray-600">Qt:</label>
+                              <input
+                                type="number"
+                                value={selectedArticle.quantity}
+                                onChange={(e) => updateArticleQuantity(item.id, selectedArticle.article.id, parseInt(e.target.value) || 1)}
+                                min="1"
+                                className="w-16 px-2 py-1 border border-gray-300 rounded text-gray-700 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                              />
+                            </div>
+                            <div className="text-xs text-gray-600 whitespace-nowrap">Prev: {planned}</div>
+                            {diff > 0 && (
+                              <div className="text-xs text-yellow-700 whitespace-nowrap">+{diff} oltre prev.</div>
+                            )}
+                            <button
+                              onClick={() => removeArticleFromItem(item.id, selectedArticle.article.id)}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
+                              title="Rimuovi ricambio"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

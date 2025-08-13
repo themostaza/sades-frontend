@@ -18,6 +18,15 @@ export const statusOptions = [
 ];
 
 /**
+ * Converte una label di stato in una chiave standardizzata (es. "Non completato" -> "non_completato").
+ */
+export const toStatusKey = (label?: string | null): string =>
+  (label || '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '_');
+
+/**
  * Mappa una chiave di stato (es. 'da_assegnare') al suo corrispondente ID numerico.
  * @param statusKey La chiave testuale dello stato.
  * @returns L'ID numerico o `null` se non trovato.

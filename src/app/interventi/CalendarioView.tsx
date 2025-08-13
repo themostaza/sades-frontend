@@ -22,6 +22,7 @@ interface Intervento {
   from_datetime?: string;
   to_datetime?: string;
   calendar_notes?: string;
+  manual_check?: boolean;
 }
 
 interface User {
@@ -34,7 +35,7 @@ interface User {
 
 export default function CalendarioView() {
   // Stati locali per la vista calendario
-  const [viewMode, setViewMode] = useState<'weekly' | 'daily'>('weekly');
+  const [viewMode, setViewMode] = useState<'weekly' | 'daily'>('daily');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isInterventionsListCollapsed, setIsInterventionsListCollapsed] = useState(false);
 

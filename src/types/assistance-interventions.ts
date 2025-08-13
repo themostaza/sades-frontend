@@ -2,9 +2,13 @@
 
 export interface ConnectedEquipment {
   id: number;
-  model: string;
+  model: string | null;
   description: string;
-  serial_number: string;
+  serial_number: string | null;
+  linked_serials?: string | null;
+  brand_name?: string;
+  subfamily_name?: string;
+  customer_name?: string;
 }
 
 export interface ConnectedArticle {
@@ -48,6 +52,7 @@ export interface AssistanceIntervention {
   calendar_notes?: string;
   assigned_to?: string | null;
   approved_by?: string | null;
+  manual_check?: boolean;
 }
 
 export interface AssistanceInterventionDetail {
@@ -95,6 +100,7 @@ export interface AssistanceInterventionDetail {
   connected_equipment: ConnectedEquipment[];
   connected_articles: ConnectedArticle[];
   calendar_notes?: string;
+  manual_check?: boolean;
 }
 
 export interface CreateAssistanceInterventionRequest {
@@ -150,6 +156,7 @@ export interface UpdateAssistanceInterventionRequest {
     quantity: number;
   }>;
   calendar_notes?: string;
+  manual_check?: boolean;
 }
 
 export interface AssistanceInterventionsApiResponse {

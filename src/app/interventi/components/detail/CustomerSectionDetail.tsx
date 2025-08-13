@@ -49,6 +49,8 @@ interface CustomerSectionDetailProps {
   statusId?: number;
   isCreating?: boolean;
   disabled?: boolean;
+  hasSelectedEquipments?: boolean;
+  onClearSelectedEquipments?: () => void;
 }
 
 interface InterventionType {
@@ -82,10 +84,16 @@ export default function CustomerSectionDetail({
   statusId = 1, // Default to a non-disabling status
   isCreating = false,
   disabled = false,
+  hasSelectedEquipments = false,
+  onClearSelectedEquipments,
 }: CustomerSectionDetailProps) {
   const auth = useAuth();
 
   const isFieldsDisabled = !isCreating && statusId > 4;
+
+  // Dialog conferma cambio destinazione
+  const [isDestinationDialogOpen, setIsDestinationDialogOpen] = useState(false);
+  const [pendingDestinazione, setPendingDestinazione] = useState<string | null>(null);
 
   // Stati per la ricerca clienti (usati solo in modalità creazione)
   const [searchQuery, setSearchQuery] = useState('');
@@ -353,7 +361,15 @@ export default function CustomerSectionDetail({
           <div className="relative">
             <select 
               value={destinazione}
-              onChange={(e) => setDestinazione(e.target.value)}
+              onChange={(e) => {
+                const newValue = e.target.value;
+                if (hasSelectedEquipments && newValue !== destinazione) {
+                  setPendingDestinazione(newValue);
+                  setIsDestinationDialogOpen(true);
+                  return;
+                }
+                setDestinazione(newValue);
+              }}
               className={`w-full px-3 py-2 border border-gray-300 rounded-lg appearance-none ${
                 isFieldsDisabled || loadingLocations || customerLocations.length === 0 || disabled
                   ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
@@ -482,6 +498,44 @@ export default function CustomerSectionDetail({
         customerId={selectedCustomerId || 0}
         customerName={ragioneSociale}
       />
+
+      {/* Dialog conferma cambio destinazione */}
+      {isDestinationDialogOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Confermare cambio destinazione?</h3>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-gray-600">
+                Cambiando destinazione verranno rimosse le apparecchiature già selezionate. Vuoi procedere?
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setPendingDestinazione(null);
+                  setIsDestinationDialogOpen(false);
+                }}
+                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => {
+                  if (onClearSelectedEquipments) onClearSelectedEquipments();
+                  if (pendingDestinazione !== null) setDestinazione(pendingDestinazione);
+                  setPendingDestinazione(null);
+                  setIsDestinationDialogOpen(false);
+                }}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700"
+              >
+                Conferma
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
