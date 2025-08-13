@@ -6,12 +6,13 @@ export interface CreateInterventionReportRequest {
   customer_notes: string;
   is_failed: boolean;
   failure_reason?: string;
-  status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED';
+  status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'SENT';
   items: CreateInterventionReportItem[];
 }
 
 export interface CreateInterventionReportItem {
-  intervention_equipment_id: number;
+  // Backend expects equipment_id for creation
+  equipment_id: number | null;
   note: string;
   fl_gas: boolean;
   gas_compressor_types_id: number;
@@ -66,6 +67,7 @@ export interface InterventionReportDetail extends InterventionReportSummary {
 
 export interface InterventionReportItemDetail {
   id: number;
+  // In detail responses we receive the historical field name
   intervention_equipment_id: number;
   note: string;
   fl_gas: boolean;

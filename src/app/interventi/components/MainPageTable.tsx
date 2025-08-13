@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Search, MapPin, Filter, User, X, AlertCircle, Copy } from 'lucide-react';
+import { Search, MapPin, Filter, User, X, AlertCircle, Copy, FileText } from 'lucide-react';
 import { AssistanceIntervention } from '../../../types/assistance-interventions';
 import { getStatusColor, statusOptions, toStatusKey } from '../../../utils/intervention-status';
 import DateRangePicker from '../../../components/DateRangePicker';
@@ -509,12 +509,15 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[130px]">
                   Status
                 </th>
+                <th className="px-3 sm:px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                  
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading && !initialLoading ? (
                 <tr>
-                  <td colSpan={isAdmin ? 8 : 7} className="px-6 py-8 text-center">
+                  <td colSpan={isAdmin ? 9 : 8} className="px-6 py-8 text-center">
                     <div className="flex flex-col items-center">
                       <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mb-2"></div>
                       <p className="text-sm text-gray-600">Aggiornamento in corso...</p>
@@ -523,7 +526,7 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 </tr>
               ) : interventionsData.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 8 : 7} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={isAdmin ? 9 : 8} className="px-6 py-8 text-center text-gray-500">
                     Nessun intervento trovato
                   </td>
                 </tr>
@@ -586,6 +589,20 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                           </span>
                         )}
                       </div>
+                    </td>
+                    <td className="px-3 sm:px-3 py-4 text-center">
+                      {intervention.report_id ? (
+                        <a
+                          href={`/interventi/rapportino/${intervention.report_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-teal-600 hover:text-teal-800 inline-flex items-center justify-center"
+                          title="Apri rapportino"
+                        >
+                          <FileText size={18} />
+                        </a>
+                      ) : null}
                     </td>
                   </tr>
                 ))

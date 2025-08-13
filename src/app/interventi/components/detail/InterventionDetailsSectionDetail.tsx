@@ -202,7 +202,7 @@ export default function InterventionDetailsSectionDetail({
       searchEquipments(equipmentSearchQuery);
     }, 300);
     return () => clearTimeout(delayDebounceFn);
-  }, [equipmentSearchQuery]);
+  }, [equipmentSearchQuery, isEquipmentInputFocused]);
 
   useEffect(() => {
     if (isCreating) {
@@ -343,9 +343,11 @@ export default function InterventionDetailsSectionDetail({
               }
             }}
             onBlur={() => {
-              setIsEquipmentInputFocused(false);
-              // Ritarda la chiusura per permettere il click su un elemento del dropdown
-              setTimeout(() => setShowEquipmentDropdown(false), 100);
+              // Manteniamo aperto il dropdown per permettere la selezione con onMouseDown
+              setTimeout(() => {
+                setIsEquipmentInputFocused(false);
+                setShowEquipmentDropdown(false);
+              }, 150);
             }}
             placeholder={!isEquipmentSearchEnabled() ? "Seleziona cliente/destinazione" : "Cerca apparecchiatura..."}
             disabled={!isEquipmentSearchEnabled()}
@@ -356,7 +358,7 @@ export default function InterventionDetailsSectionDetail({
           {showEquipmentDropdown && equipments.length > 0 && (
             <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
               {equipments.map((eq) => (
-                <div key={eq.id} onClick={() => handleEquipmentSelect(eq)} className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700">
+                <div key={eq.id} onMouseDown={() => handleEquipmentSelect(eq)} className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700">
                   <div className="font-medium text-gray-700">{eq.description}</div>
                   <div className="text-sm text-gray-500">{eq.brand_name} {eq.model} (S/N: {eq.serial_number}) | ID: {eq.id}</div>
                   <div className="text-xs text-gray-500">

@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Clock, Eye, Download, CheckCircle, XCircle, PenTool, RotateCcw, Trash2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Clock, Eye, CheckCircle, XCircle, PenTool, RotateCcw, Trash2 } from 'lucide-react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { InterventionReportDetail } from '../../../../types/intervention-reports';
+import { EquipmentDetail } from '../../../../types/equipment';
+import type { AssistanceInterventionDetail } from '../../../../types/assistance-interventions';
+import type { Article } from '../../../../types/article';
 
 // Interfaccia per il tipo SignatureCanvas
 interface SignatureCanvasRef {
@@ -86,6 +89,18 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
   const [updatedReportData, setUpdatedReportData] = useState<InterventionReportDetail>(reportData);
   const { token } = useAuth();
 
+  // Tipi per mapping id -> name
+  interface GasCompressorType { id: number; name: string }
+  interface RechargeableGasType { id: number; name: string }
+  const [gasCompressorTypes, setGasCompressorTypes] = useState<GasCompressorType[]>([]);
+  const [rechargeableGasTypes, setRechargeableGasTypes] = useState<RechargeableGasType[]>([]);
+
+  // Lookup cache per dettagli apparecchiature e articoli
+  const [equipmentById, setEquipmentById] = useState<Record<number, EquipmentDetail>>({});
+  const [articleById, setArticleById] = useState<Record<string, Article>>({});
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [interventionDetail, setInterventionDetail] = useState<AssistanceInterventionDetail | null>(null);
+
   // Helper function per formattare la data
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('it-IT', {
@@ -102,6 +117,125 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
     if (!services || services.trim() === '') return 'Nessun servizio aggiuntivo';
     return services.split(',').map(s => s.trim()).filter(s => s).join(', ');
   };
+
+  // Carica mapping tipi gas/compressori per visualizzare i nomi
+  useEffect(() => {
+    const loadTypes = async () => {
+      if (!token) return;
+      
+      try {
+        const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
+        const [gcRes, rgRes] = await Promise.all([
+          fetch('/api/gas-compressor-types', { headers }),
+          fetch('/api/rechargeable-gas-types', { headers })
+        ]);
+        if (gcRes.ok) {
+          const data = await gcRes.json();
+          setGasCompressorTypes(Array.isArray(data) ? data : []);
+        }
+        if (rgRes.ok) {
+          const data = await rgRes.json();
+          setRechargeableGasTypes(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        // best effort: mantieni ID se fallisce
+      } finally {
+        
+      }
+    };
+    loadTypes();
+  }, [token]);
+
+  const getCompressorTypeName = (id?: number) => {
+    if (!id) return '';
+    return gasCompressorTypes.find(t => t.id === id)?.name || `ID: ${id}`;
+  };
+
+  const getRechargeableGasTypeName = (id?: number) => {
+    if (!id) return '';
+    return rechargeableGasTypes.find(t => t.id === id)?.name || `ID: ${id}`;
+  };
+
+  // Carica dettagli dell'intervento associato per controlli UI (es. eliminazione)
+  useEffect(() => {
+    const loadIntervention = async () => {
+      if (!token || !updatedReportData?.intervention_id) return;
+      
+      try {
+        const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
+        const res = await fetch(`/api/assistance-interventions/${updatedReportData.intervention_id}`, { headers });
+        if (res.ok) {
+          const data: AssistanceInterventionDetail = await res.json();
+          setInterventionDetail(data);
+        }
+      } finally {
+      }
+    };
+    loadIntervention();
+  }, [token, updatedReportData?.intervention_id]);
+
+  const canDeleteReport = (): boolean => {
+    // Se non abbiamo info, lascia abilitato per retrocompatibilità
+    if (!interventionDetail) return true;
+    const label = (interventionDetail.status_label || '').toLowerCase();
+    // Blocca per stati non cancellabili
+    const blocked = [
+      'completato',
+      'non completato',
+      'annullato',
+      'fatturato',
+      'collocamento'
+    ];
+    return !blocked.some(b => label.includes(b));
+  };
+
+  // Carica dettagli apparecchiature e articoli usati nel report
+  useEffect(() => {
+    if (!updatedReportData?.items) return;
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    // Equipments
+    const equipmentIds = Array.from(new Set(
+      updatedReportData.items
+        .map(i => i.intervention_equipment_id)
+        .filter((v): v is number => typeof v === 'number' && v > 0)
+    ));
+    const missingEquipments = equipmentIds.filter(id => !equipmentById[id]);
+
+    // Articles
+    const articleIds = Array.from(new Set(
+      updatedReportData.items.flatMap(i => (i.articles || []).map(a => a.article_id)).filter(Boolean)
+    ));
+    const missingArticles = articleIds.filter(id => !articleById[id]);
+
+    const fetchAll = async () => {
+      try {
+        await Promise.all([
+          // equipments
+          ...missingEquipments.map(async (id) => {
+            const res = await fetch(`/api/equipments/${id}`, { headers });
+            if (!res.ok) return;
+            const data: EquipmentDetail = await res.json();
+            setEquipmentById(prev => ({ ...prev, [id]: data }));
+          }),
+          // articles
+          ...missingArticles.map(async (id) => {
+            const res = await fetch(`/api/articles/${encodeURIComponent(id)}`, { headers });
+            if (!res.ok) return;
+            const data: Article = await res.json();
+            setArticleById(prev => ({ ...prev, [id]: data }));
+          })
+        ]);
+      } catch {
+        // best effort; in caso di errore si mostrano fallback
+      }
+    };
+
+    if (missingEquipments.length > 0 || missingArticles.length > 0) {
+      fetchAll();
+    }
+  }, [updatedReportData, token]);
 
   // Funzione per convertire canvas in blob
   const canvasToBlob = (canvas: HTMLCanvasElement): Promise<Blob> => {
@@ -490,149 +624,181 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
         {/* Apparecchiature e interventi */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-6">Apparecchiature e Interventi</h2>
-          
           {updatedReportData.items && updatedReportData.items.length > 0 ? (
             <div className="space-y-6">
               {updatedReportData.items.map((item) => (
                 <div key={item.id} className="border border-gray-200 rounded-lg p-6 bg-gray-50">
+                  {/* Header apparecchiatura */}
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-medium text-gray-900">
-                      Apparecchiatura #{item.intervention_equipment_id}
-                    </h3>
-                    <span className="text-sm text-gray-500">Item #{item.id}</span>
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900">
+                        {(() => {
+                          const eq = item.intervention_equipment_id ? equipmentById[item.intervention_equipment_id] : undefined;
+                          if (eq) {
+                            return eq.description || `Apparecchiatura #${item.intervention_equipment_id}`;
+                          }
+                          return item.intervention_equipment_id ? `Apparecchiatura #${item.intervention_equipment_id}` : 'Apparecchiatura non specificata';
+                        })()}
+                      </h3>
+                      {item.intervention_equipment_id && equipmentById[item.intervention_equipment_id] && (
+                        <div className="text-sm text-gray-600 mt-1">
+                          {equipmentById[item.intervention_equipment_id].brand_label && (
+                            <span className="mr-2">{equipmentById[item.intervention_equipment_id].brand_label}</span>
+                          )}
+                          {equipmentById[item.intervention_equipment_id].model && (
+                            <span className="mr-2">{equipmentById[item.intervention_equipment_id].model}</span>
+                          )}
+                          {equipmentById[item.intervention_equipment_id].serial_number && (
+                            <span className="text-gray-500">S/N: {equipmentById[item.intervention_equipment_id].serial_number}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Note dell'intervento */}
+                  {/* Ricambi utilizzati */}
+                  {item.articles && item.articles.length > 0 && (
+                    <div className="mb-4">
+                      <h4 className="font-medium text-gray-700 mb-3">Pezzi di ricambio usati</h4>
+                      <div className="bg-white border border-teal-200 rounded-lg p-4">
+                        <div className="space-y-2">
+                          {item.articles.map((article, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-teal-50 border border-teal-200 p-3 rounded-lg">
+                              <div className="flex-1">
+                                {(() => {
+                                  const ad = articleById[article.article_id];
+                                  const title = ad?.short_description || article.article_name || 'Articolo';
+                                  const desc = ad?.description || article.article_description;
+                                  return (
+                                    <>
+                                      <span className="text-gray-900 font-medium">{title}</span>
+                                      {desc && <div className="text-sm text-gray-600">{desc}</div>}
+                                      <div className="text-xs text-gray-500">ID: {article.article_id}{ad?.pnc_code ? ` • PNC: ${ad.pnc_code}` : ''}</div>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                              <div className="ml-3 text-sm text-gray-700 whitespace-nowrap">Qt: {article.quantity}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Note per questa apparecchiatura */}
                   {item.note && (
                     <div className="mb-4">
-                      <h4 className="font-medium text-gray-700 mb-2">Note intervento</h4>
+                      <h4 className="font-medium text-gray-700 mb-2">Note intervento per questa apparecchiatura</h4>
                       <div className="bg-white border border-gray-200 rounded-lg p-3">
                         <p className="text-gray-800">{item.note}</p>
                       </div>
                     </div>
                   )}
 
-                  {/* Gestione Gas */}
+                  {/* Gestione Gas per questa apparecchiatura */}
                   {item.fl_gas && (
                     <div className="mb-4">
-                      <h4 className="font-medium text-gray-700 mb-3">Gestione Gas</h4>
+                      <h4 className="text-md font-medium text-gray-900 mb-3">Gestione gas per questa apparecchiatura</h4>
                       <div className="bg-white border border-gray-200 rounded-lg p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <div className="text-sm font-medium text-gray-600">Tipo Compressore</div>
-                            <div className="text-gray-900">ID: {item.gas_compressor_types_id}</div>
+                            <div className="text-sm font-medium text-gray-600 mb-1">Tipologia compressore</div>
+                            <div className="text-gray-900">{getCompressorTypeName(item.gas_compressor_types_id)}</div>
                           </div>
-                          
                           <div>
-                            <div className="text-sm font-medium text-gray-600">Nuova Installazione</div>
-                            <div className="text-gray-900">
-                              {item.is_new_installation ? (
-                                <span className="text-green-600 font-medium">Sì</span>
-                              ) : (
-                                <span className="text-gray-600">No</span>
-                              )}
-                            </div>
+                            <div className="text-sm font-medium text-gray-600 mb-1">Nuova installazione</div>
+                            <div className="text-gray-900">{item.is_new_installation ? 'Sì' : 'No'}</div>
                           </div>
-                          
                           <div>
-                            <div className="text-sm font-medium text-gray-600">Gas Ricaricabile</div>
-                            <div className="text-gray-900">ID: {item.rechargeable_gas_types_id}</div>
+                            <div className="text-sm font-medium text-gray-600 mb-1">Tipologia gas caricato</div>
+                            <div className="text-gray-900">{getRechargeableGasTypeName(item.rechargeable_gas_types_id)}</div>
                           </div>
-
                           <div>
-                            <div className="text-sm font-medium text-gray-600">Quantità Gas Ricaricato</div>
+                            <div className="text-sm font-medium text-gray-600 mb-1">Quantità gas caricato</div>
                             <div className="text-gray-900">{item.qty_gas_recharged} gr</div>
                           </div>
-
                           <div>
-                            <div className="text-sm font-medium text-gray-600">Carica Massima</div>
+                            <div className="text-sm font-medium text-gray-600 mb-1">Carica max</div>
                             <div className="text-gray-900">{item.max_charge} gr</div>
                           </div>
-
-                          <div>
-                            <div className="text-sm font-medium text-gray-600">Quantità Gas Recuperato</div>
-                            <div className="text-gray-900">{item.qty_gas_recovered} gr</div>
-                          </div>
-
                           {item.compressor_model && (
                             <div>
-                              <div className="text-sm font-medium text-gray-600">Modello Compressore</div>
+                              <div className="text-sm font-medium text-gray-600 mb-1">Modello compressore</div>
                               <div className="text-gray-900">{item.compressor_model}</div>
                             </div>
                           )}
-
                           {item.compressor_serial_num && (
                             <div>
-                              <div className="text-sm font-medium text-gray-600">Matricola Compressore</div>
+                              <div className="text-sm font-medium text-gray-600 mb-1">Matricola compressore</div>
                               <div className="text-gray-900">{item.compressor_serial_num}</div>
                             </div>
                           )}
-
                           {item.compressor_unique_num && (
                             <div>
-                              <div className="text-sm font-medium text-gray-600">Numero Univoco</div>
+                              <div className="text-sm font-medium text-gray-600 mb-1">Numero univoco</div>
                               <div className="text-gray-900">{item.compressor_unique_num}</div>
                             </div>
                           )}
                         </div>
 
-                        {/* Servizi Aggiuntivi */}
+                        {/* Servizi aggiuntivi */}
                         {item.additional_services && (
                           <div className="mt-4 pt-4 border-t border-gray-200">
-                            <div className="text-sm font-medium text-gray-600 mb-2">Servizi Aggiuntivi</div>
+                            <div className="text-sm font-medium text-gray-600 mb-2">Servizi aggiuntivi</div>
                             <div className="text-gray-900">{formatAdditionalServices(item.additional_services)}</div>
+                          </div>
+                        )}
+
+                        {/* Recupero gas (se presente) */}
+                        {(item.recovered_rech_gas_types_id || item.qty_gas_recovered) && (
+                          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {item.recovered_rech_gas_types_id && (
+                              <div>
+                                <div className="text-sm font-medium text-gray-600 mb-1">Tipologia gas recuperato</div>
+                                <div className="text-gray-900">{getRechargeableGasTypeName(item.recovered_rech_gas_types_id)}</div>
+                              </div>
+                            )}
+                            {item.qty_gas_recovered && (
+                              <div>
+                                <div className="text-sm font-medium text-gray-600 mb-1">Quantità gas recuperato</div>
+                                <div className="text-gray-900">{item.qty_gas_recovered} gr</div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
                     </div>
                   )}
 
-                  {/* URLs delle immagini del compressore */}
+                  {/* Immagini compressore (se presenti URL dedicati) */}
                   {(item.compressor_model_img_url || item.compressor_serial_num_img_url || item.compressor_unique_num_img_url) && (
                     <div className="mb-4">
-                      <h4 className="font-medium text-gray-700 mb-3">Immagini Compressore</h4>
+                      <h4 className="font-medium text-gray-700 mb-3">Immagini compressore</h4>
                       <div className="bg-white border border-gray-200 rounded-lg p-4">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           {item.compressor_model_img_url && (
                             <div>
                               <div className="text-sm font-medium text-gray-600 mb-2">Modello</div>
-                              <a 
-                                href={item.compressor_model_img_url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800"
-                              >
+                              <a href={item.compressor_model_img_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800">
                                 <Eye size={16} />
                                 Visualizza immagine
                               </a>
                             </div>
                           )}
-                          
                           {item.compressor_serial_num_img_url && (
                             <div>
                               <div className="text-sm font-medium text-gray-600 mb-2">Matricola</div>
-                              <a 
-                                href={item.compressor_serial_num_img_url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800"
-                              >
+                              <a href={item.compressor_serial_num_img_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800">
                                 <Eye size={16} />
                                 Visualizza immagine
                               </a>
                             </div>
                           )}
-                          
                           {item.compressor_unique_num_img_url && (
                             <div>
                               <div className="text-sm font-medium text-gray-600 mb-2">Numero Univoco</div>
-                              <a 
-                                href={item.compressor_unique_num_img_url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800"
-                              >
+                              <a href={item.compressor_unique_num_img_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800">
                                 <Eye size={16} />
                                 Visualizza immagine
                               </a>
@@ -643,10 +809,10 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
                     </div>
                   )}
 
-                  {/* Immagini dell'apparecchiatura */}
+                  {/* Immagini per questa apparecchiatura */}
                   {item.images && item.images.length > 0 && (
-                    <div className="mb-4">
-                      <h4 className="font-medium text-gray-700 mb-3">Immagini Apparecchiatura</h4>
+                    <div className="mb-1">
+                      <h4 className="text-md font-medium text-gray-900 mb-3">Immagini per questa apparecchiatura</h4>
                       <div className="bg-white border border-gray-200 rounded-lg p-4">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           {item.images.map((image, imgIndex) => (
@@ -656,63 +822,13 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
                                 alt={image.file_name}
                                 width={200}
                                 height={150}
-                                className="w-full h-32 object-cover"
+                                className="w-full h-32 object-cover cursor-zoom-in"
+                                onClick={() => setLightboxUrl(image.file_url)}
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
                                   target.style.display = 'none';
                                 }}
                               />
-                              <div className="p-3">
-                                <div className="text-sm font-medium text-gray-600 truncate mb-2">
-                                  {image.file_name}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <a
-                                    href={image.file_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm"
-                                  >
-                                    <Eye size={14} />
-                                    Visualizza
-                                  </a>
-                                  <a
-                                    href={image.file_url}
-                                    download={image.file_name}
-                                    className="inline-flex items-center gap-1 text-green-600 hover:text-green-800 text-sm"
-                                  >
-                                    <Download size={14} />
-                                    Scarica
-                                  </a>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Articoli/Ricambi utilizzati */}
-                  {item.articles && item.articles.length > 0 && (
-                    <div className="mb-4">
-                      <h4 className="font-medium text-gray-700 mb-3">Articoli e Ricambi Utilizzati</h4>
-                      <div className="bg-white border border-gray-200 rounded-lg p-4">
-                        <div className="space-y-3">
-                          {item.articles.map((article, artIndex) => (
-                            <div key={artIndex} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                              <div className="flex-1">
-                                <div className="font-medium text-gray-900">
-                                  {article.article_name || 'Articolo'}
-                                </div>
-                                <div className="text-xs text-gray-500">ID: {article.article_id}</div>
-                                {article.article_description && (
-                                  <div className="text-sm text-gray-600">{article.article_description}</div>
-                                )}
-                              </div>
-                              <div className="text-right">
-                                <div className="font-medium text-gray-900">Qt: {article.quantity}</div>
-                              </div>
                             </div>
                           ))}
                         </div>
@@ -723,9 +839,7 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500">
-              Nessuna apparecchiatura registrata per questo rapportino
-            </div>
+            <div className="text-center py-8 text-gray-500">Nessuna apparecchiatura registrata per questo rapportino</div>
           )}
         </div>
 
@@ -750,19 +864,16 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
               )}
             </button>
           )}
-          <button
-            onClick={() => window.print()}
-            className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-          >
-            Stampa rapportino
-          </button>
-          <button
-            onClick={() => setShowDeleteDialog(true)}
-            className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-          >
-            <Trash2 size={16} />
-            Elimina rapportino
-          </button>
+          {/* Pulsante stampa rimosso su richiesta */}
+          {canDeleteReport() && (
+            <button
+              onClick={() => setShowDeleteDialog(true)}
+              className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+            >
+              <Trash2 size={16} />
+              Elimina rapportino
+            </button>
+          )}
         </div>
       </div>
 
@@ -925,6 +1036,18 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Lightbox immagine a tutto schermo */}
+      {lightboxUrl && (
+        <div className="fixed inset-0 z-[70] bg-black bg-opacity-90 flex items-center justify-center" onClick={() => setLightboxUrl(null)}>
+          <div className="max-w-5xl max-h-[90vh] p-4" onClick={(e) => e.stopPropagation()}>
+            <Image src={lightboxUrl} alt="Preview" width={1600} height={1200} className="w-auto h-auto max-w-full max-h-[85vh] object-contain" />
+          </div>
+          <button className="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2" onClick={() => setLightboxUrl(null)}>
+            <XCircle size={28} />
+          </button>
         </div>
       )}
     </div>
