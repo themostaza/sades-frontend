@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { getStatusColor } from '../../../utils/intervention-status';
 import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 
 interface Intervento {
@@ -124,21 +125,9 @@ export default function CalendarGrid({
     return technicians.length > 0 ? technicians : ['Nessun tecnico'];
   };
 
-  // Funzione per convertire HEX in rgba con opacità
-  function hexToRgba(hex: string, alpha: number) {
-    let c = hex.replace('#', '');
-    if (c.length === 3) c = c.split('').map(x => x + x).join('');
-    const num = parseInt(c, 16);
-    const r = (num >> 16) & 255;
-    const g = (num >> 8) & 255;
-    const b = num & 255;
-    return `rgba(${r},${g},${b},${alpha})`;
-  }
-
-  // Funzione per normalizzare lo status per il confronto
-  const normalizeStatus = (status: string): string => {
-    return status ? status.toLowerCase().trim() : '';
-  };
+  // Funzioni di normalizzazione status
+  const normalizeStatus = (status: string): string => (status ? status.toLowerCase().trim() : '');
+  const toStatusKey = (label?: string) => (label || '').toLowerCase().trim().replace(/\s+/g, '_');
 
 
 
@@ -554,7 +543,7 @@ export default function CalendarGrid({
                         checked={isSelected}
                         readOnly
                       />
-                      <span className={`text-xs font-medium rounded-full px-2 py-1 ${status.color}`}>
+                      <span className={`text-xs font-medium rounded-full px-2 py-1 ${getStatusColor(status.id)}`}>
                         {status.label}
                       </span>
                     </div>
@@ -662,34 +651,27 @@ export default function CalendarGrid({
                           const zIndex = getInterventionZIndex(intervento.id, index);
 
                           // Background OPACO per evitare trasparenze
-                          let backgroundColor = '#ffffff';
-                          let borderColor = '#e5e7eb';
-                          let textColor = '#374151';
-                          
-                          if (intervento.statusColor) {
-                            backgroundColor = hexToRgba(intervento.statusColor, 0.9); // Opacità alta
-                            borderColor = intervento.statusColor;
-                            textColor = '#ffffff'; // Testo bianco per contrasto
-                          } else {
-                            // Colori di fallback opachi
-                            switch (intervento.status) {
-                              case 'In carico':
-                                backgroundColor = '#3b82f6';
-                                textColor = '#ffffff';
-                                break;
-                              case 'Completato':
-                                backgroundColor = '#ec4899';
-                                textColor = '#ffffff';
-                                break;
-                              case 'Da assegnare':
-                                backgroundColor = '#10b981';
-                                textColor = '#ffffff';
-                                break;
-                              default:
-                                backgroundColor = '#6b7280';
-                                textColor = '#ffffff';
-                            }
-                          }
+                          const statusKey = toStatusKey(intervento.statusLabel || intervento.status);
+                          const badgeClasses = getStatusColor(statusKey);
+
+                          // Deriva colori base dalle classi Tailwind del badge
+                          const uses = {
+                            'bg-orange-100 text-orange-800': { bg: 'rgba(254, 215, 170, 0.9)', border: '#fb923c', text: '#7c2d12' },
+                            'bg-yellow-100 text-yellow-800': { bg: 'rgba(254, 240, 138, 0.9)', border: '#facc15', text: '#713f12' },
+                            'bg-blue-100 text-blue-800': { bg: 'rgba(191, 219, 254, 0.9)', border: '#3b82f6', text: '#1e3a8a' },
+                            'bg-teal-100 text-teal-800': { bg: 'rgba(204, 251, 241, 0.9)', border: '#14b8a6', text: '#134e4a' },
+                            'bg-purple-100 text-purple-800': { bg: 'rgba(221, 214, 254, 0.9)', border: '#8b5cf6', text: '#3b0764' },
+                            'bg-green-100 text-green-800': { bg: 'rgba(220, 252, 231, 0.9)', border: '#22c55e', text: '#14532d' },
+                            'bg-gray-100 text-gray-800': { bg: 'rgba(243, 244, 246, 0.9)', border: '#9ca3af', text: '#1f2937' },
+                            'bg-red-100 text-red-800': { bg: 'rgba(254, 202, 202, 0.9)', border: '#ef4444', text: '#7f1d1d' },
+                            'bg-emerald-100 text-emerald-800': { bg: 'rgba(209, 250, 229, 0.9)', border: '#10b981', text: '#064e3b' },
+                            'bg-indigo-100 text-indigo-800': { bg: 'rgba(224, 231, 255, 0.9)', border: '#6366f1', text: '#312e81' },
+                          } as Record<string, { bg: string; border: string; text: string }>;
+
+                          const color = uses[badgeClasses] || { bg: 'rgba(243, 244, 246, 0.9)', border: '#e5e7eb', text: '#374151' };
+                          const backgroundColor = color.bg;
+                          const borderColor = color.border;
+                          const textColor = color.text;
 
                           return (
                             <div
@@ -792,34 +774,24 @@ export default function CalendarGrid({
                           const leftPosition = totalColumns > 1 ? `${(column * 100 / totalColumns) + 1}%` : '8px';
 
                           // Background OPACO per vista giornaliera
-                          let backgroundColor = '#ffffff';
-                          let borderColor = '#e5e7eb';
-                          let textColor = '#374151';
-                          
-                          if (intervento.statusColor) {
-                            backgroundColor = hexToRgba(intervento.statusColor, 0.9);
-                            borderColor = intervento.statusColor;
-                            textColor = '#ffffff';
-                          } else {
-                            // Colori di fallback opachi
-                            switch (intervento.status) {
-                              case 'In carico':
-                                backgroundColor = '#3b82f6';
-                                textColor = '#ffffff';
-                                break;
-                              case 'Completato':
-                                backgroundColor = '#ec4899';
-                                textColor = '#ffffff';
-                                break;
-                              case 'Da assegnare':
-                                backgroundColor = '#10b981';
-                                textColor = '#ffffff';
-                                break;
-                              default:
-                                backgroundColor = '#6b7280';
-                                textColor = '#ffffff';
-                            }
-                          }
+                          const statusKey = toStatusKey(intervento.statusLabel || intervento.status);
+                          const badgeClasses = getStatusColor(statusKey);
+                          const uses = {
+                            'bg-orange-100 text-orange-800': { bg: 'rgba(254, 215, 170, 0.9)', border: '#fb923c', text: '#7c2d12' },
+                            'bg-yellow-100 text-yellow-800': { bg: 'rgba(254, 240, 138, 0.9)', border: '#facc15', text: '#713f12' },
+                            'bg-blue-100 text-blue-800': { bg: 'rgba(191, 219, 254, 0.9)', border: '#3b82f6', text: '#1e3a8a' },
+                            'bg-teal-100 text-teal-800': { bg: 'rgba(204, 251, 241, 0.9)', border: '#14b8a6', text: '#134e4a' },
+                            'bg-purple-100 text-purple-800': { bg: 'rgba(221, 214, 254, 0.9)', border: '#8b5cf6', text: '#3b0764' },
+                            'bg-green-100 text-green-800': { bg: 'rgba(220, 252, 231, 0.9)', border: '#22c55e', text: '#14532d' },
+                            'bg-gray-100 text-gray-800': { bg: 'rgba(243, 244, 246, 0.9)', border: '#9ca3af', text: '#1f2937' },
+                            'bg-red-100 text-red-800': { bg: 'rgba(254, 202, 202, 0.9)', border: '#ef4444', text: '#7f1d1d' },
+                            'bg-emerald-100 text-emerald-800': { bg: 'rgba(209, 250, 229, 0.9)', border: '#10b981', text: '#064e3b' },
+                            'bg-indigo-100 text-indigo-800': { bg: 'rgba(224, 231, 255, 0.9)', border: '#6366f1', text: '#312e81' },
+                          } as Record<string, { bg: string; border: string; text: string }>;
+                          const color = uses[badgeClasses] || { bg: 'rgba(243, 244, 246, 0.9)', border: '#e5e7eb', text: '#374151' };
+                          const backgroundColor = color.bg;
+                          const borderColor = color.border;
+                          const textColor = color.text;
 
                           return (
                             <div

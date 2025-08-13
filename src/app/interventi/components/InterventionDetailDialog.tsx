@@ -40,7 +40,7 @@ interface InterventionDetailDialogProps {
   isOpen: boolean;
   intervention: Intervento | null;
   onClose: () => void;
-  onInterventionUpdate?: () => void; // Callback per notificare il padre delle modifiche
+  onInterventionUpdate?: () => void;
 }
 
 // Funzione per convertire HEX in rgba con opacità
@@ -60,6 +60,47 @@ export default function InterventionDetailDialog({
   onClose,
   onInterventionUpdate
 }: InterventionDetailDialogProps) {
+  const initialWidth = () => {
+    if (typeof window === 'undefined') return 0;
+    const stored = window.localStorage.getItem('interventionDetailWidth');
+    if (stored) {
+      const val = parseInt(stored, 10);
+      if (!isNaN(val)) return val;
+    }
+    const fallback = Math.round(window.innerWidth * 0.4);
+    return Math.max(320, Math.min(fallback, Math.round(window.innerWidth * 0.85)));
+  };
+  const [panelWidth, setPanelWidth] = useState<number>(initialWidth);
+  const isResizingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
+
+  const onMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizingRef.current) return;
+    const delta = e.clientX - startXRef.current;
+    const newWidth = Math.max(320, Math.min(startWidthRef.current + delta, Math.round(window.innerWidth * 0.85)));
+    setPanelWidth(newWidth);
+  }, []);
+
+  const onMouseUp = useCallback(() => {
+    if (!isResizingRef.current) return;
+    isResizingRef.current = false;
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+    try {
+      window.localStorage.setItem('interventionDetailWidth', String(panelWidth));
+    } catch {}
+  }, [onMouseMove, panelWidth]);
+
+  const startResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isResizingRef.current = true;
+    startXRef.current = e.clientX;
+    startWidthRef.current = panelWidth;
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [onMouseMove, onMouseUp, panelWidth]);
   const [calendarNotes, setCalendarNotes] = useState<string>('');
   const [savingCalendarNotes, setSavingCalendarNotes] = useState(false);
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -554,7 +595,12 @@ export default function InterventionDetailDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex bg-black bg-opacity-40">
-      <div className="bg-white shadow-2xl w-full max-w-[40vw] h-full p-0 relative flex flex-col overflow-hidden transform transition-transform duration-300 ease-in-out">
+      <div className="bg-white shadow-2xl h-full p-0 relative flex flex-col overflow-hidden transform transition-transform duration-300 ease-in-out" style={{ width: panelWidth }}>
+        <div
+          className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize z-20 hover:bg-teal-200"
+          onMouseDown={startResize}
+          title="Trascina per ridimensionare"
+        />
         {/* Sidebar content */}
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">

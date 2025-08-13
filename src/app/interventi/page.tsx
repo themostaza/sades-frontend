@@ -9,7 +9,7 @@ import CalendarioView from './CalendarioView';
 import RichiediAssenza from './RichiediAssenza';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AssistanceIntervention, AssistanceInterventionsApiResponse, UpdateAssistanceInterventionRequest } from '../../types/assistance-interventions';
-import { getStatusColor, statusOptions, getStatusId, calculateStatus } from '../../utils/intervention-status';
+import { getStatusColor, statusOptions, getStatusId } from '../../utils/intervention-status';
 import { updateAssistanceIntervention, fetchAssistanceInterventionDetail } from '../../utils/assistance-interventions-api';
 import MainPageTable from './components/MainPageTable';
 
@@ -360,22 +360,13 @@ export default function InterventiPage() {
 
   // Funzione per verificare se un intervento può essere annullato
   const canInterventionBeCancelled = (intervention: AssistanceIntervention): boolean => {
-    const status = calculateStatus({
-      invoiced_by: intervention.invoiced_by ?? null,
-      cancelled_by: intervention.cancelled_by ?? null,
-      assigned_to: intervention.assigned_to ?? null,
-      date: intervention.date ?? null,
-      time_slot: intervention.time_slot ?? null,
-      from_datetime: intervention.from_datetime ?? null,
-      to_datetime: intervention.to_datetime ?? null,
-      report_id: intervention.report_id ?? null,
-      approved_by: intervention.approved_by ?? null,
-      report_is_failed: intervention.report_is_failed ?? null,
-    });
-
+    const statusKey = (intervention.status_label || '')
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '_');
     // Stati non annullabili: da_confermare, completato, non_completato, annullato, fatturato
     const nonCancellableStatuses = ['da_confermare', 'completato', 'non_completato', 'annullato', 'fatturato'];
-    return !nonCancellableStatuses.includes(status.key);
+    return !nonCancellableStatuses.includes(statusKey);
   };
 
   // Funzioni per gestire la selezione multipla
@@ -412,19 +403,11 @@ export default function InterventiPage() {
     const duplicableStatuses = ['da_assegnare', 'attesa_preventivo', 'attesa_ricambio', 'in_carico'];
     
     const duplicableInterventions = selectedInterventionsData.filter(intervention => {
-      const status = calculateStatus({
-        invoiced_by: intervention.invoiced_by ?? null,
-        cancelled_by: intervention.cancelled_by ?? null,
-        assigned_to: intervention.assigned_to ?? null,
-        date: intervention.date ?? null,
-        time_slot: intervention.time_slot ?? null,
-        from_datetime: intervention.from_datetime ?? null,
-        to_datetime: intervention.to_datetime ?? null,
-        report_id: intervention.report_id ?? null,
-        approved_by: intervention.approved_by ?? null,
-        report_is_failed: intervention.report_is_failed ?? null,
-      });
-      return duplicableStatuses.includes(status.key);
+      const statusKey = (intervention.status_label || '')
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '_');
+      return duplicableStatuses.includes(statusKey);
     });
     
     if (duplicableInterventions.length === 0) {

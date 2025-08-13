@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Search, MapPin, Filter, User, X, AlertCircle, Copy } from 'lucide-react';
 import { AssistanceIntervention } from '../../../types/assistance-interventions';
-import { calculateStatus, getStatusColor, statusOptions } from '../../../utils/intervention-status';
+import { getStatusColor, statusOptions } from '../../../utils/intervention-status';
 import DateRangePicker from '../../../components/DateRangePicker';
 
 // --- Componente di Paginazione Riutilizzabile ---
@@ -144,6 +144,11 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
   handleBulkDuplicate,
   canInterventionBeCancelled,
 }) => {
+  const toStatusKey = (label?: string | null) =>
+    (label || '')
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '_');
   const [showBulkCancelConfirm, setShowBulkCancelConfirm] = useState(false);
   const [showBulkDuplicateConfirm, setShowBulkDuplicateConfirm] = useState(false);
   const [duplicateWithCancel, setDuplicateWithCancel] = useState(true);
@@ -198,20 +203,8 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
 
   // Verifica se un intervento può essere duplicato (solo stati dinamici)
   const canInterventionBeDuplicated = (intervention: AssistanceIntervention): boolean => {
-    const status = calculateStatus({
-      invoiced_by: intervention.invoiced_by ?? null,
-      cancelled_by: intervention.cancelled_by ?? null,
-      assigned_to: intervention.assigned_to ?? null,
-      date: intervention.date ?? null,
-      time_slot: intervention.time_slot ?? null,
-      from_datetime: intervention.from_datetime ?? null,
-      to_datetime: intervention.to_datetime ?? null,
-      report_id: intervention.report_id ?? null,
-      approved_by: intervention.approved_by ?? null,
-      report_is_failed: intervention.report_is_failed ?? null,
-    });
-
-    return duplicableStatuses.includes(status.key);
+    const statusKey = toStatusKey(intervention.status_label);
+    return duplicableStatuses.includes(statusKey);
   };
 
   // Verifica se tutti gli interventi selezionati possono essere duplicati
@@ -549,33 +542,9 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
                       <span
-                        className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(
-                          calculateStatus({
-                            invoiced_by: intervention.invoiced_by ?? null,
-                            cancelled_by: intervention.cancelled_by ?? null,
-                            assigned_to: intervention.assigned_to ?? null,
-                            date: intervention.date ?? null,
-                            time_slot: intervention.time_slot ?? null,
-                            from_datetime: intervention.from_datetime ?? null,
-                            to_datetime: intervention.to_datetime ?? null,
-                            report_id: intervention.report_id ?? null,
-                            approved_by: intervention.approved_by ?? null,
-                            report_is_failed: intervention.report_is_failed ?? null,
-                          }).key
-                        )}`}
+                        className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(toStatusKey(intervention.status_label))}`}
                       >
-                        {calculateStatus({
-                          invoiced_by: intervention.invoiced_by ?? null,
-                          cancelled_by: intervention.cancelled_by ?? null,
-                          assigned_to: intervention.assigned_to ?? null,
-                          date: intervention.date ?? null,
-                          time_slot: intervention.time_slot ?? null,
-                          from_datetime: intervention.from_datetime ?? null,
-                          to_datetime: intervention.to_datetime ?? null,
-                          report_id: intervention.report_id ?? null,
-                          approved_by: intervention.approved_by ?? null,
-                          report_is_failed: intervention.report_is_failed ?? null,
-                        }).label}
+                        {intervention.status_label}
                       </span>
                     </td>
                   </tr>
