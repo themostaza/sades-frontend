@@ -2,12 +2,20 @@
 
 // Tipo per l'inventory di un articolo
 export interface ArticleInventory {
+  // Legacy/base fields
   warehouse: string;
   disponible: number;
   riservata_cliente: number;
   in_stock: number;
   ordinata: number;
   data_primo_ordine: string | null;
+
+  // Optional normalized fields coming from API consolidation
+  warehouse_id?: string | number | null;
+  warehouse_description?: string | null;
+  quantity_stock?: number | null;
+  quantity_reserved_client?: number | null;
+  quantity_ordered?: number | null;
 }
 
 // Tipo per i fornitori di un articolo

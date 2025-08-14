@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { config } from '../../../config/env';
-import { ArticlesApiResponse, CreateArticleRequest } from '../../../types/article';
+import { ArticlesApiResponse, CreateArticleRequest, ArticleListItem } from '../../../types/article';
 
 const BASE_URL = config.BASE_URL;
 
@@ -80,7 +80,117 @@ export async function GET(request: NextRequest) {
     console.log('✅ Backend success - articles fetched:', data.data?.length || 0, 'articles');
     console.log('📊 Pagination info:', data.meta);
 
-    return NextResponse.json(data);
+    // Deduplicate by article id, merging inventories and summarizing totals
+    type BackendInventoryRow = {
+      warehouse_id?: string | number | null;
+      warehouse?: string | number | null;
+      warehouse_description?: string | null;
+      quantity_stock?: number | null;
+      quantity_reserved_client?: number | null;
+      quantity_ordered?: number | null;
+      in_stock?: number | null;
+    };
+
+    type BackendArticleItem = {
+      id: string | number;
+      short_description?: string | null;
+      description?: string | null;
+      inventory?: BackendInventoryRow[];
+      quantity_stock?: number | null;
+      quantity_reserved_client?: number | null;
+      quantity_ordered?: number | null;
+      warehouse_description?: string | null;
+      [key: string]: unknown;
+    };
+
+    const originalList: BackendArticleItem[] = Array.isArray(data.data)
+      ? (data.data as unknown as BackendArticleItem[])
+      : [];
+
+    const byId = new Map<string, BackendArticleItem>();
+
+    const mergeInventories = (
+      aInv: BackendInventoryRow[] = [],
+      bInv: BackendInventoryRow[] = []
+    ): BackendInventoryRow[] => {
+      const merged = [...aInv, ...bInv];
+      const byWarehouse = new Map<string, BackendInventoryRow>();
+      for (const row of merged) {
+        const wid = String(row?.warehouse_id ?? row?.warehouse ?? '');
+        if (!wid) continue;
+        const prev = byWarehouse.get(wid);
+        if (!prev) {
+          byWarehouse.set(wid, row);
+        } else {
+          // Keep the highest quantities seen for safety
+          byWarehouse.set(wid, {
+            ...prev,
+            quantity_stock: Math.max(Number(prev.quantity_stock || 0), Number(row.quantity_stock || 0)),
+            quantity_reserved_client: Math.max(
+              Number(prev.quantity_reserved_client || 0),
+              Number(row.quantity_reserved_client || 0)
+            ),
+            quantity_ordered: Math.max(
+              Number(prev.quantity_ordered || 0),
+              Number(row.quantity_ordered || 0)
+            ),
+            warehouse_description: String(
+              row.warehouse_description ?? prev.warehouse_description ?? ''
+            ),
+          });
+        }
+      }
+      return Array.from(byWarehouse.values());
+    };
+
+    for (const item of originalList) {
+      const id = String((item?.id ?? '') as string | number);
+      if (!id) continue;
+      const existing = byId.get(id);
+      if (!existing) {
+        // Normalize inventory and totals on first insert
+        const inv: BackendInventoryRow[] = Array.isArray(item?.inventory) ? item.inventory! : [];
+        const uniqueInv = mergeInventories(inv, []);
+        const totalStock = uniqueInv.reduce((s: number, r) => s + Number(r?.quantity_stock || 0), 0);
+        const totalReserved = uniqueInv.reduce((s: number, r) => s + Number(r?.quantity_reserved_client || 0), 0);
+        const totalOrdered = uniqueInv.reduce((s: number, r) => s + Number(r?.quantity_ordered || 0), 0);
+        byId.set(id, {
+          ...item,
+          inventory: uniqueInv,
+          quantity_stock: Number.isFinite(totalStock) ? totalStock : (item.quantity_stock ?? 0),
+          quantity_reserved_client: Number.isFinite(totalReserved) ? totalReserved : (item.quantity_reserved_client ?? 0),
+          quantity_ordered: Number.isFinite(totalOrdered) ? totalOrdered : (item.quantity_ordered ?? 0),
+        });
+      } else {
+        const invA: BackendInventoryRow[] = Array.isArray(existing?.inventory) ? existing.inventory! : [];
+        const invB: BackendInventoryRow[] = Array.isArray(item?.inventory) ? item.inventory! : [];
+        const uniqueInv = mergeInventories(invA, invB);
+        const totalStock = uniqueInv.reduce((s: number, r) => s + Number(r?.quantity_stock || 0), 0);
+        const totalReserved = uniqueInv.reduce((s: number, r) => s + Number(r?.quantity_reserved_client || 0), 0);
+        const totalOrdered = uniqueInv.reduce((s: number, r) => s + Number(r?.quantity_ordered || 0), 0);
+        byId.set(id, {
+          ...existing,
+          // Prefer most informative fields from the current item where meaningful
+          short_description: (existing.short_description as string | null | undefined) || (item.short_description as string | null | undefined),
+          description: (existing.description as string | null | undefined) || (item.description as string | null | undefined),
+          inventory: uniqueInv,
+          quantity_stock: totalStock,
+          quantity_reserved_client: totalReserved,
+          quantity_ordered: totalOrdered,
+        } as BackendArticleItem);
+      }
+    }
+
+    const dedupedList: BackendArticleItem[] = Array.from(byId.values());
+    const result = {
+      data: dedupedList as unknown as ArticleListItem[],
+      meta: {
+        ...data.meta,
+        total: dedupedList.length,
+      },
+    } satisfies ArticlesApiResponse;
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error('💥 Proxy error:', error);
     return NextResponse.json(

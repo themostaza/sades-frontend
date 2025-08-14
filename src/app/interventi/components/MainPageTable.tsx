@@ -77,6 +77,7 @@ interface MainPageTableProps {
   selectedZone: string;
   selectedStatus: string;
   selectedTechnician: string;
+  selectedManualCheck: string;
   showMobileFilters: boolean;
   isAdmin: boolean;
 
@@ -93,6 +94,7 @@ interface MainPageTableProps {
   handleSearch: (value: string) => void;
   handleStatusFilter: (status: string) => void;
   handleTechnicianFilter: (technicianId: string) => void;
+  handleManualCheckFilter: (value: string) => void;
   handleRowClick: (id: number) => void;
   handlePageChange: (page: number) => void;
   setDateRange: (dateRange: {from: string; to: string}) => void;
@@ -124,6 +126,7 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
   selectedZone,
   selectedStatus,
   selectedTechnician,
+  selectedManualCheck,
   showMobileFilters,
   isAdmin,
   selectedInterventions,
@@ -132,6 +135,7 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
   handleSearch,
   handleStatusFilter,
   handleTechnicianFilter,
+  handleManualCheckFilter,
   handleRowClick,
   handlePageChange,
   setDateRange,
@@ -278,20 +282,35 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
           </div>
           {/* Tecnico filter - visible only to admin */}
           {isAdmin && (
-            <div className="relative flex-1 sm:flex-none sm:min-w-[180px]">
-              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-              <select
-                value={selectedTechnician}
-                onChange={(e) => handleTechnicianFilter(e.target.value)}
-                className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
-              >
-                <option value="" className="text-gray-400">Filtra per tecnico</option>
-                {techniciansData.map(technician => (
-                  <option key={technician.id} value={technician.id} className="text-gray-700">
-                    {technician.surname ? `${technician.name} ${technician.surname}` : technician.name}
-                  </option>
-                ))}
-              </select>
+            <div className="flex-1 sm:flex-none grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Tecnico */}
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                <select
+                  value={selectedTechnician}
+                  onChange={(e) => handleTechnicianFilter(e.target.value)}
+                  className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
+                >
+                  <option value="" className="text-gray-400">Filtra per tecnico</option>
+                  {techniciansData.map(technician => (
+                    <option key={technician.id} value={technician.id} className="text-gray-700">
+                      {technician.surname ? `${technician.name} ${technician.surname}` : technician.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {/* Verifica manuale */}
+              <div>
+                <select
+                  value={selectedManualCheck}
+                  onChange={(e) => handleManualCheckFilter(e.target.value)}
+                  className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
+                >
+                  <option value="">Verificati e non</option>
+                  <option value="true">Solo verificati</option>
+                  <option value="false">Solo non verificati</option>
+                </select>
+              </div>
             </div>
           )}
           {/* Mobile filter toggle, opzionale: puoi nasconderlo su desktop */}
@@ -343,20 +362,33 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
             </div>
             {/* Tecnico filter - visible only to admin */}
             {isAdmin && (
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-                <select
-                  value={selectedTechnician}
-                  onChange={(e) => handleTechnicianFilter(e.target.value)}
-                  className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
-                >
-                  <option value="" className="text-gray-400">Filtra per tecnico</option>
-                  {techniciansData.map(technician => (
-                    <option key={technician.id} value={technician.id} className="text-gray-700">
-                      {technician.surname ? `${technician.name} ${technician.surname}` : technician.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 gap-3">
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                  <select
+                    value={selectedTechnician}
+                    onChange={(e) => handleTechnicianFilter(e.target.value)}
+                    className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
+                  >
+                    <option value="" className="text-gray-400">Filtra per tecnico</option>
+                    {techniciansData.map(technician => (
+                      <option key={technician.id} value={technician.id} className="text-gray-700">
+                        {technician.surname ? `${technician.name} ${technician.surname}` : technician.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <select
+                    value={selectedManualCheck}
+                    onChange={(e) => handleManualCheckFilter(e.target.value)}
+                    className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
+                  >
+                    <option value="">Verificati e non</option>
+                    <option value="true">Solo verificati</option>
+                    <option value="false">Solo non verificati</option>
+                  </select>
+                </div>
               </div>
             )}
           </div>

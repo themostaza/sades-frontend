@@ -42,7 +42,7 @@ interface UpdateInterventionReportRequest {
   signature_url: string;
   items: Array<{
     id: number;
-    intervention_equipment_id: number;
+    equipment_id: number;
     note: string;
     fl_gas: boolean;
     gas_compressor_types_id: number;
@@ -198,7 +198,7 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
     // Equipments
     const equipmentIds = Array.from(new Set(
       updatedReportData.items
-        .map(i => i.intervention_equipment_id)
+        .map(i => i.equipment_id)
         .filter((v): v is number => typeof v === 'number' && v > 0)
     ));
     const missingEquipments = equipmentIds.filter(id => !equipmentById[id]);
@@ -277,7 +277,7 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
       signature_url: signatureUrl,
       items: updatedReportData.items?.map(item => ({
         id: item.id,
-        intervention_equipment_id: item.intervention_equipment_id,
+        equipment_id: item.equipment_id,
         note: item.note || '',
         fl_gas: item.fl_gas,
         gas_compressor_types_id: item.gas_compressor_types_id || 0,
@@ -633,23 +633,24 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
                     <div>
                       <h3 className="text-lg font-medium text-gray-900">
                         {(() => {
-                          const eq = item.intervention_equipment_id ? equipmentById[item.intervention_equipment_id] : undefined;
+                          const equipmentId = item.equipment_id;
+                          const eq = equipmentId ? equipmentById[equipmentId] : undefined;
                           if (eq) {
-                            return eq.description || `Apparecchiatura #${item.intervention_equipment_id}`;
+                            return eq.description || `Apparecchiatura #${equipmentId}`;
                           }
-                          return item.intervention_equipment_id ? `Apparecchiatura #${item.intervention_equipment_id}` : 'Apparecchiatura non specificata';
+                          return equipmentId ? `Apparecchiatura #${equipmentId}` : 'Apparecchiatura non specificata';
                         })()}
                       </h3>
-                      {item.intervention_equipment_id && equipmentById[item.intervention_equipment_id] && (
+                      {item.equipment_id && equipmentById[item.equipment_id] && (
                         <div className="text-sm text-gray-600 mt-1">
-                          {equipmentById[item.intervention_equipment_id].brand_label && (
-                            <span className="mr-2">{equipmentById[item.intervention_equipment_id].brand_label}</span>
+                          {equipmentById[item.equipment_id].brand_label && (
+                            <span className="mr-2">{equipmentById[item.equipment_id].brand_label}</span>
                           )}
-                          {equipmentById[item.intervention_equipment_id].model && (
-                            <span className="mr-2">{equipmentById[item.intervention_equipment_id].model}</span>
+                          {equipmentById[item.equipment_id].model && (
+                            <span className="mr-2">{equipmentById[item.equipment_id].model}</span>
                           )}
-                          {equipmentById[item.intervention_equipment_id].serial_number && (
-                            <span className="text-gray-500">S/N: {equipmentById[item.intervention_equipment_id].serial_number}</span>
+                          {equipmentById[item.equipment_id].serial_number && (
+                            <span className="text-gray-500">S/N: {equipmentById[item.equipment_id].serial_number}</span>
                           )}
                         </div>
                       )}

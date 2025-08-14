@@ -67,8 +67,8 @@ export interface InterventionReportDetail extends InterventionReportSummary {
 
 export interface InterventionReportItemDetail {
   id: number;
-  // In detail responses we receive the historical field name
-  intervention_equipment_id: number;
+  // Equipment reference for this report item
+  equipment_id: number;
   note: string;
   fl_gas: boolean;
   gas_compressor_types_id: number;

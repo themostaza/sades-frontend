@@ -25,6 +25,11 @@ interface DettaglioInterventoProps {
 interface SelectedArticle {
   article: ArticleListItem;
   quantity: number;
+  allocations?: Array<{
+    warehouse_id: string;
+    warehouse_description: string;
+    quantity: number;
+  }>;
 }
 
 interface User {
