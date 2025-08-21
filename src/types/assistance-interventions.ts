@@ -53,6 +53,11 @@ export interface AssistanceIntervention {
   assigned_to?: string | null;
   approved_by?: string | null;
   manual_check?: boolean;
+  // Nuovi campi aggiunti dal backend
+  equipment_count: number;
+  connected_equipment: ConnectedEquipment[];
+  articles_count: number;
+  connected_articles: ConnectedArticle[];
 }
 
 export interface AssistanceInterventionDetail {
@@ -101,6 +106,9 @@ export interface AssistanceInterventionDetail {
   connected_articles: ConnectedArticle[];
   calendar_notes?: string;
   manual_check?: boolean;
+  // Campi count per coerenza con la lista
+  equipment_count?: number;
+  articles_count?: number;
 }
 
 export interface CreateAssistanceInterventionRequest {

@@ -3,8 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Package, MapPin, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArticleListItem, ArticlesApiResponse, PlaceType, ArticlePlace, Warehouse } from '../../types/article';
 import DettaglioArticolo from './DettaglioArticolo';
+import MagazziniView from './MagazziniView';
+import InterventionsView from './InterventionsView';
+import ActivitiesView from './ActivitiesView';
 
 interface Filters {
   searchTerm: string;
@@ -49,8 +53,22 @@ export default function InventarioPage() {
   // Stati per la navigazione
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const [showArticleDetail, setShowArticleDetail] = useState(false);
+  
+  // Stati per le tab
+  const [viewMode, setViewMode] = useState<'inventario' | 'magazzini' | 'interventi' | 'attivita'>('inventario');
+  const [selectedWarehouse, setSelectedWarehouse] = useState<string | null>(null);
 
   const auth = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Inizializza la tab dall'URL al caricamento
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab');
+    if (tabFromUrl && ['inventario', 'magazzini', 'interventi', 'attivita'].includes(tabFromUrl)) {
+      setViewMode(tabFromUrl as 'inventario' | 'magazzini' | 'interventi' | 'attivita');
+    }
+  }, [searchParams]);
 
   // Fetch dati iniziali
   useEffect(() => {
@@ -216,6 +234,21 @@ export default function InventarioPage() {
     fetchArticles();
   };
 
+  // Funzione per gestire il cambio di tab e aggiornare l'URL
+  const handleTabChange = (newTab: 'inventario' | 'magazzini' | 'interventi' | 'attivita') => {
+    setViewMode(newTab);
+    
+    // Aggiorna l'URL con il nuovo tab
+    const newSearchParams = new URLSearchParams(searchParams.toString());
+    newSearchParams.set('tab', newTab);
+    router.push(`/inventario?${newSearchParams.toString()}`, { scroll: false });
+  };
+
+  // Gestione selezione magazzino
+  const handleWarehouseSelect = (warehouseId: string) => {
+    setSelectedWarehouse(warehouseId);
+  };
+
   // Calcola statistiche
   // const getInStockCount = () => {
   //   return articles.filter(article => 
@@ -259,12 +292,47 @@ export default function InventarioPage() {
   return (
     <div className="p-6 bg-white min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Inventario</h1>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-4">
-          <div className="text-sm text-gray-600">
-            Totale articoli: <span className="font-medium">{totalItems}</span>
+          <div className="flex flex-col">
+            <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Inventario</h1>
           </div>
+          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => handleTabChange('inventario')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'inventario' ? 'bg-teal-600 text-white' : 'text-gray-700 hover:text-gray-900'
+              }`}
+            >
+              Inventario
+            </button>
+            <button
+              onClick={() => handleTabChange('magazzini')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'magazzini' ? 'bg-teal-600 text-white' : 'text-gray-700 hover:text-gray-900'
+              }`}
+            >
+              Magazzini
+            </button>
+            <button
+              onClick={() => handleTabChange('interventi')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'interventi' ? 'bg-teal-600 text-white' : 'text-gray-700 hover:text-gray-900'
+              }`}
+            >
+              Interventi
+            </button>
+            <button
+              onClick={() => handleTabChange('attivita')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'attivita' ? 'bg-teal-600 text-white' : 'text-gray-700 hover:text-gray-900'
+              }`}
+            >
+              Attività
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
           {/*
           <div className="flex items-center gap-2">
             <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
@@ -283,10 +351,13 @@ export default function InventarioPage() {
         </div>
       </div>
 
-      {/* Search and filters */}
-      <div className="mb-6">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="relative flex-1 max-w-md">
+      {/* Content based on selected tab */}
+      {viewMode === 'inventario' && (
+        <>
+          {/* Search and filters */}
+          <div className="mb-6">
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="relative flex-1 min-w-80">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
@@ -296,28 +367,13 @@ export default function InventarioPage() {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
             />
           </div>
+          
           {/* Loader accanto ai filtri */}
           {loading && (
-            <Loader2 className="w-5 h-5 text-teal-600 animate-spin" />
+            <Loader2 className="w-5 h-5 text-teal-600 animate-spin flex-shrink-0" />
           )}
           
-          {/*
-          <div className="relative">
-            <select
-              value={filters.family}
-              onChange={(e) => handleFilterChange('family', e.target.value)}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 bg-white appearance-none pr-8 text-gray-700"
-            >
-              <option value="">Tutte le famiglie</option>
-              <option value="01">Merce</option>
-              <option value="02">Ricambio</option>
-              <option value="03">Attrezzatura</option>
-            </select>
-            <Package className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
-          </div>
-          */}
-
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <select
               value={filters.stock}
               onChange={(e) => handleFilterChange('stock', e.target.value)}
@@ -329,10 +385,8 @@ export default function InventarioPage() {
             </select>
             <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
           </div>
-        </div>
 
-        <div className="flex items-center gap-4">
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <select
               value={filters.placeType}
               onChange={(e) => handleFilterChange('placeType', e.target.value)}
@@ -349,7 +403,7 @@ export default function InventarioPage() {
           </div>
 
           {filters.placeType && (
-            <div className="relative">
+            <div className="relative flex-shrink-0">
               <select
                 value={filters.place}
                 onChange={(e) => handleFilterChange('place', e.target.value)}
@@ -366,7 +420,7 @@ export default function InventarioPage() {
             </div>
           )}
 
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <select
               value={filters.warehouse}
               onChange={(e) => handleFilterChange('warehouse', e.target.value)}
@@ -570,6 +624,32 @@ export default function InventarioPage() {
           </div>
         )}
       </div> */}
+        </>
+      )}
+
+      {/* Magazzini View */}
+      {viewMode === 'magazzini' && (
+        <MagazziniView 
+          onWarehouseSelect={handleWarehouseSelect}
+          selectedWarehouse={selectedWarehouse}
+          onArticleClick={handleArticleClick}
+        />
+      )}
+
+      {/* Interventi View */}
+      {viewMode === 'interventi' && (
+        <InterventionsView 
+          onInterventionClick={(id) => {
+            // Naviga al dettaglio intervento nella pagina interventi
+            window.open(`/interventi?intervention=${id}`, '_blank');
+          }}
+        />
+      )}
+
+      {/* Attività View */}
+      {viewMode === 'attivita' && (
+        <ActivitiesView />
+      )}
     </div>
   );
 }
