@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Package, MapPin, Loader2 } from 'lucide-react';
+import { Search, Filter, Package, MapPin, Loader2, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArticleListItem, ArticlesApiResponse, PlaceType, ArticlePlace, Warehouse } from '../../types/article';
@@ -9,10 +9,11 @@ import DettaglioArticolo from './DettaglioArticolo';
 import MagazziniView from './MagazziniView';
 import InterventionsView from './InterventionsView';
 import ActivitiesView from './ActivitiesView';
+import MovimentiView from './MovimentiView';
 
 interface Filters {
   searchTerm: string;
-  family: string;
+  brand: string;
   placeType: string;
   place: string;
   warehouse: string;
@@ -34,12 +35,13 @@ export default function InventarioPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [itemsPerPage] = useState(20);
+  const [itemsPerPage] = useState(50);
+  const [loadingMoreArticles, setLoadingMoreArticles] = useState(false);
   
   // Stati per i filtri
   const [filters, setFilters] = useState<Filters>({
     searchTerm: '',
-    family: '',
+    brand: '',
     placeType: '',
     place: '',
     warehouse: '',
@@ -54,8 +56,12 @@ export default function InventarioPage() {
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const [showArticleDetail, setShowArticleDetail] = useState(false);
   
+  // Stati per il dialog inventario
+  const [showInventoryDialog, setShowInventoryDialog] = useState(false);
+  const [selectedArticleForInventory, setSelectedArticleForInventory] = useState<ArticleListItem | null>(null);
+  
   // Stati per le tab
-  const [viewMode, setViewMode] = useState<'inventario' | 'magazzini' | 'interventi' | 'attivita'>('inventario');
+  const [viewMode, setViewMode] = useState<'inventario' | 'magazzini' | 'interventi' | 'attivita' | 'movimenti'>('inventario');
   const [selectedWarehouse, setSelectedWarehouse] = useState<string | null>(null);
 
   const auth = useAuth();
@@ -65,20 +71,22 @@ export default function InventarioPage() {
   // Inizializza la tab dall'URL al caricamento
   useEffect(() => {
     const tabFromUrl = searchParams.get('tab');
-    if (tabFromUrl && ['inventario', 'magazzini', 'interventi', 'attivita'].includes(tabFromUrl)) {
-      setViewMode(tabFromUrl as 'inventario' | 'magazzini' | 'interventi' | 'attivita');
+    if (tabFromUrl && ['inventario', 'magazzini', 'interventi', 'attivita', 'movimenti'].includes(tabFromUrl)) {
+      setViewMode(tabFromUrl as 'inventario' | 'magazzini' | 'interventi' | 'attivita' | 'movimenti');
     }
   }, [searchParams]);
 
   // Fetch dati iniziali
   useEffect(() => {
     fetchInitialData();
+    fetchArticles(1, false);
   }, []);
 
-  // Fetch articoli quando cambiano filtri o pagina
+  // Fetch articoli quando cambiano filtri
   useEffect(() => {
-    fetchArticles();
-  }, [currentPage, filters]);
+    fetchArticles(1, false);
+    setCurrentPage(1);
+  }, [filters]);
 
   const fetchInitialData = async () => {
     try {
@@ -130,15 +138,20 @@ export default function InventarioPage() {
     }
   };
 
-  const fetchArticles = async () => {
+  const fetchArticles = async (page = 1, append = false) => {
     if (!auth.token) return;
 
     try {
-      setLoading(true);
+      // Solo per il caricamento iniziale, non per l'append
+      if (!append) {
+        setLoading(true);
+      } else {
+        setLoadingMoreArticles(true);
+      }
       setError(null);
 
       const searchParams = new URLSearchParams({
-        page: currentPage.toString(),
+        page: page.toString(),
         skip: itemsPerPage.toString(),
       });
 
@@ -146,8 +159,8 @@ export default function InventarioPage() {
       if (filters.searchTerm.trim()) {
         searchParams.append('query', filters.searchTerm.trim());
       }
-      if (filters.family) {
-        searchParams.append('family_id', filters.family);
+      if (filters.brand) {
+        searchParams.append('brand_id', filters.brand);
       }
       if (filters.stock) {
         searchParams.append('stock', filters.stock);
@@ -182,9 +195,16 @@ export default function InventarioPage() {
       console.log('📊 Meta info:', data.meta);
       console.log('📊 Articles count:', data.data?.length);
       
-      setArticles(data.data || []);
-      setTotalItems(data.meta?.total || 0);
+      // Aggiorna gli stati con i dati reali dell'API
+      if (append) {
+        setArticles(prev => [...prev, ...(data.data || [])]);
+      } else {
+        setArticles(data.data || []);
+      }
+      
+      setCurrentPage(page);
       setTotalPages(data.meta?.totalPages || 1);
+      setTotalItems(data.meta?.total || 0);
 
       console.log('📊 Updated state - totalItems:', data.meta?.total, 'totalPages:', data.meta?.totalPages);
 
@@ -192,7 +212,12 @@ export default function InventarioPage() {
       setError(err instanceof Error ? err.message : 'An error occurred');
       console.error('Error fetching articles:', err);
     } finally {
-      setLoading(false);
+      // Solo per il caricamento iniziale, non per l'append
+      if (!append) {
+        setLoading(false);
+      } else {
+        setLoadingMoreArticles(false);
+      }
     }
   };
 
@@ -201,7 +226,7 @@ export default function InventarioPage() {
       ...prev,
       [key]: value
     }));
-    setCurrentPage(1); // Reset alla prima pagina quando cambiano i filtri
+    // Reset alla prima pagina quando cambiano i filtri - gestito nell'useEffect
 
     // Se cambia il place type, aggiorna i places disponibili
     if (key === 'placeType') {
@@ -231,11 +256,11 @@ export default function InventarioPage() {
 
   const handleArticleUpdated = () => {
     // Ricarica la lista quando un articolo viene aggiornato
-    fetchArticles();
+    fetchArticles(1, false);
   };
 
   // Funzione per gestire il cambio di tab e aggiornare l'URL
-  const handleTabChange = (newTab: 'inventario' | 'magazzini' | 'interventi' | 'attivita') => {
+  const handleTabChange = (newTab: 'inventario' | 'magazzini' | 'interventi' | 'attivita' | 'movimenti') => {
     setViewMode(newTab);
     
     // Aggiorna l'URL con il nuovo tab
@@ -276,6 +301,35 @@ export default function InventarioPage() {
   // Check if date has value for styling
   const hasDateValue = (dateString: string | null) => {
     return dateString && dateString.trim() !== '';
+  };
+
+  // Helper functions per calcolare i totali dall'inventory
+  const getTotalStock = (article: ArticleListItem): number => {
+    if (!article.inventory || !Array.isArray(article.inventory)) return 0;
+    return article.inventory.reduce((total, inv) => total + (inv.quantity_stock || 0), 0);
+  };
+
+  const getTotalReserved = (article: ArticleListItem): number => {
+    if (!article.inventory || !Array.isArray(article.inventory)) return 0;
+    return article.inventory.reduce((total, inv) => total + (inv.quantity_reserved_client || 0), 0);
+  };
+
+
+
+  const getWarehouseCount = (article: ArticleListItem): number => {
+    if (!article.inventory || !Array.isArray(article.inventory)) return 0;
+    return article.inventory.filter(inv => inv.warehouse_description && inv.warehouse_description.trim() !== '').length;
+  };
+
+  // Funzioni per gestire il dialog inventario
+  const handleOpenInventoryDialog = (article: ArticleListItem) => {
+    setSelectedArticleForInventory(article);
+    setShowInventoryDialog(true);
+  };
+
+  const handleCloseInventoryDialog = () => {
+    setShowInventoryDialog(false);
+    setSelectedArticleForInventory(null);
   };
 
   // Mostra il dettaglio articolo se selezionato
@@ -329,6 +383,14 @@ export default function InventarioPage() {
               }`}
             >
               Attività
+            </button>
+            <button
+              onClick={() => handleTabChange('movimenti')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'movimenti' ? 'bg-teal-600 text-white' : 'text-gray-700 hover:text-gray-900'
+              }`}
+            >
+              Movimenti
             </button>
           </div>
         </div>
@@ -442,7 +504,7 @@ export default function InventarioPage() {
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
           <p className="text-red-600">{error}</p>
           <button
-            onClick={fetchArticles}
+            onClick={() => fetchArticles(1, false)}
             className="mt-2 text-red-600 hover:text-red-700 underline"
           >
             Riprova
@@ -452,6 +514,36 @@ export default function InventarioPage() {
 
       {/* Table */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden mb-6">
+        <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-medium text-gray-900">
+              Visualizzati {articles.length} su {totalItems} articoli totali
+              {totalPages > 1 && (
+                <span className="text-gray-500 ml-2">
+                  (pagina {currentPage} di {totalPages})
+                </span>
+              )}
+            </h4>
+            {currentPage < totalPages && (
+              <button
+                onClick={() => fetchArticles(currentPage + 1, true)}
+                disabled={loadingMoreArticles}
+                className="text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 py-1 rounded-md flex items-center gap-1 transition-colors"
+              >
+                {loadingMoreArticles ? (
+                  <>
+                    <Loader2 className="animate-spin" size={12} />
+                    Caricamento...
+                  </>
+                ) : (
+                  <>
+                    Carica altri 50
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
@@ -523,27 +615,63 @@ export default function InventarioPage() {
                       {article.brand_label}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      {article.quantity_stock !== null ? (
-                        <span className={`font-medium ${
-                          article.quantity_stock === 0 
-                            ? 'text-red-600' 
-                            : article.quantity_stock < 10 
-                              ? 'text-orange-600' 
-                              : 'text-green-600'
-                        }`}>
-                          {article.quantity_stock}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">N/A</span>
-                      )}
-                      {article.quantity_reserved_client !== null && article.quantity_reserved_client > 0 && (
-                        <span className="text-xs text-gray-500 ml-1">
-                          ({article.quantity_reserved_client} ris.)
-                        </span>
-                      )}
+                      {(() => {
+                        const totalStock = getTotalStock(article);
+                        const totalReserved = getTotalReserved(article);
+                        const hasStock = totalStock > 0;
+                        
+                        return (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (hasStock) handleOpenInventoryDialog(article);
+                            }}
+                            disabled={!hasStock}
+                            className={`text-left font-medium transition-colors ${
+                              hasStock 
+                                ? 'hover:underline cursor-pointer' 
+                                : 'cursor-not-allowed'
+                            } ${
+                              totalStock === 0 
+                                ? 'text-red-600' 
+                                : totalStock < 10 
+                                  ? 'text-orange-600' 
+                                  : 'text-green-600'
+                            }`}
+                            title={hasStock ? 'Clicca per vedere la divisione per magazzini' : 'Nessuno stock disponibile'}
+                          >
+                            <span>{totalStock}</span>
+                            {totalReserved > 0 && (
+                              <span className="text-xs text-gray-500 ml-1">
+                                ({totalReserved} ris.)
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })()}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {article.warehouse_description || 'N/A'}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {(() => {
+                        const warehouseCount = getWarehouseCount(article);
+                        const hasWarehouses = warehouseCount > 0;
+                        
+                        return (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenInventoryDialog(article);
+                            }}
+                            className={`text-left font-medium transition-colors ${
+                              hasWarehouses 
+                                ? 'text-blue-600 hover:text-blue-800 hover:underline cursor-pointer' 
+                                : 'text-gray-400 cursor-not-allowed'
+                            }`}
+                            title="Clicca per vedere la divisione per magazzini"
+                          >
+                            {warehouseCount} magazzin{warehouseCount === 1 ? 'o' : 'i'}
+                          </button>
+                        );
+                      })()}
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm ${
                       hasDateValue(article.updated_at) ? 'text-gray-600' : 'text-gray-400'
@@ -553,32 +681,42 @@ export default function InventarioPage() {
                   </tr>
                 ))
               )}
+              {/* Indicatore caricamento nuove righe */}
+              {loadingMoreArticles && (
+                <tr>
+                  <td colSpan={7} className="px-6 py-4 text-center border-t border-gray-200 bg-gray-50">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                      <span className="text-sm text-gray-600">Caricamento nuovi articoli...</span>
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
         
-        {/* Pagination */}
-        <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-          <div className="text-sm text-gray-700">
-            Pagina {currentPage} di {totalPages} - {totalItems} articoli totali
-          </div>
-          <div className="flex items-center gap-2">
+        {/* Pulsante carica altri in fondo alla tabella */}
+        {currentPage < totalPages && articles.length > 0 && (
+          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 text-center">
             <button
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1 || loading}
-              className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => fetchArticles(currentPage + 1, true)}
+              disabled={loadingMoreArticles}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors mx-auto"
             >
-              Indietro
-            </button>
-            <button
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages || loading}
-              className="px-3 py-1 text-sm text-teal-600 hover:text-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Avanti
+              {loadingMoreArticles ? (
+                <>
+                  <Loader2 className="animate-spin" size={16} />
+                  Caricamento...
+                </>
+              ) : (
+                <>
+                  Carica altri 50 articoli
+                </>
+              )}
             </button>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Giacenze section */}
@@ -649,6 +787,137 @@ export default function InventarioPage() {
       {/* Attività View */}
       {viewMode === 'attivita' && (
         <ActivitiesView />
+      )}
+
+      {/* Movimenti View */}
+      {viewMode === 'movimenti' && (
+        <MovimentiView 
+          onMovementClick={(id) => {
+            console.log('Movimento selezionato:', id);
+          }}
+        />
+      )}
+
+      {/* Dialog Inventario Magazzini */}
+      {showInventoryDialog && selectedArticleForInventory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Inventario per Magazzini
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  {selectedArticleForInventory.id} - {selectedArticleForInventory.short_description}
+                </p>
+              </div>
+              <button
+                onClick={handleCloseInventoryDialog}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              {selectedArticleForInventory.inventory && selectedArticleForInventory.inventory.length > 0 ? (
+                <div className="space-y-4">
+                  {selectedArticleForInventory.inventory.map((inv, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-gray-900">
+                          {inv.warehouse_description || `Magazzino ${inv.warehouse_id}`}
+                        </h4>
+                        <span className="text-xs text-gray-500">
+                          ID: {inv.warehouse_id}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-600 block">Stock Disponibile</span>
+                          <span className={`font-semibold ${
+                            (inv.quantity_stock || 0) === 0 
+                              ? 'text-red-600' 
+                              : (inv.quantity_stock || 0) < 10 
+                                ? 'text-orange-600' 
+                                : 'text-green-600'
+                          }`}>
+                            {inv.quantity_stock || 0}
+                          </span>
+                        </div>
+                        
+                        <div>
+                          <span className="text-gray-600 block">Riservato Cliente</span>
+                          <span className="font-semibold text-blue-600">
+                            {inv.quantity_reserved_client || 0}
+                          </span>
+                        </div>
+                        
+                        <div>
+                          <span className="text-gray-600 block">Ordinato</span>
+                          <span className="font-semibold text-purple-600">
+                            {inv.quantity_ordered || 0}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {/* Totali */}
+                  <div className="border-t border-gray-300 pt-4 mt-6">
+                    <h4 className="font-semibold text-gray-900 mb-3">Totali</h4>
+                    <div className="grid grid-cols-3 gap-4 text-sm bg-blue-50 p-4 rounded-lg">
+                      <div>
+                        <span className="text-gray-600 block">Stock Totale</span>
+                        <span className={`font-bold text-lg ${
+                          getTotalStock(selectedArticleForInventory) === 0 
+                            ? 'text-red-600' 
+                            : getTotalStock(selectedArticleForInventory) < 10 
+                              ? 'text-orange-600' 
+                              : 'text-green-600'
+                        }`}>
+                          {getTotalStock(selectedArticleForInventory)}
+                        </span>
+                      </div>
+                      
+                      <div>
+                        <span className="text-gray-600 block">Riservato Totale</span>
+                        <span className="font-bold text-lg text-blue-600">
+                          {getTotalReserved(selectedArticleForInventory)}
+                        </span>
+                      </div>
+                      
+                      <div>
+                        <span className="text-gray-600 block">Magazzini</span>
+                        <span className="font-bold text-lg text-gray-900">
+                          {getWarehouseCount(selectedArticleForInventory)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Package className="mx-auto mb-3" size={48} />
+                  <p>Nessun inventario disponibile per questo articolo</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end p-6 border-t border-gray-200">
+              <button
+                onClick={handleCloseInventoryDialog}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Chiudi
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

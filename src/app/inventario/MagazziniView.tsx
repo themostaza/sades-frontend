@@ -1,26 +1,25 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Package, MapPin, Search, ArrowRight, ArrowLeft, Loader2, AlertTriangle, X, Plus, Send, Filter } from 'lucide-react';
+import { Package, Search} from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { ArticleListItem, ArticlesApiResponse, PlaceType, ArticlePlace } from '../../types/article';
+import CaricaArticoliDialog from '../../components/CaricaArticoliDialog';
+import DettaglioMagazzino from '../../components/DettaglioMagazzino';
 
 interface Warehouse {
   id: string;
   description: string;
-  article_count: string;
+  article_count: number;
+  total_stock_quantity: number;
+  total_reserved_quantity: number;
+  total_ordered_quantity: number;
+  total_all_quantities: number;
 }
 
 
 
-interface NewArticleForm {
-  code: string;
-  description: string;
-  family: string;
-  brand: string;
-  serial: string;
-  quantity: number;
-}
+
 
 interface TransferArticleItem {
   articleId: string;
@@ -28,6 +27,8 @@ interface TransferArticleItem {
   articleDescription: string;
   availableQuantity: number;
   transferQuantity: number;
+  sourceWarehouseId?: string;
+  sourceWarehouseDescription?: string;
 }
 
 interface ArticleFilters {
@@ -70,32 +71,31 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
   
   
   
-  // Stati per il dialog inserimento articoli
+  // Stati per il dialog carico articoli
   const [showInsertDialog, setShowInsertDialog] = useState(false);
-  const [insertActiveTab, setInsertActiveTab] = useState<'external' | 'transfer'>('external');
   const [insertLoading, setInsertLoading] = useState(false);
   
-  // Stati per inserimento dall'esterno
-  const [newArticleForm, setNewArticleForm] = useState<NewArticleForm>({
-    code: '',
-    description: '',
-    family: '',
-    brand: '',
-    serial: '',
-    quantity: 1
-  });
   
   // Stati per trasferimento da altro magazzino
-  const [transferSourceWarehouse, setTransferSourceWarehouse] = useState<string>('');
+  const [selectedSourceWarehouses, setSelectedSourceWarehouses] = useState<string[]>([]);
   const [transferSourceArticles, setTransferSourceArticles] = useState<ArticleListItem[]>([]);
   const [transferArticles, setTransferArticles] = useState<TransferArticleItem[]>([]);
   const [transferArticlesLoading, setTransferArticlesLoading] = useState(false);
+  const [transferNotes, setTransferNotes] = useState<string>('');
+  
+  // Stati per paginazione e ricerca articoli
+  const [transferArticlesCurrentPage, setTransferArticlesCurrentPage] = useState(1);
+  const [transferArticlesTotalPages, setTransferArticlesTotalPages] = useState(1);
+  const [transferArticlesPerPage] = useState(50);
+  const [transferSearchTerm, setTransferSearchTerm] = useState('');
+  const [transferHasMore, setTransferHasMore] = useState(false);
+  
+  // Stati per paginazione per magazzino
   
   // Stati per la selezione multipla e invio articoli
   const [selectedArticles, setSelectedArticles] = useState<string[]>([]);
-  const [showSendDialog, setShowSendDialog] = useState(false);
-  const [sendTargetWarehouse, setSendTargetWarehouse] = useState<string>('');
-  const [sendLoading, setSendLoading] = useState(false);
+  
+  // Stati per il dialog inventario
   
   const auth = useAuth();
 
@@ -130,6 +130,17 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
       setArticlesCurrentPage(1);
     }
   }, [articleFilters]);
+
+  // Fetch articoli transfer quando cambia la ricerca - con debounce intelligente
+  useEffect(() => {
+    if (selectedSourceWarehouses.length > 0) {
+      const timeoutId = setTimeout(() => {
+        fetchTransferSourceArticles(selectedSourceWarehouses, true, 1);
+      }, 300);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [transferSearchTerm, selectedSourceWarehouses]);
 
   const fetchWarehousesStats = async () => {
     if (!auth.token) return;
@@ -283,9 +294,44 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
     return new Date(dateString).toLocaleDateString('it-IT');
   };
 
-  const hasDateValue = (dateString: string | null) => {
-    return dateString && dateString.trim() !== '';
+  const hasDateValue = (dateString: string | null): boolean => {
+    return Boolean(dateString && dateString.trim() !== '');
   };
+
+  // Helper functions per calcolare i totali dall'inventory
+  const getTotalStock = (article: ArticleListItem): number => {
+    if (!article.inventory || !Array.isArray(article.inventory)) return 0;
+    return article.inventory.reduce((total, inv) => total + (inv.quantity_stock || 0), 0);
+  };
+
+  const getTotalReserved = (article: ArticleListItem): number => {
+    if (!article.inventory || !Array.isArray(article.inventory)) return 0;
+    return article.inventory.reduce((total, inv) => total + (inv.quantity_reserved_client || 0), 0);
+  };
+
+  // Funzione per ottenere lo stock del magazzino specifico di provenienza
+  const getWarehouseSpecificStock = (article: ArticleListItem): number => {
+    if (!article.inventory || !Array.isArray(article.inventory)) return 0;
+    
+    // Usa il sourceWarehouseId per trovare lo stock specifico
+    const sourceWarehouseId = (article as unknown as { sourceWarehouseId: string }).sourceWarehouseId;
+    if (!sourceWarehouseId) return 0;
+    
+    const warehouseInventory = article.inventory.find(inv => 
+      inv.warehouse_id.toString() === sourceWarehouseId.toString()
+    );
+    
+    return warehouseInventory?.quantity_stock || 0;
+  };
+
+
+
+  // Funzioni per gestire il dialog inventario
+  const handleOpenInventoryDialog = () => {
+
+  };
+
+
 
   const handleWarehouseClick = (warehouseId: string) => {
     if (onWarehouseSelect) {
@@ -340,42 +386,31 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
 
 
 
-  // Funzioni per il dialog inserimento articoli
+  // Funzioni per il dialog carico articoli
   const handleOpenInsertDialog = () => {
     setShowInsertDialog(true);
-    setInsertActiveTab('external');
-    // Reset dei form
-    setNewArticleForm({
-      code: '',
-      description: '',
-      family: '',
-      brand: '',
-      serial: '',
-      quantity: 1
-    });
-    setTransferSourceWarehouse('');
+    // Reset del form
+    setSelectedSourceWarehouses([]);
     setTransferSourceArticles([]);
     setTransferArticles([]);
+    setTransferNotes('');
+    setTransferSearchTerm('');
+
   };
 
   const handleCloseInsertDialog = () => {
     setShowInsertDialog(false);
-    setInsertActiveTab('external');
-    setNewArticleForm({
-      code: '',
-      description: '',
-      family: '',
-      brand: '',
-      serial: '',
-      quantity: 1
-    });
-    setTransferSourceWarehouse('');
+    setSelectedSourceWarehouses([]);
     setTransferSourceArticles([]);
     setTransferArticles([]);
   };
 
-  const fetchTransferSourceArticles = async (sourceWarehouseId: string) => {
-    if (!auth.token || !sourceWarehouseId) return;
+  const fetchTransferSourceArticles = async (sourceWarehouseIds: string[], resetData = true, page = 1) => {
+    if (!auth.token) {
+      setTransferSourceArticles([]);
+      setTransferHasMore(false);
+      return;
+    }
 
     try {
       setTransferArticlesLoading(true);
@@ -385,11 +420,29 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
         'Authorization': `Bearer ${auth.token}`,
       };
 
+      // Usa una singola chiamata API con paginazione globale
       const searchParams = new URLSearchParams({
-        warehouse_id: sourceWarehouseId,
-        page: '1',
-        skip: '100',
+        page: page.toString(),
+        skip: transferArticlesPerPage.toString(),
       });
+
+      // Se abbiamo magazzini specifici, aggiungili come filtro
+      // Se sourceWarehouseIds è vuoto o contiene tutti i magazzini disponibili, non filtrare
+      const availableWarehouses = warehouses.filter(w => w.id !== selectedWarehouse);
+      const isSelectingAll = sourceWarehouseIds.length === availableWarehouses.length;
+      
+      if (sourceWarehouseIds.length > 0 && !isSelectingAll) {
+        // Filtro per magazzini specifici
+        sourceWarehouseIds.forEach(warehouseId => {
+          searchParams.append('warehouse_id', warehouseId);
+        });
+      }
+      // Se isSelectingAll === true, non aggiungiamo warehouse_id = nessun filtro = tutti gli articoli
+
+      // Aggiungi ricerca se presente
+      if (transferSearchTerm.trim()) {
+        searchParams.append('query', transferSearchTerm.trim());
+      }
 
       const response = await fetch(`/api/articles?${searchParams.toString()}`, { headers });
 
@@ -398,33 +451,124 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
           auth.logout();
           return;
         }
-        throw new Error('Failed to fetch source warehouse articles');
+        throw new Error('Failed to fetch articles from warehouses');
       }
 
       const data: ArticlesApiResponse = await response.json();
-      const availableArticles = (data.data || []).filter(article => 
-        article.quantity_stock && article.quantity_stock > 0
-      );
       
-      setTransferSourceArticles(availableArticles);
-      setTransferArticles([]);
+      // Espandi ogni articolo per ogni magazzino nell'inventory
+      const articlesWithWarehouse: ArticleListItem[] = [];
+      
+      (data.data || []).forEach(article => {
+        if (!article.inventory || !Array.isArray(article.inventory)) return;
+        
+        // Per ogni magazzino nell'inventory, crea una copia dell'articolo
+        article.inventory.forEach(inv => {
+          if (isSelectingAll) {
+            // Se selezioniamo tutti, includi tutti i magazzini (escluso quello di destinazione)
+            if (inv.warehouse_id.toString() !== selectedWarehouse) {
+              articlesWithWarehouse.push({
+                ...article,
+                sourceWarehouseId: inv.warehouse_id?.toString(),
+                sourceWarehouseDescription: inv.warehouse_description || 
+                  warehouses.find(w => w.id === inv.warehouse_id?.toString())?.description || `Magazzino ${inv.warehouse_id}`
+              } as unknown as ArticleListItem);
+            }
+          } else {
+            // Se filtriamo per magazzini specifici, includi solo quelli selezionati
+            if (sourceWarehouseIds.includes(inv.warehouse_id.toString())) {
+              articlesWithWarehouse.push({
+                ...article,
+                sourceWarehouseId: inv.warehouse_id?.toString(),
+                sourceWarehouseDescription: inv.warehouse_description || 
+                  warehouses.find(w => w.id === inv.warehouse_id?.toString())?.description || `Magazzino ${inv.warehouse_id}`
+              } as unknown as ArticleListItem);
+            }
+          }
+        });
+      });
+      
+      // Aggiorna gli stati con paginazione globale
+      if (resetData) {
+        setTransferSourceArticles(articlesWithWarehouse);
+      } else {
+        // Append per paginazione successiva
+        setTransferSourceArticles(prev => [...prev, ...articlesWithWarehouse]);
+      }
+      
+      // Aggiorna paginazione globale
+      setTransferArticlesCurrentPage(page);
+      setTransferArticlesTotalPages(data.meta?.totalPages || 1);
+      setTransferHasMore(page < (data.meta?.totalPages || 1));
 
     } catch (err) {
       console.error('Error fetching source warehouse articles:', err);
-      alert('Errore nel caricamento degli articoli del magazzino sorgente');
+      alert('Errore nel caricamento degli articoli dei magazzini sorgente');
     } finally {
       setTransferArticlesLoading(false);
     }
   };
 
-  const handleTransferSourceWarehouseChange = (warehouseId: string) => {
-    setTransferSourceWarehouse(warehouseId);
-    if (warehouseId) {
-      fetchTransferSourceArticles(warehouseId);
-    } else {
-      setTransferSourceArticles([]);
-      setTransferArticles([]);
-    }
+  const handleSourceWarehouseToggle = (warehouseId: string) => {
+    setSelectedSourceWarehouses(prev => {
+      const newSelection = prev.includes(warehouseId)
+        ? prev.filter(id => id !== warehouseId)
+        : [...prev, warehouseId];
+      
+      // Reset e fetch articoli quando cambia la selezione
+      setTransferSearchTerm('');
+      setTimeout(() => fetchTransferSourceArticles(newSelection, true, 1), 0);
+      
+      return newSelection;
+    });
+  };
+
+  const handleSelectAllWarehouses = () => {
+    const availableWarehouses = warehouses
+      .filter(warehouse => warehouse.id !== selectedWarehouse)
+      .map(warehouse => warehouse.id);
+    
+    setSelectedSourceWarehouses(availableWarehouses);
+    setTransferSearchTerm('');
+    setTimeout(() => fetchTransferSourceArticles(availableWarehouses, true, 1), 0);
+  };
+
+  const handleDeselectAllWarehouses = () => {
+    setSelectedSourceWarehouses([]);
+    setTransferSourceArticles([]);
+  };
+
+  // Funzione per gestire il caricamento di più articoli - paginazione globale
+  const handleLoadMoreArticles = async () => {
+    if (!transferHasMore || transferArticlesLoading) return;
+    
+    const nextPage = transferArticlesCurrentPage + 1;
+    await fetchTransferSourceArticles(selectedSourceWarehouses, false, nextPage);
+  };
+
+  // Funzione per gestire la ricerca articoli - usa useEffect come nella pagina principale
+  const handleTransferSearchChange = (searchTerm: string) => {
+    setTransferSearchTerm(searchTerm);
+    // Il fetch viene gestito dall'useEffect quando cambia transferSearchTerm
+  };
+
+  // Funzione per raggruppare articoli per magazzino
+  const getArticlesByWarehouse = () => {
+    const groupedArticles: { [warehouseId: string]: { warehouse: Warehouse, articles: ArticleListItem[] } } = {};
+    
+    transferSourceArticles.forEach(article => {
+      const warehouseId = (article as unknown as { sourceWarehouseId: string }).sourceWarehouseId;
+      if (!groupedArticles[warehouseId]) {
+        const warehouse = warehouses.find(w => w.id === warehouseId);
+        groupedArticles[warehouseId] = {
+          warehouse: warehouse || { id: warehouseId, description: warehouseId, article_count: 0, total_stock_quantity: 0, total_reserved_quantity: 0, total_ordered_quantity: 0, total_all_quantities: 0 },
+          articles: []
+        };
+      }
+      groupedArticles[warehouseId].articles.push(article);
+    });
+
+    return groupedArticles;
   };
 
   const addTransferArticle = (article: ArticleListItem) => {
@@ -434,12 +578,18 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
       return;
     }
 
+    // Usa le informazioni del magazzino già presenti nell'articolo (aggiunte durante il fetch)
+        const sourceWarehouseId = (article as unknown as { sourceWarehouseId: string }).sourceWarehouseId;
+    const sourceWarehouseDescription = (article as unknown as { sourceWarehouseDescription: string }).sourceWarehouseDescription;
+
     const newTransferItem: TransferArticleItem = {
       articleId: article.id,
       articleCode: article.id,
       articleDescription: article.short_description,
-      availableQuantity: article.quantity_stock || 0,
-      transferQuantity: 1
+      availableQuantity: getWarehouseSpecificStock(article),
+      transferQuantity: 1,
+      sourceWarehouseId: sourceWarehouseId,
+      sourceWarehouseDescription: sourceWarehouseDescription
     };
 
     setTransferArticles(prev => [...prev, newTransferItem]);
@@ -457,49 +607,16 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
     setTransferArticles(prev => prev.filter(item => item.articleId !== articleId));
   };
 
-  const handleSubmitExternalInsert = async () => {
-    if (!selectedWarehouse || !newArticleForm.code.trim() || !newArticleForm.description.trim()) {
-      alert('Compila tutti i campi obbligatori');
-      return;
-    }
 
-    setInsertLoading(true);
 
-    try {
-      // TODO: Chiamata API per inserire articolo dall'esterno
-      console.log('Inserimento articolo dall\'esterno:', {
-        warehouseId: selectedWarehouse,
-        article: newArticleForm
-      });
-
-      // Simula delay API
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      alert('Articolo inserito con successo!');
-      
-      // Ricarica gli articoli del magazzino
-      if (selectedWarehouse) {
-        fetchWarehouseArticles(selectedWarehouse, 1, false);
-      }
-      
-      handleCloseInsertDialog();
-
-    } catch (error) {
-      console.error('Errore nell\'inserimento:', error);
-      alert('Errore durante l\'inserimento dell\'articolo');
-    } finally {
-      setInsertLoading(false);
-    }
-  };
-
-  const handleSubmitTransfer = async () => {
-    if (!selectedWarehouse || !transferSourceWarehouse || transferArticles.length === 0) {
-      alert('Seleziona un magazzino sorgente e almeno un articolo');
+  const handleSubmitTransfer = async (transferArticlesParam: TransferArticleItem[], transferNotesParam: string) => {
+    if (!selectedWarehouse || selectedSourceWarehouses.length === 0 || transferArticlesParam.length === 0) {
+      alert('Seleziona almeno un magazzino sorgente e almeno un articolo');
       return;
     }
 
     // Verifica che tutte le quantità siano valide
-    const invalidItems = transferArticles.filter(item => 
+    const invalidItems = transferArticlesParam.filter(item => 
       item.transferQuantity <= 0 || item.transferQuantity > item.availableQuantity
     );
     if (invalidItems.length > 0) {
@@ -510,17 +627,75 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
     setInsertLoading(true);
 
     try {
-      // TODO: Chiamata API per trasferire articoli
-      console.log('Trasferimento articoli:', {
-        fromWarehouse: transferSourceWarehouse,
-        toWarehouse: selectedWarehouse,
-        articles: transferArticles
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (auth.token) {
+        headers['Authorization'] = `Bearer ${auth.token}`;
+      }
+
+      // Ottieni le informazioni dell'utente per il tracking
+      let userInfo = '';
+      if (auth.user) {
+        userInfo = `user_name: ${auth.user.name || 'Unknown'}`;
+      } else {
+        // Prova a ottenere le info utente dall'API me
+        try {
+          const meResponse = await fetch('/api/auth/me', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ token: auth.token }),
+          });
+          
+          if (meResponse.ok) {
+            const meData = await meResponse.json();
+            userInfo = `user_name: ${meData.user?.name || 'Unknown'}`;
+          }
+        } catch (err) {
+          console.warn('Could not fetch user info:', err);
+          userInfo = 'user_name: Unknown';
+        }
+      }
+
+      // Prepara i dati per la chiamata bulk-transfer
+      const transferData = {
+        transfers: transferArticlesParam.map(item => {
+          return {
+            article_id: item.articleId,
+            from_warehouse_id: item.sourceWarehouseId || selectedSourceWarehouses[0],
+            to_warehouse_id: selectedWarehouse,
+            quantity: item.transferQuantity,
+            notes: transferNotesParam ? `Carico: ${transferNotesParam}` : '',
+          };
+        }),
+        global_notes: `{date: ${Date.now()}; id_user: ${auth.user?.id || 'unknown'}; ${userInfo}}`
+      };
+
+      // Debug logging
+      console.log('🚀 Sending bulk transfer request:');
+      console.log('📤 Transfer data:', JSON.stringify(transferData, null, 2));
+      console.log('🔐 Headers:', headers);
+
+      const response = await fetch('/api/inventory/bulk-transfer', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(transferData),
       });
 
-      // Simula delay API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Errore durante il trasferimento');
+      }
 
-      alert(`Trasferiti ${transferArticles.length} articoli con successo!`);
+      const result = await response.json();
+      
+      // Mostra risultati
+      if (result.data.failed_transfers > 0) {
+        alert(`Trasferimento completato con alcuni errori:\n- Successi: ${result.data.successful_transfers}\n- Falliti: ${result.data.failed_transfers}`);
+      } else {
+        alert(`Trasferiti ${result.data.successful_transfers} articoli con successo!`);
+      }
       
       // Ricarica gli articoli del magazzino
       if (selectedWarehouse) {
@@ -531,7 +706,7 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
 
     } catch (error) {
       console.error('Errore nel trasferimento:', error);
-      alert('Errore durante il trasferimento degli articoli');
+      alert(`Errore durante il trasferimento degli articoli: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
     } finally {
       setInsertLoading(false);
     }
@@ -558,51 +733,8 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
     setSelectedArticles([]);
   };
 
-  const handleOpenSendDialog = () => {
-    setShowSendDialog(true);
-    setSendTargetWarehouse('');
-  };
 
-  const handleCloseSendDialog = () => {
-    setShowSendDialog(false);
-    setSendTargetWarehouse('');
-  };
 
-  const handleConfirmSendArticles = async () => {
-    if (!sendTargetWarehouse || selectedArticles.length === 0) {
-      alert('Seleziona un magazzino di destinazione');
-      return;
-    }
-
-    setSendLoading(true);
-
-    try {
-      // TODO: Chiamata API per inviare articoli
-      console.log('Invio articoli:', {
-        fromWarehouse: selectedWarehouse,
-        toWarehouse: sendTargetWarehouse,
-        articleIds: selectedArticles
-      });
-
-      // Simula delay API
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      alert(`Inviati ${selectedArticles.length} articoli con successo!`);
-      
-      // Ricarica gli articoli e pulisci selezione
-      if (selectedWarehouse) {
-        fetchWarehouseArticles(selectedWarehouse, 1, false);
-      }
-      clearArticleSelection();
-      handleCloseSendDialog();
-
-    } catch (error) {
-      console.error('Errore nell\'invio articoli:', error);
-      alert('Errore durante l\'invio degli articoli');
-    } finally {
-      setSendLoading(false);
-    }
-  };
 
   // Filtra i magazzini in base al termine di ricerca
   const filteredWarehouses = warehouses.filter(warehouse =>
@@ -692,17 +824,48 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
 
             {/* Statistiche principali */}
             <div className="space-y-2">
-              {/* Numero articoli */}
+              {/* Numero tipologie articoli */}
               <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-600">Articoli totali</span>
+                <span className="text-xs text-gray-600">Tipologie</span>
                 <span className="text-xs font-semibold text-gray-900">
-                  {parseInt(warehouse.article_count).toLocaleString('it-IT')}
+                  {warehouse.article_count.toLocaleString('it-IT')}
                 </span>
               </div>
 
-
-
-
+              {/* Griglia quantità in 2 colonne */}
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1 pt-1">
+                {/* Stock */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Stock</span>
+                  <span className="text-xs font-medium text-green-600">
+                    {warehouse.total_stock_quantity.toLocaleString('it-IT')}
+                  </span>
+                </div>
+                
+                {/* Riservati */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Riservati</span>
+                  <span className="text-xs font-medium text-orange-600">
+                    {warehouse.total_reserved_quantity.toLocaleString('it-IT')}
+                  </span>
+                </div>
+                
+                {/* In arrivo */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-600">In arrivo</span>
+                  <span className="text-xs font-medium text-blue-600">
+                    {warehouse.total_ordered_quantity.toLocaleString('it-IT')}
+                  </span>
+                </div>
+                
+                {/* Totale */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Totale</span>
+                  <span className="text-xs font-semibold text-gray-900">
+                    {warehouse.total_all_quantities.toLocaleString('it-IT')}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         ))}
@@ -734,822 +897,81 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
       )}
 
       {/* Dettaglio magazzino selezionato */}
-      {selectedWarehouse && (
-        <div id="warehouse-detail-section" className="mt-8 scroll-mt-6">
-          <div className="bg-gray-50 rounded-lg p-6 mb-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <h3 className="text-lg font-medium text-gray-900">
-                <span className="font-bold">{filteredWarehouses.find(w => w.id === selectedWarehouse)?.description || warehouses.find(w => w.id === selectedWarehouse)?.description}</span>
-              </h3>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleOpenInsertDialog}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium"
-                >
-                  <ArrowLeft size={16} />
-                  Inserisci articoli
-                </button>
-              </div>
-            </div>
-          </div>
-          
-          {/* Filtri per gli articoli */}
-          <div className="mb-4">
-            <div className="flex items-center gap-4 flex-wrap">
-              {/* Search bar */}
-              <div className="relative flex-1 min-w-80">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="text"
-                  placeholder="Cerca articolo per codice o descrizione..."
-                  value={articleFilters.searchTerm}
-                  onChange={(e) => handleArticleFilterChange('searchTerm', e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
-                />
-              </div>
-              
-              {/* Loader */}
-              {(articlesLoading || loadingMoreArticles) && (
-                <Loader2 className="w-5 h-5 text-teal-600 animate-spin flex-shrink-0" />
-              )}
-              
-              {/* Filtro Stock */}
-              <div className="relative flex-shrink-0">
-                <select
-                  value={articleFilters.stock}
-                  onChange={(e) => handleArticleFilterChange('stock', e.target.value)}
-                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 bg-white appearance-none pr-8 text-gray-700"
-                >
-                  <option value="">Tutti gli stock</option>
-                  <option value="1">In stock</option>
-                  <option value="-1">Esauriti</option>
-                </select>
-                <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
-              </div>
-
-              {/* Filtro Place Type */}
-              <div className="relative flex-shrink-0">
-                <select
-                  value={articleFilters.placeType}
-                  onChange={(e) => handleArticleFilterChange('placeType', e.target.value)}
-                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 bg-white appearance-none pr-8 text-gray-700"
-                >
-                  <option value="">Tutti i tipi di posto</option>
-                  {placeTypes.map((type) => (
-                    <option key={type.id} value={type.id.toString()}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-                <MapPin className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
-              </div>
-
-              {/* Filtro Place */}
-              {articleFilters.placeType && (
-                <div className="relative flex-shrink-0">
-                  <select
-                    value={articleFilters.place}
-                    onChange={(e) => handleArticleFilterChange('place', e.target.value)}
-                    className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 bg-white appearance-none pr-8 text-gray-700"
-                  >
-                    <option value="">Tutti i posti</option>
-                    {articlePlaces.map((place) => (
-                      <option key={place.id} value={place.id.toString()}>
-                        {place.property_1} ({place.property_2})
-                      </option>
-                    ))}
-                  </select>
-                  <MapPin className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
-                </div>
-              )}
-
-              {/* Reset filters button */}
-              {(articleFilters.searchTerm || articleFilters.stock || articleFilters.placeType || articleFilters.place) && (
-                <button
-                  onClick={resetArticleFilters}
-                  className="text-sm text-gray-600 hover:text-gray-800 underline flex-shrink-0"
-                >
-                  Cancella filtri
-                </button>
-              )}
-            </div>
-          </div>
-          
-          {/* Articoli del magazzino */}
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-gray-900">
-                  visibili {warehouseArticles.length} su {parseInt(warehouses.find(w => w.id === selectedWarehouse)?.article_count || '0')} totali
-                  {articlesTotalPages > 1 && (
-                    <span className="text-gray-500 ml-2">
-                      (pagina {articlesCurrentPage} di {articlesTotalPages})
-                    </span>
-                  )}
-                </h4>
-                {articlesCurrentPage < articlesTotalPages && (
-                  <button
-                    onClick={() => selectedWarehouse && fetchWarehouseArticles(selectedWarehouse, articlesCurrentPage + 1, true)}
-                    disabled={loadingMoreArticles}
-                    className="text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 py-1 rounded-md flex items-center gap-1 transition-colors"
-                  >
-                    {loadingMoreArticles ? (
-                      <>
-                        <Loader2 className="animate-spin" size={12} />
-                        Caricamento...
-                      </>
-                    ) : (
-                      <>
-                        Carica altri 50
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Barra azioni massive */}
-            {selectedArticles.length > 0 && (
-              <div className="px-6 py-3 bg-blue-50 border-b border-blue-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm font-medium text-blue-900">
-                      {selectedArticles.length} articol{selectedArticles.length === 1 ? 'o selezionato' : 'i selezionati'}
-                    </span>
-                    <button
-                      onClick={clearArticleSelection}
-                      className="text-xs text-blue-600 hover:text-blue-800 underline"
-                    >
-                      Deseleziona tutto
-                    </button>
-                  </div>
-                  <button
-                    onClick={handleOpenSendDialog}
-                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium"
-                  >
-                    <ArrowRight size={16} />
-                    Invia articoli
-                  </button>
-                </div>
-              </div>
-            )}
-            
-            {articlesError && (
-              <div className="p-4 bg-red-50 border-b border-red-200">
-                <p className="text-red-600 text-sm">{articlesError}</p>
-                <button
-                  onClick={() => selectedWarehouse && fetchWarehouseArticles(selectedWarehouse, 1, false)}
-                  className="mt-2 text-red-600 hover:text-red-700 underline text-sm"
-                >
-                  Riprova
-                </button>
-              </div>
-            )}
-            
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
-                      <input
-                        type="checkbox"
-                        checked={warehouseArticles.length > 0 && selectedArticles.length === warehouseArticles.length}
-                        onChange={(e) => handleSelectAllArticles(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Codice
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Descrizione
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Famiglia
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Marchio
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Stock
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Data aggiornamento
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {articlesLoading ? (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-8 text-center">
-                        <Loader2 className="w-6 h-6 text-teal-600 animate-spin mx-auto mb-2" />
-                        <p className="text-gray-500">Caricamento articoli...</p>
-                      </td>
-                    </tr>
-                  ) : warehouseArticles.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                        Nessun articolo trovato in questo magazzino
-                      </td>
-                    </tr>
-                  ) : (
-                    warehouseArticles.map((article) => (
-                      <tr 
-                        key={article.id} 
-                        className="hover:bg-gray-50 transition-colors"
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap w-12">
-                          <input
-                            type="checkbox"
-                            checked={selectedArticles.includes(article.id)}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              handleSelectArticle(article.id, e.target.checked);
-                            }}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                        </td>
-                        <td 
-                          className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 cursor-pointer"
-                          onClick={() => handleArticleClick(article.id)}
-                          title="Clicca per visualizzare i dettagli dell'articolo"
-                        >
-                          {article.id}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">
-                          <div>
-                            <div className="font-medium">{article.short_description}</div>
-                            {article.description && (
-                              <div className="text-gray-500 text-xs mt-1 max-w-xs truncate">
-                                {article.description}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                            {article.family_label}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {article.brand_label}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          {article.quantity_stock !== null ? (
-                            <span className={`font-medium ${
-                              article.quantity_stock === 0 
-                                ? 'text-red-600' 
-                                : article.quantity_stock < 10 
-                                  ? 'text-orange-600' 
-                                  : 'text-green-600'
-                            }`}>
-                              {article.quantity_stock}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400">N/A</span>
-                          )}
-                          {article.quantity_reserved_client !== null && article.quantity_reserved_client > 0 && (
-                            <span className="text-xs text-gray-500 ml-1">
-                              ({article.quantity_reserved_client} ris.)
-                            </span>
-                          )}
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${
-                          hasDateValue(article.updated_at) ? 'text-gray-600' : 'text-gray-400'
-                        }`}>
-                          {formatArticleDate(article.updated_at)}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                  {/* Indicatore caricamento nuove righe */}
-                  {loadingMoreArticles && (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-4 text-center border-t border-gray-200 bg-gray-50">
-                        <div className="flex items-center justify-center gap-2">
-                          <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
-                          <span className="text-sm text-gray-600">Caricamento nuovi articoli...</span>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            
-            {/* Pulsante carica altri in fondo alla tabella */}
-            {articlesCurrentPage < articlesTotalPages && warehouseArticles.length > 0 && (
-              <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 text-center">
-                <button
-                  onClick={() => selectedWarehouse && fetchWarehouseArticles(selectedWarehouse, articlesCurrentPage + 1, true)}
-                  disabled={loadingMoreArticles}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors mx-auto"
-                >
-                  {loadingMoreArticles ? (
-                    <>
-                      <Loader2 className="animate-spin" size={16} />
-                      Caricamento...
-                    </>
-                  ) : (
-                    <>
-                      Carica altri 50 articoli
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <DettaglioMagazzino
+        selectedWarehouse={selectedWarehouse || ''}
+        warehouses={warehouses}
+        filteredWarehouses={filteredWarehouses}
+        
+        warehouseArticles={warehouseArticles}
+        articlesLoading={articlesLoading}
+        loadingMoreArticles={loadingMoreArticles}
+        articlesError={articlesError}
+        articlesCurrentPage={articlesCurrentPage}
+        articlesTotalPages={articlesTotalPages}
+        onFetchWarehouseArticles={fetchWarehouseArticles}
+        
+        articleFilters={articleFilters}
+        onArticleFilterChange={handleArticleFilterChange}
+        onResetArticleFilters={resetArticleFilters}
+        placeTypes={placeTypes}
+        articlePlaces={articlePlaces}
+        
+        selectedArticles={selectedArticles}
+        onSelectArticle={handleSelectArticle}
+        onSelectAllArticles={handleSelectAllArticles}
+        onClearArticleSelection={clearArticleSelection}
+        
+        onOpenInsertDialog={handleOpenInsertDialog}
+        //onOpenSendDialog={}
+        onArticleClick={handleArticleClick}
+        onOpenInventoryDialog={handleOpenInventoryDialog}
+        
+        getTotalStock={getTotalStock}
+        getTotalReserved={getTotalReserved}
+        formatArticleDate={formatArticleDate}
+        hasDateValue={hasDateValue}
+      />
 
 
 
-      {/* Dialog Inserimento Articoli */}
-      {showInsertDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-[60vw] h-[95vh] overflow-hidden flex flex-col">
-            {/* Header with integrated tabs */}
-            <div className="bg-blue-50 border-b border-blue-200 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-3">
-                    <Plus className="text-blue-600" size={24} />
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-900">
-                        Inserisci Articoli
-                      </h2>
-                      <p className="text-sm text-gray-600">
-                        Magazzino: {filteredWarehouses.find(w => w.id === selectedWarehouse)?.description || warehouses.find(w => w.id === selectedWarehouse)?.description}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {/* Tab Navigation inline */}
-                  <div className="flex space-x-1 bg-white rounded-lg p-1 border border-blue-200">
-                    <button
-                      onClick={() => setInsertActiveTab('external')}
-                      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                        insertActiveTab === 'external'
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                      }`}
-                    >
-                      Dall&apos;esterno
-                    </button>
-                    <button
-                      onClick={() => setInsertActiveTab('transfer')}
-                      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                        insertActiveTab === 'transfer'
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                      }`}
-                    >
-                      Da altro magazzino
-                    </button>
-                  </div>
-                </div>
-                <button
-                  onClick={handleCloseInsertDialog}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-            </div>
+      {/* Dialog Carico Articoli */}
+      <CaricaArticoliDialog
+        isOpen={showInsertDialog}
+        onClose={handleCloseInsertDialog}
+        selectedWarehouse={selectedWarehouse || ''}
+        warehouses={warehouses}
+        filteredWarehouses={filteredWarehouses}
+        onSubmitTransfer={handleSubmitTransfer}
+        insertLoading={insertLoading}
+        
+        selectedSourceWarehouses={selectedSourceWarehouses}
+        onSourceWarehouseToggle={handleSourceWarehouseToggle}
+        onSelectAllWarehouses={handleSelectAllWarehouses}
+        onDeselectAllWarehouses={handleDeselectAllWarehouses}
+        
+        transferSourceArticles={transferSourceArticles}
+        transferArticlesLoading={transferArticlesLoading}
+        transferSearchTerm={transferSearchTerm}
+        onTransferSearchChange={handleTransferSearchChange}
+        transferArticlesCurrentPage={transferArticlesCurrentPage}
+        transferArticlesTotalPages={transferArticlesTotalPages}
+        transferArticlesPerPage={transferArticlesPerPage}
+        transferHasMore={transferHasMore}
+        onLoadMoreArticles={handleLoadMoreArticles}
+        
+        transferArticles={transferArticles}
+        onAddTransferArticle={addTransferArticle}
+        onUpdateTransferQuantity={updateTransferQuantity}
+        onRemoveTransferArticle={removeTransferArticle}
+        
+        transferNotes={transferNotes}
+        onTransferNotesChange={setTransferNotes}
+        
+        getWarehouseSpecificStock={getWarehouseSpecificStock}
+        getArticlesByWarehouse={getArticlesByWarehouse}
+      />
 
-            {/* Content */}
-            <div className="flex-1 p-6 overflow-y-auto">
-              {insertActiveTab === 'external' ? (
-                /* Tab Inserisci dall'esterno */
-                <div className="max-w-2xl mx-auto">
-                  <form className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Codice */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Codice Articolo *
-                        </label>
-                        <input
-                          type="text"
-                          value={newArticleForm.code}
-                          onChange={(e) => setNewArticleForm(prev => ({ ...prev, code: e.target.value }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
-                          placeholder="Es. ART001"
-                          required
-                        />
-                      </div>
 
-                      {/* Quantità */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Quantità *
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={newArticleForm.quantity}
-                          onChange={(e) => setNewArticleForm(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    {/* Descrizione */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Descrizione *
-                      </label>
-                      <input
-                        type="text"
-                        value={newArticleForm.description}
-                        onChange={(e) => setNewArticleForm(prev => ({ ...prev, description: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
-                        placeholder="Descrizione dell'articolo"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Famiglia */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Famiglia
-                        </label>
-                        <input
-                          type="text"
-                          value={newArticleForm.family}
-                          onChange={(e) => setNewArticleForm(prev => ({ ...prev, family: e.target.value }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
-                          placeholder="Famiglia prodotto"
-                        />
-                      </div>
-
-                      {/* Marchio */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Marchio
-                        </label>
-                        <input
-                          type="text"
-                          value={newArticleForm.brand}
-                          onChange={(e) => setNewArticleForm(prev => ({ ...prev, brand: e.target.value }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
-                          placeholder="Marchio prodotto"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Serial */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Numero Seriale
-                      </label>
-                      <input
-                        type="text"
-                        value={newArticleForm.serial}
-                        onChange={(e) => setNewArticleForm(prev => ({ ...prev, serial: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
-                        placeholder="Numero seriale (opzionale)"
-                      />
-                    </div>
-                  </form>
-                </div>
-              ) : (
-                /* Tab Ricevi da altro magazzino */
-                <div>
-                  {/* Selezione magazzino sorgente */}
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Magazzino Sorgente *
-                    </label>
-                    <select
-                      value={transferSourceWarehouse}
-                      onChange={(e) => handleTransferSourceWarehouseChange(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-700"
-                    >
-                      <option value="">Seleziona magazzino...</option>
-                      {warehouses
-                        .filter(warehouse => warehouse.id !== selectedWarehouse)
-                        .map((warehouse) => (
-                          <option key={warehouse.id} value={warehouse.id}>
-                            {warehouse.description}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-
-                  {/* Articoli del magazzino sorgente */}
-                  {transferSourceWarehouse && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Lista articoli disponibili */}
-                      <div>
-                        <h4 className="text-md font-medium text-gray-900 mb-4">
-                          Articoli Disponibili ({transferSourceArticles.length})
-                        </h4>
-                        <div className="bg-gray-50 rounded-lg border border-gray-200 max-h-96 overflow-y-auto">
-                          {transferArticlesLoading ? (
-                            <div className="p-4 text-center">
-                              <Loader2 className="w-6 h-6 text-green-600 animate-spin mx-auto mb-2" />
-                              <p className="text-gray-500 text-sm">Caricamento articoli...</p>
-                            </div>
-                          ) : transferSourceArticles.length === 0 ? (
-                            <div className="p-4 text-center text-gray-500 text-sm">
-                              Nessun articolo disponibile in questo magazzino
-                            </div>
-                          ) : (
-                            <div className="divide-y divide-gray-200">
-                              {transferSourceArticles.map((article) => (
-                                <div key={article.id} className="p-3 hover:bg-gray-100 transition-colors">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium text-gray-900 truncate">
-                                        {article.id}
-                                      </p>
-                                      <p className="text-xs text-gray-600 truncate">
-                                        {article.short_description}
-                                      </p>
-                                      <p className="text-xs text-gray-500">
-                                        Stock: {article.quantity_stock}
-                                      </p>
-                                    </div>
-                                    <button
-                                      onClick={() => addTransferArticle(article)}
-                                      className="ml-2 bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs font-medium transition-colors"
-                                    >
-                                      <Plus size={12} />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Lista articoli selezionati */}
-                      <div>
-                        <h4 className="text-md font-medium text-gray-900 mb-4">
-                          Articoli Selezionati ({transferArticles.length})
-                        </h4>
-                        <div className="bg-blue-50 rounded-lg border border-blue-200 max-h-96 overflow-y-auto">
-                          {transferArticles.length === 0 ? (
-                            <div className="p-4 text-center text-gray-500 text-sm">
-                              Nessun articolo selezionato
-                            </div>
-                          ) : (
-                            <div className="divide-y divide-blue-200">
-                              {transferArticles.map((item) => (
-                                <div key={item.articleId} className="p-3">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium text-gray-900 truncate">
-                                        {item.articleCode}
-                                      </p>
-                                      <p className="text-xs text-gray-600 truncate">
-                                        {item.articleDescription}
-                                      </p>
-                                    </div>
-                                    <button
-                                      onClick={() => removeTransferArticle(item.articleId)}
-                                      className="text-red-600 hover:text-red-800 p-1"
-                                      title="Rimuovi"
-                                    >
-                                      <X size={16} />
-                                    </button>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs text-gray-600">Qtà:</span>
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      max={item.availableQuantity}
-                                      value={item.transferQuantity}
-                                      onChange={(e) => updateTransferQuantity(item.articleId, parseInt(e.target.value) || 1)}
-                                      className="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-center focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
-                                    />
-                                    <span className="text-xs text-gray-500">
-                                      / {item.availableQuantity}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="bg-gray-50 border-t border-gray-200 px-6 py-4 flex-shrink-0">
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={handleCloseInsertDialog}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                >
-                  Annulla
-                </button>
-                <button
-                  onClick={insertActiveTab === 'external' ? handleSubmitExternalInsert : handleSubmitTransfer}
-                  disabled={
-                    insertLoading || 
-                    (insertActiveTab === 'external' && (!newArticleForm.code.trim() || !newArticleForm.description.trim())) ||
-                    (insertActiveTab === 'transfer' && (!transferSourceWarehouse || transferArticles.length === 0))
-                  }
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium"
-                >
-                  {insertLoading ? (
-                    <>
-                      <Loader2 className="animate-spin" size={16} />
-                      Elaborazione...
-                    </>
-                  ) : (
-                    <>
-                      <Send size={16} />
-                      {insertActiveTab === 'external' ? 'Inserisci Articolo' : 'Trasferisci Articoli'}
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Dialog Invio Articoli */}
-      {showSendDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-[60vw] h-[95vh] overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="bg-red-50 border-b border-red-200 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <ArrowRight className="text-red-600" size={24} />
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      Invia Articoli
-                    </h2>
-                    <p className="text-sm text-gray-600">
-                      Da: {filteredWarehouses.find(w => w.id === selectedWarehouse)?.description || warehouses.find(w => w.id === selectedWarehouse)?.description}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleCloseSendDialog}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 p-6 overflow-y-auto">
-              <div className="max-w-4xl mx-auto space-y-6">
-                {/* Selezione magazzino destinazione */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Magazzino di Destinazione *
-                  </label>
-                  <select
-                    value={sendTargetWarehouse}
-                    onChange={(e) => setSendTargetWarehouse(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500 text-gray-700"
-                  >
-                    <option value="">Seleziona magazzino di destinazione...</option>
-                    {warehouses
-                      .filter(warehouse => warehouse.id !== selectedWarehouse)
-                      .map((warehouse) => (
-                        <option key={warehouse.id} value={warehouse.id}>
-                          {warehouse.description}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-
-                {/* Riepilogo articoli selezionati */}
-                <div>
-                  <h3 className="text-md font-medium text-gray-900 mb-4">
-                    Articoli Selezionati ({selectedArticles.length})
-                  </h3>
-                  <div className="bg-gray-50 rounded-lg border border-gray-200 max-h-96 overflow-y-auto">
-                    <div className="divide-y divide-gray-200">
-                      {selectedArticles.map((articleId) => {
-                        const article = warehouseArticles.find(a => a.id === articleId);
-                        if (!article) return null;
-                        
-                        return (
-                          <div key={articleId} className="p-4 hover:bg-gray-100 transition-colors">
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-3">
-                                  <Package className="text-gray-400 flex-shrink-0" size={16} />
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-medium text-gray-900 truncate">
-                                      {article.id}
-                                    </p>
-                                    <p className="text-xs text-gray-600 truncate">
-                                      {article.short_description}
-                                    </p>
-                                    <div className="flex items-center gap-4 mt-1">
-                                      {article.family_label && (
-                                        <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                                          {article.family_label}
-                                        </span>
-                                      )}
-                                      {article.brand_label && (
-                                        <span className="text-xs text-gray-500">
-                                          {article.brand_label}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                {article.quantity_stock !== null ? (
-                                  <span className={`text-sm font-medium px-2 py-1 rounded ${
-                                    article.quantity_stock === 0 
-                                      ? 'bg-red-100 text-red-700' 
-                                      : article.quantity_stock < 10 
-                                        ? 'bg-orange-100 text-orange-700' 
-                                        : 'bg-green-100 text-green-700'
-                                  }`}>
-                                    Stock: {article.quantity_stock}
-                                  </span>
-                                ) : (
-                                  <span className="text-sm text-gray-400 px-2 py-1">N/A</span>
-                                )}
-                                <button
-                                  onClick={() => handleSelectArticle(articleId, false)}
-                                  className="text-red-600 hover:text-red-800 p-1"
-                                  title="Rimuovi dalla selezione"
-                                >
-                                  <X size={16} />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Informazioni aggiuntive */}
-                <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="text-yellow-600 flex-shrink-0 mt-0.5" size={16} />
-                    <div>
-                      <h4 className="text-sm font-medium text-yellow-800 mb-1">
-                        Informazioni sull&apos;invio
-                      </h4>
-                      <ul className="text-xs text-yellow-700 space-y-1">
-                        <li>• Gli articoli verranno trasferiti dal magazzino sorgente a quello di destinazione</li>
-                        <li>• Lo stock verrà aggiornato automaticamente in entrambi i magazzini</li>
-                        <li>• L&apos;operazione sarà registrata nel sistema per la tracciabilità</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="bg-gray-50 border-t border-gray-200 px-6 py-4 flex-shrink-0">
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={handleCloseSendDialog}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                >
-                  Annulla
-                </button>
-                <button
-                  onClick={handleConfirmSendArticles}
-                  disabled={sendLoading || !sendTargetWarehouse || selectedArticles.length === 0}
-                  className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium"
-                >
-                  {sendLoading ? (
-                    <>
-                      <Loader2 className="animate-spin" size={16} />
-                      Invio in corso...
-                    </>
-                  ) : (
-                    <>
-                      <Send size={16} />
-                      Conferma Invio ({selectedArticles.length} articoli)
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

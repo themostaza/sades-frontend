@@ -453,7 +453,7 @@ export default function InterventionDetailsSectionDetail({
                 <div key={art.id} onClick={() => handleArticleSelect(art)} className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700">
                   <div className="font-medium text-gray-700">{art.short_description}
                   </div>
-                  <div className="text-sm text-gray-500">PNC: {art.pnc_code} | Stock: {art.quantity_stock} |
+                  <div className="text-sm text-gray-500">PNC: {art.pnc_code} | Stock: {art.inventory?.reduce((total, inv) => total + (inv.quantity_stock || 0), 0) || 0} |
                     <span className=" text-gray-600 ml-1"> ID: {art.id}</span>
                   </div>
                 </div>
@@ -469,7 +469,7 @@ export default function InterventionDetailsSectionDetail({
                 <div className="flex-1">
                   <div className="font-medium text-gray-700">{selArt.article.short_description}
                   </div>
-                  <div className="text-sm text-gray-700">PNC: {selArt.article.pnc_code} | Stock: {selArt.article.quantity_stock} | <span className=" text-gray-600 ml-1">ID: {selArt.article.id}</span></div>
+                  <div className="text-sm text-gray-700">PNC: {selArt.article.pnc_code} | Stock: {selArt.article.inventory?.reduce((total, inv) => total + (inv.quantity_stock || 0), 0) || 0} | <span className=" text-gray-600 ml-1">ID: {selArt.article.id}</span></div>
                   {selArt.allocations && selArt.allocations.length > 0 && (
                     <div className="mt-1 text-xs text-gray-600">
                       <div className="font-medium">Prelievo:</div>

@@ -74,7 +74,16 @@ export default function InterventionsView({ onInterventionClick }: Interventions
 
   // Stati per i filtri
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateRange, setDateRange] = useState<{from: string; to: string}>({from: '', to: ''});
+  const [dateRange, setDateRange] = useState<{from: string; to: string}>(() => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    
+    return {
+      from: today.toISOString().split('T')[0], // Oggi
+      to: tomorrow.toISOString().split('T')[0]  // Domani
+    };
+  });
   const [selectedZone, setSelectedZone] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('in_carico');
   const [selectedTechnician, setSelectedTechnician] = useState('');
