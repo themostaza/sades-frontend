@@ -6,6 +6,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ArticleListItem, ArticlesApiResponse, PlaceType, ArticlePlace } from '../../types/article';
 import CaricaArticoliDialog from '../../components/CaricaArticoliDialog';
 import DettaglioMagazzino from '../../components/DettaglioMagazzino';
+import NotificationDialog from '../../components/NotificationDialog';
+import InviaArticoliDialog from '../../components/InviaArticoliDialog';
 
 interface Warehouse {
   id: string;
@@ -29,6 +31,14 @@ interface TransferArticleItem {
   transferQuantity: number;
   sourceWarehouseId?: string;
   sourceWarehouseDescription?: string;
+}
+
+interface SendArticleItem {
+  articleId: string;
+  articleCode: string;
+  articleDescription: string;
+  availableQuantity: number;
+  sendQuantity: number;
 }
 
 interface ArticleFilters {
@@ -75,6 +85,10 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
   const [showInsertDialog, setShowInsertDialog] = useState(false);
   const [insertLoading, setInsertLoading] = useState(false);
   
+  // Stati per il dialog invio articoli
+  const [showSendDialog, setShowSendDialog] = useState(false);
+  const [sendLoading, setSendLoading] = useState(false);
+  
   
   // Stati per trasferimento da altro magazzino
   const [selectedSourceWarehouses, setSelectedSourceWarehouses] = useState<string[]>([]);
@@ -94,6 +108,21 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
   
   // Stati per la selezione multipla e invio articoli
   const [selectedArticles, setSelectedArticles] = useState<string[]>([]);
+  
+  // Stati per il dialog di notifica
+  const [notification, setNotification] = useState<{
+    isOpen: boolean;
+    type: 'success' | 'error' | 'warning' | 'info';
+    title: string;
+    message: string;
+    details?: string[];
+  }>({
+    isOpen: false,
+    type: 'success',
+    title: '',
+    message: '',
+    details: []
+  });
   
   // Stati per il dialog inventario
   
@@ -298,16 +327,19 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
     return Boolean(dateString && dateString.trim() !== '');
   };
 
-  // Helper functions per calcolare i totali dall'inventory
-  const getTotalStock = (article: ArticleListItem): number => {
-    if (!article.inventory || !Array.isArray(article.inventory)) return 0;
-    return article.inventory.reduce((total, inv) => total + (inv.quantity_stock || 0), 0);
+  // Formatta la data corrente in formato leggibile per le note
+  const formatCurrentDateForNotes = (): string => {
+    try {
+      return new Date().toLocaleString('it-IT', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    } catch {
+      return new Date().toISOString();
+    }
   };
 
-  const getTotalReserved = (article: ArticleListItem): number => {
-    if (!article.inventory || !Array.isArray(article.inventory)) return 0;
-    return article.inventory.reduce((total, inv) => total + (inv.quantity_reserved_client || 0), 0);
-  };
+
 
   // Funzione per ottenere lo stock del magazzino specifico di provenienza
   const getWarehouseSpecificStock = (article: ArticleListItem): number => {
@@ -324,7 +356,44 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
     return warehouseInventory?.quantity_stock || 0;
   };
 
+  // Funzione per ottenere lo stock del magazzino sorgente corrente (per invio)
+  const getSourceWarehouseStock = (article: ArticleListItem): number => {
+    if (!article.inventory || !Array.isArray(article.inventory) || !selectedWarehouse) return 0;
+    
+    const warehouseInventory = article.inventory.find(inv => 
+      inv.warehouse_id.toString() === selectedWarehouse.toString()
+    );
+    
+    return warehouseInventory?.quantity_stock || 0;
+  };
 
+  // Funzione per ottenere i riservati del magazzino sorgente corrente
+  const getSourceWarehouseReserved = (article: ArticleListItem): number => {
+    if (!article.inventory || !Array.isArray(article.inventory) || !selectedWarehouse) return 0;
+    
+    const warehouseInventory = article.inventory.find(inv => 
+      inv.warehouse_id.toString() === selectedWarehouse.toString()
+    );
+    
+    return warehouseInventory?.quantity_reserved_client || 0;
+  };
+
+
+
+  // Funzioni per gestire le notifiche
+  const showNotification = (type: 'success' | 'error' | 'warning' | 'info', title: string, message: string, details?: string[]) => {
+    setNotification({
+      isOpen: true,
+      type,
+      title,
+      message,
+      details: details || []
+    });
+  };
+
+  const closeNotification = () => {
+    setNotification(prev => ({ ...prev, isOpen: false }));
+  };
 
   // Funzioni per gestire il dialog inventario
   const handleOpenInventoryDialog = () => {
@@ -403,6 +472,148 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
     setSelectedSourceWarehouses([]);
     setTransferSourceArticles([]);
     setTransferArticles([]);
+  };
+
+  // Funzioni per il dialog invio articoli
+  const handleOpenSendDialog = () => {
+    if (selectedArticles.length === 0) {
+      showNotification('warning', 'Nessun articolo selezionato', 'Seleziona almeno un articolo per procedere con l\'invio.');
+      return;
+    }
+    setShowSendDialog(true);
+  };
+
+  const handleCloseSendDialog = () => {
+    setShowSendDialog(false);
+  };
+
+  const handleSubmitSend = async (targetWarehouseId: string, sendArticles: SendArticleItem[], sendNotes: string) => {
+    if (!selectedWarehouse || !targetWarehouseId || sendArticles.length === 0) {
+      showNotification('warning', 'Dati incompleti', 'Verifica che tutti i campi siano compilati correttamente.');
+      return;
+    }
+
+    // Verifica che tutte le quantità siano valide
+    const invalidItems = sendArticles.filter(item => 
+      item.sendQuantity <= 0 || item.sendQuantity > item.availableQuantity
+    );
+    if (invalidItems.length > 0) {
+      const invalidDetails = invalidItems.map(item => 
+        `${item.articleDescription}: quantità ${item.sendQuantity} non valida (max ${item.availableQuantity})`
+      );
+      showNotification('error', 'Quantità non valide', 'Verifica le quantità degli articoli selezionati:', invalidDetails);
+      return;
+    }
+
+    setSendLoading(true);
+
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (auth.token) {
+        headers['Authorization'] = `Bearer ${auth.token}`;
+      }
+
+      // Ottieni le informazioni dell'utente per il tracking (preferisci API /auth/me)
+      let userInfo = '';
+      let userId = 'unknown';
+
+      try {
+        const meResponse = await fetch('/api/auth/me', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${auth.token}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        });
+
+        if (meResponse.ok) {
+          const userData = await meResponse.json();
+          const fullName = `${userData.name || ''} ${userData.surname || ''}`.trim();
+          userInfo = `user_name: ${fullName || 'Unknown'}`;
+          userId = userData.id || 'unknown';
+        } else if (auth.user) {
+          userInfo = `user_name: ${auth.user.name || 'Unknown'}`;
+          userId = auth.user.id || 'unknown';
+        } else {
+          userInfo = 'user_name: Unknown';
+          userId = 'unknown';
+        }
+      } catch (err) {
+        console.warn('Could not fetch user info:', err);
+        if (auth.user) {
+          userInfo = `user_name: ${auth.user.name || 'Unknown'}`;
+          userId = auth.user.id || 'unknown';
+        } else {
+          userInfo = 'user_name: Unknown';
+          userId = 'unknown';
+        }
+      }
+
+      // Prepara i dati per la chiamata bulk-transfer (stesso endpoint ma direzione opposta)
+      const transferData = {
+        transfers: sendArticles.map(item => {
+          return {
+            article_id: item.articleId,
+            from_warehouse_id: selectedWarehouse,
+            to_warehouse_id: targetWarehouseId,
+            quantity: item.sendQuantity,
+            notes: sendNotes ? `Invio: ${sendNotes}` : '',
+          };
+        }),
+        global_notes: `{date: ${formatCurrentDateForNotes()}; id_user: ${userId}; ${userInfo}}`
+      };
+
+      // Debug logging
+      console.log('🚀 Sending bulk send request:');
+      console.log('📤 Send data:', JSON.stringify(transferData, null, 2));
+      console.log('🔐 Headers:', headers);
+
+      const response = await fetch('/api/inventory/bulk-transfer', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(transferData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Errore durante l\'invio');
+      }
+
+      const result = await response.json();
+      
+      // Mostra risultati
+      if (result.data.failed_transfers > 0) {
+        const details = [
+          `Invii riusciti: ${result.data.successful_transfers}`,
+          `Invii falliti: ${result.data.failed_transfers}`
+        ];
+        showNotification('warning', 'Invio completato con errori', 'L\'invio è stato completato ma alcuni articoli non sono stati trasferiti.', details);
+      } else {
+        const targetWarehouse = warehouses.find(w => w.id === targetWarehouseId);
+        showNotification('success', 'Invio completato', `Tutti i ${result.data.successful_transfers} articoli sono stati inviati con successo a ${targetWarehouse?.description || 'il magazzino selezionato'}.`);
+      }
+      
+      // Ricarica gli articoli del magazzino sorgente
+      if (selectedWarehouse) {
+        fetchWarehouseArticles(selectedWarehouse, 1, false);
+      }
+      
+      // Pulisci la selezione
+      clearArticleSelection();
+      
+      handleCloseSendDialog();
+
+    } catch (error) {
+      console.error('Errore nell\'invio:', error);
+      showNotification('error', 'Errore durante l\'invio', `Si è verificato un errore durante l'invio degli articoli: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
+    } finally {
+      setSendLoading(false);
+    }
   };
 
   const fetchTransferSourceArticles = async (sourceWarehouseIds: string[], resetData = true, page = 1) => {
@@ -503,7 +714,7 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
 
     } catch (err) {
       console.error('Error fetching source warehouse articles:', err);
-      alert('Errore nel caricamento degli articoli dei magazzini sorgente');
+      showNotification('error', 'Errore caricamento articoli', 'Si è verificato un errore durante il caricamento degli articoli dei magazzini sorgente. Riprova più tardi.');
     } finally {
       setTransferArticlesLoading(false);
     }
@@ -574,7 +785,7 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
   const addTransferArticle = (article: ArticleListItem) => {
     const existingIndex = transferArticles.findIndex(item => item.articleId === article.id);
     if (existingIndex >= 0) {
-      alert('Articolo già aggiunto alla lista');
+      showNotification('warning', 'Articolo già presente', 'Questo articolo è già stato aggiunto alla lista di trasferimento.');
       return;
     }
 
@@ -611,7 +822,7 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
 
   const handleSubmitTransfer = async (transferArticlesParam: TransferArticleItem[], transferNotesParam: string) => {
     if (!selectedWarehouse || selectedSourceWarehouses.length === 0 || transferArticlesParam.length === 0) {
-      alert('Seleziona almeno un magazzino sorgente e almeno un articolo');
+      showNotification('warning', 'Selezione incompleta', 'Seleziona almeno un magazzino sorgente e almeno un articolo per procedere con il caricamento.');
       return;
     }
 
@@ -620,7 +831,10 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
       item.transferQuantity <= 0 || item.transferQuantity > item.availableQuantity
     );
     if (invalidItems.length > 0) {
-      alert('Verifica le quantità degli articoli selezionati');
+      const invalidDetails = invalidItems.map(item => 
+        `${item.articleDescription}: quantità ${item.transferQuantity} non valida (max ${item.availableQuantity})`
+      );
+      showNotification('error', 'Quantità non valide', 'Verifica le quantità degli articoli selezionati:', invalidDetails);
       return;
     }
 
@@ -635,26 +849,41 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
         headers['Authorization'] = `Bearer ${auth.token}`;
       }
 
-      // Ottieni le informazioni dell'utente per il tracking
+      // Ottieni le informazioni dell'utente per il tracking (preferisci API /auth/me)
       let userInfo = '';
-      if (auth.user) {
-        userInfo = `user_name: ${auth.user.name || 'Unknown'}`;
-      } else {
-        // Prova a ottenere le info utente dall'API me
-        try {
-          const meResponse = await fetch('/api/auth/me', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ token: auth.token }),
-          });
-          
-          if (meResponse.ok) {
-            const meData = await meResponse.json();
-            userInfo = `user_name: ${meData.user?.name || 'Unknown'}`;
-          }
-        } catch (err) {
-          console.warn('Could not fetch user info:', err);
+      let userId = 'unknown';
+
+      try {
+        const meResponse = await fetch('/api/auth/me', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${auth.token}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        });
+
+        if (meResponse.ok) {
+          const userData = await meResponse.json();
+          const fullName = `${userData.name || ''} ${userData.surname || ''}`.trim();
+          userInfo = `user_name: ${fullName || 'Unknown'}`;
+          userId = userData.id || 'unknown';
+        } else if (auth.user) {
+          userInfo = `user_name: ${auth.user.name || 'Unknown'}`;
+          userId = auth.user.id || 'unknown';
+        } else {
           userInfo = 'user_name: Unknown';
+          userId = 'unknown';
+        }
+      } catch (err) {
+        console.warn('Could not fetch user info:', err);
+        if (auth.user) {
+          userInfo = `user_name: ${auth.user.name || 'Unknown'}`;
+          userId = auth.user.id || 'unknown';
+        } else {
+          userInfo = 'user_name: Unknown';
+          userId = 'unknown';
         }
       }
 
@@ -669,7 +898,7 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
             notes: transferNotesParam ? `Carico: ${transferNotesParam}` : '',
           };
         }),
-        global_notes: `{date: ${Date.now()}; id_user: ${auth.user?.id || 'unknown'}; ${userInfo}}`
+        global_notes: `{date: ${formatCurrentDateForNotes()}; id_user: ${userId}; ${userInfo}}`
       };
 
       // Debug logging
@@ -692,9 +921,13 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
       
       // Mostra risultati
       if (result.data.failed_transfers > 0) {
-        alert(`Trasferimento completato con alcuni errori:\n- Successi: ${result.data.successful_transfers}\n- Falliti: ${result.data.failed_transfers}`);
+        const details = [
+          `Trasferimenti riusciti: ${result.data.successful_transfers}`,
+          `Trasferimenti falliti: ${result.data.failed_transfers}`
+        ];
+        showNotification('warning', 'Trasferimento completato con errori', 'Il caricamento è stato completato ma alcuni articoli non sono stati trasferiti.', details);
       } else {
-        alert(`Trasferiti ${result.data.successful_transfers} articoli con successo!`);
+        showNotification('success', 'Caricamento completato', `Tutti i ${result.data.successful_transfers} articoli sono stati trasferiti con successo nel magazzino selezionato.`);
       }
       
       // Ricarica gli articoli del magazzino
@@ -706,7 +939,7 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
 
     } catch (error) {
       console.error('Errore nel trasferimento:', error);
-      alert(`Errore durante il trasferimento degli articoli: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
+      showNotification('error', 'Errore durante il caricamento', `Si è verificato un errore durante il trasferimento degli articoli: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
     } finally {
       setInsertLoading(false);
     }
@@ -922,12 +1155,12 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
         onClearArticleSelection={clearArticleSelection}
         
         onOpenInsertDialog={handleOpenInsertDialog}
-        //onOpenSendDialog={}
+        onOpenSendDialog={handleOpenSendDialog}
         onArticleClick={handleArticleClick}
         onOpenInventoryDialog={handleOpenInventoryDialog}
         
-        getTotalStock={getTotalStock}
-        getTotalReserved={getTotalReserved}
+        getTotalStock={getSourceWarehouseStock}
+        getTotalReserved={getSourceWarehouseReserved}
         formatArticleDate={formatArticleDate}
         hasDateValue={hasDateValue}
       />
@@ -971,6 +1204,28 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
         getArticlesByWarehouse={getArticlesByWarehouse}
       />
 
+      {/* Dialog Invio Articoli */}
+      <InviaArticoliDialog
+        isOpen={showSendDialog}
+        onClose={handleCloseSendDialog}
+        sourceWarehouse={selectedWarehouse || ''}
+        warehouses={warehouses}
+        selectedArticles={selectedArticles}
+        warehouseArticles={warehouseArticles}
+        onSubmitSend={handleSubmitSend}
+        sendLoading={sendLoading}
+        getTotalStock={getSourceWarehouseStock}
+      />
+
+      {/* Notification Dialog */}
+      <NotificationDialog
+        isOpen={notification.isOpen}
+        onClose={closeNotification}
+        type={notification.type}
+        title={notification.title}
+        message={notification.message}
+        details={notification.details}
+      />
 
     </div>
   );

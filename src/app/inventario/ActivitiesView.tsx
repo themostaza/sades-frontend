@@ -299,103 +299,88 @@ export default function ActivitiesView() {
         </p>
       </div>
 
-      {/* Riepilogo Anomalie */}
+      {/* Lista Attività */}
       {anomalies.length > 0 ? (
         <div className="mb-6">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="text-yellow-600 flex-shrink-0 mt-0.5" size={24} />
-              <div className="flex-1">
-                <h3 className="text-lg font-medium text-yellow-800 mb-3">
-                  Anomalie da sanare ({anomalies.length})
-                </h3>
-                <p className="text-sm text-yellow-700 mb-4">
-                  Discrepanze tra posizione fisica effettiva e posizione digitale degli articoli che richiedono attenzione immediata.
-                </p>
-                
-                {/* Lista anomalie */}
-                <div className="space-y-3">
-                  {(showAllAnomalies ? anomalies : anomalies.slice(0, 3)).map((anomaly) => (
-                    <div 
-                      key={anomaly.id} 
-                      className={`bg-white rounded-lg p-4 border-2 ${getSeverityColor(anomaly.severity)} shadow-sm hover:shadow-md transition-shadow`}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <span className="text-lg">{getSeverityIcon(anomaly.severity)}</span>
-                            <div className="flex items-center gap-2">
-                              {anomaly.type === 'report_discrepancy' && (
-                                <FileText className="text-blue-600" size={16} />
-                              )}
-                              {anomaly.type === 'physical_digital_mismatch' && (
-                                <Package className="text-purple-600" size={16} />
-                              )}
-                              <span className="text-sm font-medium text-gray-900">
-                                {anomaly.title}
-                              </span>
-                              <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getSeverityColor(anomaly.severity)}`}>
-                                {anomaly.severity === 'high' ? 'Alta' : anomaly.severity === 'medium' ? 'Media' : 'Bassa'}
-                              </span>
-                            </div>
-                          </div>
-                          <p className="text-sm text-gray-700 mb-3">{anomaly.description}</p>
-                          <div className="flex items-center gap-4 text-xs text-gray-600">
-                            {anomaly.warehouseName && (
-                              <div className="flex items-center gap-1">
-                                <Package size={12} />
-                                <span>{anomaly.warehouseName}</span>
-                              </div>
-                            )}
-                            {anomaly.articleCode && (
-                              <div className="flex items-center gap-1">
-                                <span>🏷️</span>
-                                <span>{anomaly.articleCode}</span>
-                              </div>
-                            )}
-                            {anomaly.quantity && (
-                              <div className="flex items-center gap-1">
-                                <span>📊</span>
-                                <span>Qtà: {anomaly.quantity}</span>
-                              </div>
-                            )}
-                            {anomaly.reportId && (
-                              <div className="flex items-center gap-1">
-                                <span>📋</span>
-                                <span>Report: {anomaly.reportId}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-2 flex-shrink-0">
-                          <button
-                            onClick={() => handleResolveAnomaly(anomaly)}
-                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                          >
-                            <Check size={16} />
-                            Risolvi
-                          </button>
-                          <span className="text-xs text-gray-500 text-center">
-                            {new Date().toLocaleDateString('it-IT')}
-                          </span>
-                        </div>
+          <div className="space-y-3">
+            {(showAllAnomalies ? anomalies : anomalies.slice(0, 3)).map((anomaly) => (
+              <div 
+                key={anomaly.id} 
+                className={`bg-white rounded-lg p-4 border-2 ${getSeverityColor(anomaly.severity)} shadow-sm hover:shadow-md transition-shadow`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-lg">{getSeverityIcon(anomaly.severity)}</span>
+                      <div className="flex items-center gap-2">
+                        {anomaly.type === 'report_discrepancy' && (
+                          <FileText className="text-blue-600" size={16} />
+                        )}
+                        {anomaly.type === 'physical_digital_mismatch' && (
+                          <Package className="text-purple-600" size={16} />
+                        )}
+                        <span className="text-sm font-medium text-gray-900">
+                          {anomaly.title}
+                        </span>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getSeverityColor(anomaly.severity)}`}>
+                          {anomaly.severity === 'high' ? 'Alta' : anomaly.severity === 'medium' ? 'Media' : 'Bassa'}
+                        </span>
                       </div>
                     </div>
-                  ))}
+                    <p className="text-sm text-gray-700 mb-3">{anomaly.description}</p>
+                    <div className="flex items-center gap-4 text-xs text-gray-600">
+                      {anomaly.warehouseName && (
+                        <div className="flex items-center gap-1">
+                          <Package size={12} />
+                          <span>{anomaly.warehouseName}</span>
+                        </div>
+                      )}
+                      {anomaly.articleCode && (
+                        <div className="flex items-center gap-1">
+                          <span>🏷️</span>
+                          <span>{anomaly.articleCode}</span>
+                        </div>
+                      )}
+                      {anomaly.quantity && (
+                        <div className="flex items-center gap-1">
+                          <span>📊</span>
+                          <span>Qtà: {anomaly.quantity}</span>
+                        </div>
+                      )}
+                      {anomaly.reportId && (
+                        <div className="flex items-center gap-1">
+                          <span>📋</span>
+                          <span>Report: {anomaly.reportId}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => handleResolveAnomaly(anomaly)}
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                    >
+                      <Check size={16} />
+                      Risolvi
+                    </button>
+                    <span className="text-xs text-gray-500 text-center">
+                      {new Date().toLocaleDateString('it-IT')}
+                    </span>
+                  </div>
                 </div>
-                
-                {/* Pulsante Mostra/Nascondi */}
-                {anomalies.length > 3 && (
-                  <button
-                    onClick={() => setShowAllAnomalies(!showAllAnomalies)}
-                    className="mt-4 text-sm text-yellow-700 hover:text-yellow-800 underline font-medium"
-                  >
-                    {showAllAnomalies ? 'Mostra meno' : `Mostra tutte le ${anomalies.length} anomalie`}
-                  </button>
-                )}
               </div>
-            </div>
+            ))}
           </div>
+          
+          {/* Pulsante Mostra/Nascondi */}
+          {anomalies.length > 3 && (
+            <button
+              onClick={() => setShowAllAnomalies(!showAllAnomalies)}
+              className="mt-4 text-sm text-gray-700 hover:text-gray-800 underline font-medium"
+            >
+              {showAllAnomalies ? 'Mostra meno' : `Mostra tutte le ${anomalies.length} attività`}
+            </button>
+          )}
         </div>
       ) : (
         <div className="mb-6">
@@ -403,7 +388,7 @@ export default function ActivitiesView() {
             <div className="flex flex-col items-center">
               <Check className="text-green-600 mb-3" size={48} />
               <h3 className="text-lg font-medium text-green-800 mb-2">
-                Nessuna anomalia da risolvere
+                Nessuna attività da completare
               </h3>
               <p className="text-sm text-green-700">
                 Tutti i dati di inventario sono allineati correttamente. Ottimo lavoro!
@@ -413,47 +398,7 @@ export default function ActivitiesView() {
         </div>
       )}
 
-      {/* Sezione Statistiche Attività (placeholder per futuri sviluppi) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-100 rounded-full p-2">
-              <AlertTriangle className="text-blue-600" size={20} />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-900">Anomalie Risolte</p>
-              <p className="text-2xl font-bold text-blue-600">12</p>
-              <p className="text-xs text-gray-500">Questo mese</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-green-100 rounded-full p-2">
-              <Package className="text-green-600" size={20} />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-900">Articoli Sanati</p>
-              <p className="text-2xl font-bold text-green-600">48</p>
-              <p className="text-xs text-gray-500">Questo mese</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-purple-100 rounded-full p-2">
-              <FileText className="text-purple-600" size={20} />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-900">Report Processati</p>
-              <p className="text-2xl font-bold text-purple-600">8</p>
-              <p className="text-xs text-gray-500">Questo mese</p>
-            </div>
-          </div>
-        </div>
-      </div>
+
 
       {/* Modal Risoluzione Anomalia */}
       {showResolutionModal && selectedAnomaly && (

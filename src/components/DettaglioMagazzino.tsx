@@ -50,7 +50,7 @@ interface DettaglioMagazzinoProps {
   
   // Azioni
   onOpenInsertDialog: () => void;
-  //onOpenSendDialog: () => void;
+  onOpenSendDialog: () => void;
   onArticleClick: (articleId: string) => void;
   onOpenInventoryDialog: (article: ArticleListItem) => void;
   
@@ -86,7 +86,7 @@ export default function DettaglioMagazzino({
   onClearArticleSelection,
   
   onOpenInsertDialog,
-  //onOpenSendDialog,
+  onOpenSendDialog,
   onArticleClick,
   onOpenInventoryDialog,
   
@@ -250,7 +250,7 @@ export default function DettaglioMagazzino({
                 </button>
               </div>
               <button
-                //onClick={onOpenSendDialog}
+                onClick={onOpenSendDialog}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-medium"
               >
                 <ArrowRight size={16} />
