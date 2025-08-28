@@ -1065,39 +1065,12 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
                 </span>
               </div>
 
-              {/* Griglia quantità in 2 colonne */}
-              <div className="grid grid-cols-2 gap-x-2 gap-y-1 pt-1">
-                {/* Stock */}
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">Stock</span>
-                  <span className="text-xs font-medium text-green-600">
-                    {warehouse.total_stock_quantity.toLocaleString('it-IT')}
-                  </span>
-                </div>
-                
-                {/* Riservati */}
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">Riservati</span>
-                  <span className="text-xs font-medium text-orange-600">
-                    {warehouse.total_reserved_quantity.toLocaleString('it-IT')}
-                  </span>
-                </div>
-                
-                {/* In arrivo */}
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">In arrivo</span>
-                  <span className="text-xs font-medium text-blue-600">
-                    {warehouse.total_ordered_quantity.toLocaleString('it-IT')}
-                  </span>
-                </div>
-                
-                {/* Totale */}
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">Totale</span>
-                  <span className="text-xs font-semibold text-gray-900">
-                    {warehouse.total_all_quantities.toLocaleString('it-IT')}
-                  </span>
-                </div>
+              {/* Stock quantity */}
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-xs text-gray-600">Stock</span>
+                <span className="text-xs font-medium text-green-600">
+                  {warehouse.total_stock_quantity.toLocaleString('it-IT')}
+                </span>
               </div>
             </div>
           </div>
