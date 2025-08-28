@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, MapPin, Filter, User, Package } from 'lucide-react';
+import { Search, MapPin, Filter, User, Package, FileText } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { AssistanceIntervention, AssistanceInterventionsApiResponse } from '../../types/assistance-interventions';
 import { getStatusColor, statusOptions, getStatusId, toStatusKey } from '../../utils/intervention-status';
@@ -473,12 +473,15 @@ export default function InterventionsView({ onInterventionClick }: Interventions
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[130px]">
                   Status
                 </th>
+                <th className="px-3 sm:px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                  
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading && !initialLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center">
+                  <td colSpan={8} className="px-6 py-8 text-center">
                     <div className="flex flex-col items-center">
                       <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mb-2"></div>
                       <p className="text-sm text-gray-600">Aggiornamento in corso...</p>
@@ -487,7 +490,7 @@ export default function InterventionsView({ onInterventionClick }: Interventions
                 </tr>
               ) : interventionsData.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                     Nessun intervento trovato
                   </td>
                 </tr>
@@ -528,11 +531,25 @@ export default function InterventionsView({ onInterventionClick }: Interventions
                           {intervention.status_label}
                         </span>
                       </td>
+                      <td className="px-3 sm:px-3 py-4 text-center">
+                        {intervention.report_id ? (
+                          <a
+                            href={`/interventi/rapportino/${intervention.report_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-teal-600 hover:text-teal-800 inline-flex items-center justify-center"
+                            title="Apri rapportino"
+                          >
+                            <FileText size={18} />
+                          </a>
+                        ) : null}
+                      </td>
                     </tr>
                     
                     {/* Seconda riga: equipment e articoli */}
                     <tr className="bg-gray-25">
-                      <td colSpan={7} className="px-3 sm:px-6 py-3 border-t-0">
+                      <td colSpan={8} className="px-3 sm:px-6 py-3 border-t-0">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
                           {/* Equipment */}
                           <div>
