@@ -107,6 +107,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   // Nuovi stati per InterventionDetailsSection
   const [selectedEquipments, setSelectedEquipments] = useState<Equipment[]>([]);
   const [selectedArticles, setSelectedArticles] = useState<SelectedArticle[]>([]);
+  //const [originalAllocationsByArticle, setOriginalAllocationsByArticle] = useState<Record<string, Array<{ warehouse_id: string; quantity: number }>>>({});
   const [orarioApertura, setOrarioApertura] = useState('');
   const [noteInterne, setNoteInterne] = useState('');
   // Nuovi stati per CallDetailsSection
@@ -360,36 +361,51 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       }
       
       if (data.connected_articles) {
-        const articles: SelectedArticle[] = data.connected_articles.map(art => ({
-          article: {
-            id: art.id.toString(),
-            pnc_code: art.pnc_code,
-            short_description: art.short_description,
-            description: art.description,
-            model: null,
-            order_date: null,
-            estimate_arrival_date: null,
-            alternative_pnc_code: null,
-            place_type_id: null,
-            place_id: null,
-            created_at: '',
-            updated_at: '',
-            brand_id: 0,
-            family_id: '',
-            subfamily_id: null,
-            family_label: '',
-            subfamily_label: null,
-            brand_label: '',
-            inventory: [],
-            quantity_stock: null,
-            quantity_reserved_client: null,
-            quantity_ordered: null,
-            warehouse_description: null,
-            suppliers: null
-          },
-          quantity: art.quantity || 1 // Usa la quantità dall'API, fallback a 1 se non presente
-        }));
+        const baseline: Record<string, Array<{ warehouse_id: string; quantity: number }>> = {};
+        const articles: SelectedArticle[] = data.connected_articles.map(art => {
+          const allocations = Array.isArray(art.movements)
+            ? art.movements
+                .filter(m => String(m.to_warehouse_id) === 'CL' && typeof m.from_warehouse_id !== 'undefined' && m.from_warehouse_id !== null)
+                .map(m => ({
+                  warehouse_id: String(m.from_warehouse_id ?? ''),
+                  warehouse_description: m.from_warehouse_name || String(m.from_warehouse_id ?? ''),
+                  quantity: m.quantity || 0,
+                }))
+            : [];
+          baseline[String(art.id)] = allocations.map(a => ({ warehouse_id: a.warehouse_id, quantity: a.quantity }));
+          return {
+            article: {
+              id: art.id.toString(),
+              pnc_code: art.pnc_code,
+              short_description: art.short_description,
+              description: art.description,
+              model: null,
+              order_date: null,
+              estimate_arrival_date: null,
+              alternative_pnc_code: null,
+              place_type_id: null,
+              place_id: null,
+              created_at: '',
+              updated_at: '',
+              brand_id: 0,
+              family_id: '',
+              subfamily_id: null,
+              family_label: '',
+              subfamily_label: null,
+              brand_label: '',
+              inventory: [],
+              quantity_stock: null,
+              quantity_reserved_client: null,
+              quantity_ordered: null,
+              warehouse_description: null,
+              suppliers: null
+            },
+            quantity: art.quantity || 1,
+            allocations,
+          } as SelectedArticle;
+        });
         setSelectedArticles(articles);
+        //setOriginalAllocationsByArticle(baseline);
       }
       
       // Il tecnico assegnato verrà gestito nei componenti figli
@@ -567,6 +583,20 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     try {
       setAutoSaveError(null);
 
+      const articlesPayload = selectedArticles.reduce<Array<UpdateAssistanceInterventionRequest['articles'][number]>>((acc, art) => {
+        const strId = String((art.article ).id);
+        if (!strId) return acc;
+        const filtered = (art.allocations || []).filter(a => (a.quantity || 0) > 0);
+        const sum = filtered.reduce((s, a) => s + (a.quantity || 0), 0);
+        if (sum <= 0) return acc;
+        acc.push({
+          article_id: strId,
+          quantity: sum,
+          from_warehouses: filtered.map(a => ({ warehouse_id: a.warehouse_id, quantity: a.quantity }))
+        });
+        return acc;
+      }, []);
+
       const requestData: UpdateAssistanceInterventionRequest = {
         customer_id: selectedCustomerId || 0,
         type_id: parseInt(tipologiaIntervento) || 0,
@@ -589,10 +619,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         internal_notes: noteInterne,
         status_id: interventionData?.status_id ?? (getStatusId(selectedStatus) ?? 1),
         equipments: selectedEquipments.map(eq => eq.id),
-        articles: selectedArticles.map(art => ({
-          article_id: art.article.id,
-          quantity: art.quantity
-        }))
+        articles: articlesPayload
       };
 
       await updateAssistanceIntervention(interventionId, requestData, auth.token || '');
@@ -846,10 +873,19 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         status_id: newStatusId, // Questo è il cambio importante
         approved_by: userInfo?.id || '', // Aggiunto campo approved_by con ID utente corrente
         equipments: selectedEquipments.map(eq => eq.id),
-        articles: selectedArticles.map(art => ({
-          article_id: art.article.id,
-          quantity: art.quantity
-        }))
+        articles: selectedArticles.reduce<Array<UpdateAssistanceInterventionRequest['articles'][number]>>((acc, art) => {
+          const strId = String((art.article ).id);
+          if (!strId) return acc;
+          const filtered = (art.allocations || []).filter(a => (a.quantity || 0) > 0);
+          const sum = filtered.reduce((s, a) => s + (a.quantity || 0), 0);
+          if (sum <= 0) return acc;
+          acc.push({
+            article_id: strId,
+            quantity: sum,
+            from_warehouses: filtered.map(a => ({ warehouse_id: a.warehouse_id, quantity: a.quantity }))
+          });
+          return acc;
+        }, [])
       };
 
       // Chiamata API per aggiornare l'intervento
@@ -920,10 +956,18 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         status_id: 9, // Status "fatturato" ha ID 9
         invoiced_by: userInfo?.id || '', // Aggiunto campo invoiced_by con ID utente corrente
         equipments: selectedEquipments.map(eq => eq.id),
-        articles: selectedArticles.map(art => ({
-          article_id: art.article.id,
-          quantity: art.quantity
-        }))
+        articles: selectedArticles.reduce<Array<UpdateAssistanceInterventionRequest['articles'][number]>>((acc, art) => {
+          const strId = String((art.article ).id);
+          if (!strId) return acc;
+          const allocations = art.allocations || [];
+          const sum = allocations.reduce((s, a) => s + (a.quantity || 0), 0);
+          acc.push({
+            article_id: strId,
+            quantity: sum > 0 ? sum : art.quantity,
+            from_warehouses: allocations.map(a => ({ warehouse_id: a.warehouse_id, quantity: a.quantity }))
+          });
+          return acc;
+        }, [])
       };
 
       // Chiamata API per aggiornare l'intervento
@@ -994,10 +1038,8 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         status_id: 8, // Status "annullato" ha ID 8
         cancelled_by: userInfo?.id || '', // Aggiunto campo cancelled_by con ID utente corrente
         equipments: selectedEquipments.map(eq => eq.id),
-        articles: selectedArticles.map(art => ({
-          article_id: art.article.id,
-          quantity: art.quantity
-        }))
+        // Per annullo, non inviare articoli: il backend ripristina i movimenti
+        articles: []
       };
 
       // Chiamata API per aggiornare l'intervento

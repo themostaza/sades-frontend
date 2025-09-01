@@ -203,27 +203,74 @@ export default function InterventionDetailsSectionDetail({
     }
   };
 
-  const handleArticleSelect = (article: ArticleListItem) => {
-    // Open allocation dialog for this article using its inventory
-    const inventory: ArticleInventoryRow[] = Array.isArray(article.inventory)
-      ? (article.inventory as unknown as ArticleInventoryRow[])
-      : [];
-    const rows = inventory
-      .filter((inv) => typeof inv.quantity_stock === 'number' ? inv.quantity_stock > 0 : (typeof inv.in_stock === 'number' ? inv.in_stock > 0 : false))
-      .map((inv) => {
-        const max = typeof inv.quantity_stock === 'number' ? inv.quantity_stock : (typeof inv.in_stock === 'number' ? inv.in_stock : 0);
+  // Helper: build allocation rows using fresh inventory from /api/articles/{id}
+  const buildAllocationRows = async (
+    articleId: string,
+    existingAllocations: Array<{ warehouse_id: string; warehouse_description: string; quantity: number }>
+  ) => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
+
+    try {
+      const res = await fetch(`/api/articles/${encodeURIComponent(articleId)}`, { headers });
+      if (!res.ok) throw new Error('Failed to fetch article detail');
+      const data = await res.json();
+      const inv: ArticleInventoryRow[] = Array.isArray(data.inventory) ? data.inventory : [];
+
+      // Crea mappe per unione: inventory (escludendo CL) e allocations esistenti
+      const invMap = new Map<string, { stock: number; description: string }>();
+      for (const invRow of inv) {
+        const warehouseId = String(invRow.warehouse_id ?? invRow.warehouse ?? '');
+        if (warehouseId === 'CL') continue; // Escludi CL
+        const stock = typeof invRow.quantity_stock === 'number'
+          ? invRow.quantity_stock
+          : (typeof (invRow ).in_stock === 'number' ? (invRow ).in_stock : 0);
+        const description = String(invRow.warehouse_description ?? invRow.warehouse ?? '');
+        invMap.set(warehouseId, { stock: Math.max(0, stock || 0), description });
+      }
+
+      const allocMap = new Map<string, { quantity: number; description: string }>();
+      for (const a of existingAllocations) {
+        allocMap.set(a.warehouse_id, { quantity: a.quantity || 0, description: a.warehouse_description });
+      }
+
+      const ids = new Set<string>([...invMap.keys(), ...allocMap.keys()]);
+      const rows = Array.from(ids).map((wid) => {
+        const invEntry = invMap.get(wid);
+        const allocEntry = allocMap.get(wid);
+        const stock = invEntry?.stock || 0;
+        const allocated = allocEntry?.quantity || 0;
         return {
-          warehouse_id: String(inv.warehouse_id ?? inv.warehouse ?? ''),
-          warehouse_description: String(inv.warehouse_description ?? inv.warehouse ?? ''),
-          max,
-          value: 0,
+          warehouse_id: wid,
+          warehouse_description: invEntry?.description || allocEntry?.description || wid,
+          // MAX = disponibilità attuale + già allocato (così posso aumentare o restituire)
+          max: stock + allocated,
+          // VALUE = quanto è già allocato (parte da lì e può crescere o diminuire)
+          value: allocated,
         };
       });
 
-    setAllocationArticle(article);
-    setAllocationRows(rows);
-    setAllocationEditArticleId(null);
-    setShowAllocationDialog(true);
+      return rows;
+    } catch {
+      // fallback: nessun aggiornamento, restituisci esistenti come righe editabili (solo riduzione)
+      return existingAllocations.map(a => ({
+        warehouse_id: a.warehouse_id,
+        warehouse_description: a.warehouse_description,
+        max: a.quantity,
+        value: a.quantity,
+      }));
+    }
+  };
+
+  const handleArticleSelect = (article: ArticleListItem) => {
+    // Open allocation dialog with fresh inventory from /api/articles/{id}
+    (async () => {
+      const rows = await buildAllocationRows(String(article.id), []);
+      setAllocationArticle(article);
+      setAllocationRows(rows);
+      setAllocationEditArticleId(null);
+      setShowAllocationDialog(true);
+    })();
   };
 
   const removeArticle = (articleId: string) => {
@@ -398,7 +445,11 @@ export default function InterventionDetailsSectionDetail({
             className="w-full px-3 py-2 pr-10 border rounded-lg disabled:bg-gray-50 text-gray-700"
           />
           <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-          {isSearchingEquipments && <div className="absolute right-10 top-1/2 transform -translate-y-1/2 w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>}
+          {isSearchingEquipments && (
+            <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
+              <div className="w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          )}
           {showEquipmentDropdown && equipments.length > 0 && (
             <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
               {equipments.map((eq) => (
@@ -446,30 +497,86 @@ export default function InterventionDetailsSectionDetail({
             className="w-full px-3 py-2 pr-10 border rounded-lg disabled:bg-gray-50 text-gray-700"
           />
           <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-          {isSearchingArticles && <div className="absolute right-10 top-1/2 transform -translate-y-1/2 w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>}
+          {isSearchingArticles && (
+            <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
+              <div className="w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          )}
           {showArticleDropdown && articles.length > 0 && (
             <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-              {articles.map((art) => (
-                <div key={art.id} onClick={() => handleArticleSelect(art)} className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700">
-                  <div className="font-medium text-gray-700">{art.short_description}
+              {articles.map((art) => {
+                // Calcola stock totale e numero magazzini (escludendo CL)
+                const availableInventory = art.inventory?.filter(inv => 
+                  String(inv.warehouse_id ?? '') !== 'CL' && (inv.quantity_stock || 0) > 0
+                ) || [];
+                const totalStock = art.inventory?.filter(inv => String(inv.warehouse_id ?? '') !== 'CL')
+                  .reduce((total, inv) => total + (inv.quantity_stock || 0), 0) || 0;
+                const warehouseCount = availableInventory.length;
+                
+                return (
+                  <div key={art.id} onClick={() => handleArticleSelect(art)} className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700">
+                    <div className="font-medium text-gray-700">{art.short_description}</div>
+                    <div className="text-sm text-gray-500 flex items-center gap-2 flex-wrap">
+                      <span>PNC: {art.pnc_code || 'N/A'}</span>
+                      <span>•</span>
+                      <span className={`font-medium ${totalStock > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                        Stock: {totalStock}
+                      </span>
+                      {warehouseCount > 0 && (
+                        <>
+                          <span>•</span>
+                          <span className="text-blue-600 font-medium">
+                            {warehouseCount} magazzin{warehouseCount === 1 ? 'o' : 'i'}
+                          </span>
+                        </>
+                      )}
+                      <span>•</span>
+                      <span className="text-gray-600">ID: {art.id}</span>
+                    </div>
+                    {warehouseCount > 1 && (
+                      <div className="text-xs text-gray-400 mt-1">
+                        Disponibile in: {availableInventory.map(inv => inv.warehouse_description).join(', ')}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-sm text-gray-500">PNC: {art.pnc_code} | Stock: {art.inventory?.reduce((total, inv) => total + (inv.quantity_stock || 0), 0) || 0} |
-                    <span className=" text-gray-600 ml-1"> ID: {art.id}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
         {selectedArticles.length > 0 && (
           <div className="mt-3 space-y-2">
-            {selectedArticles.map((selArt) => (
-              <div key={selArt.article.id} className="flex items-center justify-between bg-gray-100 p-3 rounded-lg">
-                <div className="flex-1">
-                  <div className="font-medium text-gray-700">{selArt.article.short_description}
-                  </div>
-                  <div className="text-sm text-gray-700">PNC: {selArt.article.pnc_code} | Stock: {selArt.article.inventory?.reduce((total, inv) => total + (inv.quantity_stock || 0), 0) || 0} | <span className=" text-gray-600 ml-1">ID: {selArt.article.id}</span></div>
+            {selectedArticles.map((selArt) => {
+              // Calcola stock totale e numero magazzini (escludendo CL)
+              const availableInventory = selArt.article.inventory?.filter(inv => 
+                String(inv.warehouse_id ?? '') !== 'CL' && (inv.quantity_stock || 0) > 0
+              ) || [];
+              const totalStock = selArt.article.inventory?.filter(inv => String(inv.warehouse_id ?? '') !== 'CL')
+                .reduce((total, inv) => total + (inv.quantity_stock || 0), 0) || 0;
+              const warehouseCount = availableInventory.length;
+              
+              return (
+                <div key={selArt.article.id} className="flex items-center justify-between bg-gray-100 p-3 rounded-lg">
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-700">{selArt.article.short_description}</div>
+                    <div className="text-sm text-gray-700 flex items-center gap-2 flex-wrap">
+                      <span>PNC: {selArt.article.pnc_code || 'N/A'}</span>
+                      <span>•</span>
+                      <span className={`font-medium ${totalStock > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                        Stock: {totalStock}
+                      </span>
+                      {warehouseCount > 0 && (
+                        <>
+                          <span>•</span>
+                          <span className="text-blue-600 font-medium">
+                            {warehouseCount} magazzin{warehouseCount === 1 ? 'o' : 'i'}
+                          </span>
+                        </>
+                      )}
+                      <span>•</span>
+                      <span className="text-gray-600">ID: {selArt.article.id}</span>
+                    </div>
                   {selArt.allocations && selArt.allocations.length > 0 && (
                     <div className="mt-1 text-xs text-gray-600">
                       <div className="font-medium">Prelievo:</div>
@@ -478,8 +585,8 @@ export default function InterventionDetailsSectionDetail({
                       ))}
                     </div>
                   )}
-                </div>
-                <div className="flex items-center gap-2">
+                  </div>
+                  <div className="flex items-center gap-2">
                   <label className="text-sm text-gray-700">Qtà:</label>
                   <input
                     type="number"
@@ -491,23 +598,9 @@ export default function InterventionDetailsSectionDetail({
                   />
                   {!isFieldsDisabled && selArt.allocations && selArt.allocations.length > 0 && (
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         const article = selArt.article;
-                        const inventory: ArticleInventoryRow[] = Array.isArray(article.inventory)
-                          ? (article.inventory as unknown as ArticleInventoryRow[])
-                          : [];
-                        const rows = inventory
-                          .filter((inv) => typeof inv.quantity_stock === 'number' ? inv.quantity_stock > 0 : (typeof inv.in_stock === 'number' ? inv.in_stock > 0 : false))
-                          .map((inv) => {
-                            const max = typeof inv.quantity_stock === 'number' ? inv.quantity_stock : (typeof inv.in_stock === 'number' ? inv.in_stock : 0);
-                            const existing = selArt.allocations?.find(a => a.warehouse_id === String(inv.warehouse_id ?? inv.warehouse ?? ''));
-                            return {
-                              warehouse_id: String(inv.warehouse_id ?? inv.warehouse ?? ''),
-                              warehouse_description: String(inv.warehouse_description ?? inv.warehouse ?? ''),
-                              max,
-                              value: existing ? existing.quantity : 0,
-                            };
-                          });
+                        const rows = await buildAllocationRows(String(article.id), selArt.allocations || []);
                         setAllocationArticle(article);
                         setAllocationRows(rows);
                         setAllocationEditArticleId(selArt.article.id);
@@ -519,9 +612,10 @@ export default function InterventionDetailsSectionDetail({
                     </button>
                   )}
                   {!isFieldsDisabled && <button onClick={() => removeArticle(selArt.article.id)} className="text-red-500"><X size={16} /></button>}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -529,54 +623,89 @@ export default function InterventionDetailsSectionDetail({
       {/* Allocation Dialog */}
       {showAllocationDialog && allocationArticle && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-4xl h-[90vh] mx-4 flex flex-col">
-            <div className="mb-4">
-              <div className="text-lg font-semibold text-gray-900">Seleziona prelievo</div>
-              <div className="text-sm text-gray-600 mt-1">{allocationArticle.short_description} <span className="text-gray-500">(ID: {allocationArticle.id})</span></div>
+          <div className="bg-white rounded-lg p-6 w-full max-w-5xl h-[95vh] mx-4 flex flex-col">
+            <div className="mb-6">
+              <div className="text-xl font-semibold text-gray-900">Seleziona prelievo magazzino</div>
+              <div className="text-base text-gray-700 mt-2 font-medium">{allocationArticle.short_description}</div>
+              <div className="text-sm text-gray-500 mt-1">Codice PNC: {allocationArticle.pnc_code} | ID: {allocationArticle.id}</div>
             </div>
+
+
+
             {allocationAlert && (
-              <div className="mb-3 p-3 rounded border border-red-200 bg-red-50 text-red-700 flex items-start justify-between">
-                <div className="pr-3 text-sm">{allocationAlert}</div>
+              <div className="mb-4 p-3 rounded-lg border border-red-200 bg-red-50 text-red-700 flex items-start justify-between">
+                <div className="pr-3 text-sm font-medium">{allocationAlert}</div>
                 <button onClick={() => setAllocationAlert(null)} className="text-red-700 hover:text-red-900">
                   <X size={16} />
                 </button>
               </div>
             )}
-            <div className="flex-1 overflow-y-auto border rounded">
-              <div className="divide-y">
+
+            <div className="flex-1 overflow-y-auto border-2 border-gray-200 rounded-lg">
+              <div className="divide-y divide-gray-200">
                 {allocationRows.length === 0 && (
-                  <div className="p-4 text-sm text-gray-600">Nessun magazzino con disponibilità.</div>
+                  <div className="p-6 text-center text-gray-600">
+                    <div className="text-lg font-medium">Nessun magazzino con disponibilità</div>
+                    <div className="text-sm mt-1">Non ci sono magazzini con scorte disponibili per questo articolo.</div>
+                  </div>
                 )}
                 {allocationRows.map((row, idx) => (
-                  <div key={`${row.warehouse_id}-${idx}`} className="flex items-center justify-between p-3">
-                    <div>
-                      <div className="text-sm text-gray-800">{row.warehouse_description}</div>
-                      <div className="text-xs text-gray-500">Disponibili (max): {row.max}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={0}
-                        max={row.max}
-                        value={row.value}
-                        onChange={(e) => {
-                          const raw = Number(e.target.value);
-                          if (raw > row.max) {
-                            setAllocationAlert(`Quantità richiesta superiore alla disponibilità per ${row.warehouse_description}. Massimo consentito: ${row.max}.`);
-                          }
-                          const next = Math.max(0, Math.min(row.max, raw));
-                          setAllocationRows(prev => prev.map((r, i) => i === idx ? { ...r, value: next } : r));
-                        }}
-                        className="w-24 p-2 border rounded text-gray-700"
-                      />
+                  <div key={`${row.warehouse_id}-${idx}`} className="p-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="text-base font-semibold text-gray-900 mb-2">{row.warehouse_description}</div>
+                        <div className="flex items-center gap-4">
+                          <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                            Disponibili: {row.max} pz
+                          </div>
+                          {row.value > 0 && (
+                            <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                              Selezionati: {row.value} pz
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="text-sm font-medium text-gray-700">Quantità da prelevare:</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={row.max}
+                          value={row.value}
+                          onChange={(e) => {
+                            const raw = Number(e.target.value);
+                            if (raw > row.max) {
+                              setAllocationAlert(`Quantità richiesta superiore alla disponibilità per ${row.warehouse_description}. Massimo consentito: ${row.max}.`);
+                            }
+                            const next = Math.max(0, Math.min(row.max, raw));
+                            setAllocationRows(prev => prev.map((r, i) => i === idx ? { ...r, value: next } : r));
+                          }}
+                          className="w-20 p-3 border-2 border-gray-300 rounded-lg text-center text-lg font-bold text-gray-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                        />
+                        <span className="text-sm text-gray-600">/ {row.max}</span>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="mt-4 flex items-center justify-between">
-              <div className="text-sm text-gray-700">Totale selezionato: <span className="font-medium">{allocationRows.reduce((s, r) => s + (r.value || 0), 0)}</span></div>
-              <div className="flex gap-2">
+
+            <div className="mt-6 flex items-center justify-between bg-gray-50 p-4 rounded-lg">
+              <div className="flex items-center gap-6">
+                <div className="text-sm text-gray-700">
+                  Disponibile: 
+                  <span className="ml-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm font-semibold">
+                    {allocationRows.reduce((s, r) => s + (r.max || 0), 0)} pz
+                  </span>
+                </div>
+                <div className="text-lg font-semibold text-gray-900">
+                  Selezionato: 
+                  <span className="ml-2 px-3 py-1 bg-teal-100 text-teal-800 rounded-full text-lg font-bold">
+                    {allocationRows.reduce((s, r) => s + (r.value || 0), 0)} pz
+                  </span>
+                </div>
+              </div>
+              <div className="flex gap-3">
                 <button
                   onClick={() => {
                     setShowAllocationDialog(false);
@@ -585,7 +714,7 @@ export default function InterventionDetailsSectionDetail({
                     setAllocationEditArticleId(null);
                     setAllocationAlert(null);
                   }}
-                  className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded"
+                  className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-medium transition-colors"
                 >
                   Annulla
                 </button>
@@ -624,9 +753,13 @@ export default function InterventionDetailsSectionDetail({
                     setAllocationAlert(null);
                   }}
                   disabled={allocationRows.reduce((s, r) => s + (r.value || 0), 0) <= 0}
-                  className={`px-3 py-2 rounded text-white ${allocationRows.reduce((s, r) => s + (r.value || 0), 0) > 0 ? 'bg-teal-600 hover:bg-teal-700' : 'bg-gray-400 cursor-not-allowed'}`}
+                  className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                    allocationRows.reduce((s, r) => s + (r.value || 0), 0) > 0 
+                      ? 'bg-teal-600 hover:bg-teal-700 text-white' 
+                      : 'bg-gray-400 cursor-not-allowed text-gray-200'
+                  }`}
                 >
-                  Conferma
+                  Conferma Prelievo
                 </button>
               </div>
             </div>
