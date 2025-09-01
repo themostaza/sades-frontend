@@ -25,6 +25,11 @@ interface DettaglioInterventoProps {
 interface SelectedArticle {
   article: ArticleListItem;
   quantity: number;
+  allocations?: Array<{
+    warehouse_id: string;
+    warehouse_description: string;
+    quantity: number;
+  }>;
 }
 
 interface User {
@@ -711,11 +716,11 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
 
   // Funzione per determinare se l'utente è amministratore
   const isAdmin = () => {
-    return userInfo?.role === 'amministrazione';
+    return userInfo?.role === 'amministrazione' || userInfo?.role === 'ufficio' || userInfo?.role === 'magazziniere';
   };
 
   // Funzione per determinare se l'utente è tecnico
-  const isTechnician = userInfo?.role === 'tecnico';
+  const isTechnician = userInfo?.role === 'tecnico' || userInfo?.role === 'ufficio_tecnico';
 
   // Effect per caricare le informazioni utente al mount
   useEffect(() => {

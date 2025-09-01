@@ -48,6 +48,7 @@ export default function InterventiPage() {
   const [selectedZone, setSelectedZone] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedTechnician, setSelectedTechnician] = useState('');
+  const [selectedManualCheck, setSelectedManualCheck] = useState('');
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const [viewMode, setViewMode] = useState<'lista' | 'calendario'>('lista');
@@ -257,6 +258,10 @@ export default function InterventiPage() {
         params.append('assigned_to_id', userInfo.id);
       }
 
+      if (selectedManualCheck === 'true' || selectedManualCheck === 'false') {
+        params.append('manual_check', selectedManualCheck);
+      }
+
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -293,12 +298,12 @@ export default function InterventiPage() {
     if (!isAdmin() && !userInfo) return;
     
     fetchInterventionsData();
-  }, [currentPage, searchTerm, dateRange, selectedZone, selectedStatus, selectedTechnician, auth.token, urlParamsRead, userInfo]);
+  }, [currentPage, searchTerm, dateRange, selectedZone, selectedStatus, selectedTechnician, selectedManualCheck, auth.token, urlParamsRead, userInfo]);
 
   // Effetto per pulire la selezione quando cambiano i filtri o la pagina
   useEffect(() => {
     clearSelection();
-  }, [currentPage, searchTerm, dateRange, selectedZone, selectedStatus, selectedTechnician]);
+  }, [currentPage, searchTerm, dateRange, selectedZone, selectedStatus, selectedTechnician, selectedManualCheck]);
 
   // Effetto per caricare le zone al mount del componente
   useEffect(() => {
@@ -337,6 +342,11 @@ export default function InterventiPage() {
     setCurrentPage(1);
   };
 
+  const handleManualCheckFilter = (value: string) => {
+    setSelectedManualCheck(value);
+    setCurrentPage(1);
+  };
+
   const formatDate = (dateString: string) => {
     if (!dateString || dateString.trim() === '') return '-';
     try {
@@ -355,7 +365,7 @@ export default function InterventiPage() {
   };
 
   const isAdmin = () => {
-    return userInfo?.role === 'amministrazione';
+    return userInfo?.role === 'amministrazione' || userInfo?.role === 'ufficio' || userInfo?.role === 'magazziniere';
   };
 
   // Funzione per verificare se un intervento può essere annullato
@@ -855,6 +865,7 @@ export default function InterventiPage() {
             selectedZone={selectedZone}
             selectedStatus={selectedStatus}
             selectedTechnician={selectedTechnician}
+            selectedManualCheck={selectedManualCheck}
             showMobileFilters={showMobileFilters}
             isAdmin={isAdmin()}
             selectedInterventions={selectedInterventions}
@@ -863,6 +874,7 @@ export default function InterventiPage() {
             handleSearch={handleSearch}
             handleStatusFilter={handleStatusFilter}
             handleTechnicianFilter={handleTechnicianFilter}
+            handleManualCheckFilter={handleManualCheckFilter}
             handleRowClick={handleRowClick}
             handlePageChange={handlePageChange}
             setDateRange={setDateRange}

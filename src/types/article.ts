@@ -1,23 +1,18 @@
 // Tipi per gli articoli
 
-// Tipo per l'inventory di un articolo
+// Tipo per l'inventory di un articolo (nuovo formato dal backend)
 export interface ArticleInventory {
-  warehouse: string;
-  disponible: number;
-  riservata_cliente: number;
-  in_stock: number;
-  ordinata: number;
-  data_primo_ordine: string | null;
+  warehouse_id: string | number;
+  warehouse_description: string;
+  quantity_stock: number | null;
+  quantity_reserved_client: number | null;
+  quantity_ordered: number | null;
 }
 
-// Tipo per i fornitori di un articolo
+// Tipo per i fornitori di un articolo (nuovo formato dal backend)
 export interface ArticleSupplier {
-  id: number;
-  name: string;
-  description?: string;
-  contact_info?: string;
-  phone?: string;
-  email?: string;
+  supplier_id: number;
+  supplier_article_code: string;
 }
 
 export interface Article {
@@ -44,10 +39,9 @@ export interface Article {
 
 // Tipi per gli articoli nella lista (con informazioni aggiuntive di stock)
 export interface ArticleListItem extends Article {
-  quantity_stock: number | null;
-  quantity_reserved_client: number | null;
-  quantity_ordered: number | null;
-  warehouse_description: string | null;
+  // Questi campi sono ora calcolati dal backend e non servono più
+  // quantity_stock, quantity_reserved_client, quantity_ordered sono già nell'inventory
+  warehouse_description?: string | null; // Per backward compatibility
   suppliers: ArticleSupplier[] | null;
 }
 

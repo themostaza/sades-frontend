@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
     const statusId = searchParams.get('status_id') || '';
     const customerId = searchParams.get('customer_id') || '';
     const assignedToId = searchParams.get('assigned_to_id') || '';
+  const manualCheck = searchParams.get('manual_check') || '';
     const sortBy = searchParams.get('sort_by') || '';
     const sortOrder = searchParams.get('sort_order') || '';
 
@@ -69,6 +70,9 @@ export async function GET(request: NextRequest) {
     if (assignedToId) {
       apiUrl.searchParams.append('assigned_to_id', assignedToId);
     }
+  if (manualCheck) {
+    apiUrl.searchParams.append('manual_check', manualCheck);
+  }
     if (sortBy) {
       apiUrl.searchParams.append('sort_by', sortBy);
     }

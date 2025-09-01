@@ -15,7 +15,7 @@ interface UpdateInterventionReportRequest {
   signature_url: string;
   items: Array<{
     id: number;
-    intervention_equipment_id: number;
+    equipment_id: number;
     note: string;
     fl_gas: boolean;
     gas_compressor_types_id: number;
