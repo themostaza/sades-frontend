@@ -116,3 +116,77 @@ export interface InventoryMovementsFilters {
   to_date?: string;
   search?: string;
 }
+
+// Inventory Activities Types
+export type InventoryActivityType = 
+  | 'exceeding_quantities_from_report'
+  | 'verify_created_report_for_approval'
+  | 'check_inventory_after_report_approved';
+
+export type InventoryActivityStatus = 'to_do' | 'done';
+
+export interface InventoryActivity {
+  id: string; // UUID
+  type: InventoryActivityType;
+  status: InventoryActivityStatus;
+  data?: object; // Additional data in JSON format
+  report_id?: number | null;
+  assistance_intervention_id?: number | null;
+  done_at?: string | null; // ISO timestamp
+  done_by?: string | null; // UUID of user who completed
+  created_at: string; // ISO timestamp
+  updated_at: string; // ISO timestamp
+}
+
+export interface CreateInventoryActivityRequest {
+  activities: Array<{
+    type: InventoryActivityType;
+    status: InventoryActivityStatus;
+    data?: object;
+    report_id?: number;
+    assistance_intervention_id?: number;
+    done_at?: string;
+    done_by?: string;
+  }>;
+}
+
+export interface CreateInventoryActivitiesResponse {
+  message: string;
+  activities: InventoryActivity[];
+}
+
+export interface UpdateInventoryActivityRequest {
+  type?: InventoryActivityType;
+  status?: InventoryActivityStatus;
+  data?: object;
+  report_id?: number;
+  assistance_intervention_id?: number;
+  done_at?: string;
+  done_by?: string;
+}
+
+export interface UpdateInventoryActivityResponse {
+  message: string;
+  activity: InventoryActivity;
+}
+
+export interface InventoryActivitiesResponse {
+  activities: InventoryActivity[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface InventoryActivitiesFilters {
+  type?: InventoryActivityType;
+  status?: InventoryActivityStatus;
+  created_from?: string; // YYYY-MM-DD
+  created_to?: string; // YYYY-MM-DD
+  report_id?: number;
+  assistance_intervention_id?: number;
+  page?: number;
+  limit?: number;
+}
