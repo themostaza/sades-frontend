@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Filter, Edit, Mail, Trash2 } from 'lucide-react';
+import { Search, Filter, Edit, Mail, Trash2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import AbsencesTable from './AbsencesTable';
 import UserForm from './UserForm';
@@ -53,7 +53,7 @@ export default function TeamPage() {
   });
 
   // Stati per la gestione delle viste
-  const [currentView, setCurrentView] = useState<'list' | 'create' | 'edit'>('list');
+  const [currentView, setCurrentView] = useState<'list' | 'edit'>('list');
   const [selectedUser, setSelectedUser] = useState<TeamMember | null>(null);
 
   // Stati per i dialog
@@ -83,7 +83,7 @@ export default function TeamPage() {
   // Carica i ruoli all'avvio del componente
   useEffect(() => {
     if (userLoading || !userInfo) return;
-    if (userInfo.role?.toLowerCase() === 'tecnico') return;
+    if (userInfo.role?.toLowerCase() === 'tecnico' || userInfo.role?.toLowerCase() === 'ufficio_tecnico') return;
     const fetchRoles = async () => {
       try {
         setRolesLoading(true);
@@ -235,11 +235,6 @@ export default function TeamPage() {
     return member.status === 'active' ? 'Attivo' : member.status;
   };
 
-  // Handlers per la gestione delle viste
-  const handleCreateUser = () => {
-    setSelectedUser(null);
-    setCurrentView('create');
-  };
 
   const handleEditUser = (user: TeamMember) => {
     setSelectedUser(user);
@@ -344,7 +339,7 @@ export default function TeamPage() {
     return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div></div>;
   }
 
-  if (userInfo?.role?.toLowerCase() === 'tecnico') {
+  if (userInfo?.role?.toLowerCase() === 'tecnico' || userInfo?.role?.toLowerCase() === 'ufficio_tecnico') {
     return (
       <div className="p-6 bg-white min-h-screen">
         <AbsencesTable userId={userInfo.id} viewOnly={true} />
@@ -352,16 +347,7 @@ export default function TeamPage() {
     );
   }
 
-  // Renderizza il componente UserForm se siamo in modalità create o edit
-  if (currentView === 'create') {
-    return (
-      <UserForm
-        isCreating={true}
-        onBack={handleBackToList}
-        onSave={handleUserSaved}
-      />
-    );
-  }
+
 
   if (currentView === 'edit' && selectedUser) {
     return (
@@ -382,21 +368,15 @@ export default function TeamPage() {
   return (
     <div className="p-6 bg-white min-h-screen">
       {/* Header */}
-      {auth.user?.role !== 'tecnico' && (
+      {auth.user?.role !== 'tecnico' && auth.user?.role !== 'ufficio_tecnico' && (
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-semibold text-gray-900">Team</h1>
-          <button 
-            onClick={handleCreateUser}
-            className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-          >
-            <Plus size={16} />
-            Aggiungi nuovo
-          </button>
+
         </div>
       )}
 
       {/* Search and filters */}
-      {auth.user?.role !== 'tecnico' && (
+      {auth.user?.role !== 'tecnico' && auth.user?.role !== 'ufficio_tecnico' && (
         <div className="mb-6">
           <div className="flex items-center gap-4">
             <div className="relative flex-1 max-w-md">

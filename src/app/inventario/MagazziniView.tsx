@@ -183,7 +183,7 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
         'Authorization': `Bearer ${auth.token}`,
       };
 
-      const warehousesEndpoint = auth.user?.role === 'tecnico' ? '/api/assigned-warehouses' : '/api/warehouses';
+      const warehousesEndpoint = auth.user?.role === 'tecnico' || auth.user?.role === 'ufficio_tecnico' ? '/api/assigned-warehouses' : '/api/warehouses';
       const response = await fetch(warehousesEndpoint, { headers });
 
       if (!response.ok) {

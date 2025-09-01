@@ -365,7 +365,7 @@ export default function InterventiPage() {
   };
 
   const isAdmin = () => {
-    return userInfo?.role === 'amministrazione';
+    return userInfo?.role === 'amministrazione' || userInfo?.role === 'ufficio' || userInfo?.role === 'magazziniere';
   };
 
   // Funzione per verificare se un intervento può essere annullato

@@ -68,7 +68,7 @@ export default function ActivitiesView() {
       };
 
       // Fetch warehouses
-      const warehousesEndpoint = auth.user?.role === 'tecnico' ? '/api/assigned-warehouses' : '/api/warehouses';
+      const warehousesEndpoint = auth.user?.role === 'tecnico' || auth.user?.role === 'ufficio_tecnico' ? '/api/assigned-warehouses' : '/api/warehouses';
       const warehousesResponse = await fetch(warehousesEndpoint, { headers });
       
       if (warehousesResponse.ok) {

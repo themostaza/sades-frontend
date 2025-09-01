@@ -4,7 +4,7 @@
  */
 
 // Tipi per il sistema di permessi
-export type UserRole = 'amministrazione' | 'tecnico';
+export type UserRole = 'amministrazione' | 'tecnico' | 'ufficio' | 'ufficio_tecnico' | 'magazziniere';
 
 export interface RolePermissions {
   sections: string[];      // Sezioni principali per la sidebar
@@ -43,6 +43,51 @@ const ROLE_PERMISSIONS: PermissionSystem = {
       '/interventi/**', 
       '/team/**',
       '/inventario/**', 
+      '/notifiche/**'
+    ],
+    exceptions: {
+      deny: [],
+      allow: []
+    }
+  },
+  ufficio: {
+    sections: ['/dashboard', '/interventi', '/team', '/clienti', '/apparecchiature', '/inventario', '/notifiche'],
+    patterns: [
+      '/dashboard/**',
+      '/interventi/**', 
+      '/team/**',
+      '/clienti/**',
+      '/apparecchiature/**',
+      '/inventario/**',
+      '/notifiche/**'
+    ],
+    exceptions: {
+      deny: [],
+      allow: []
+    }
+  },
+  ufficio_tecnico: {
+    sections: ['/interventi', '/team', '/inventario', '/notifiche'],
+    patterns: [
+      '/interventi/**', 
+      '/team/**',
+      '/inventario/**', 
+      '/notifiche/**'
+    ],
+    exceptions: {
+      deny: [],
+      allow: []
+    }
+  },
+  magazziniere: {
+    sections: ['/dashboard', '/interventi', '/team', '/clienti', '/apparecchiature', '/inventario', '/notifiche'],
+    patterns: [
+      '/dashboard/**',
+      '/interventi/**', 
+      '/team/**',
+      '/clienti/**',
+      '/apparecchiature/**',
+      '/inventario/**',
       '/notifiche/**'
     ],
     exceptions: {
@@ -112,12 +157,12 @@ export function getDefaultRoute(userRole: UserRole): string {
     return '/login';
   }
   
-  // Per i tecnici, default è interventi
-  if (userRole === 'tecnico') {
+  // Per i tecnici e ufficio_tecnico, default è interventi
+  if (userRole === 'tecnico' || userRole === 'ufficio_tecnico') {
     return '/interventi';
   }
   
-  // Per gli amministratori, default è dashboard
+  // Per gli amministratori, ufficio e magazziniere, default è dashboard
   return '/dashboard';
 }
 
@@ -164,23 +209,39 @@ export function debugPermissions(userRole: UserRole): RolePermissions | null {
 }
 
 /**
+ * Verifica se un ruolo ha permessi di tecnico (limitati)
+ */
+export function isTechnicianRole(role: string): boolean {
+  return role === 'tecnico' || role === 'ufficio_tecnico';
+}
+
+/**
+ * Verifica se un ruolo ha permessi di amministratore (completi)
+ */
+export function isAdminRole(role: string): boolean {
+  return role === 'amministrazione' || role === 'ufficio' || role === 'magazziniere';
+}
+
+/**
  * Test della funzione di pattern matching (solo per debug)
  */
 export function testPatternMatching(): void {
-  console.log('🧪 Testing pattern matching...');
+  console.log('🧪 Testing pattern matching for all roles...');
   
-  // Test per amministratore
-  console.log('Admin can access /dashboard:', canAccessRoute('amministrazione', '/dashboard'));
-  console.log('Admin can access /dashboard/settings:', canAccessRoute('amministrazione', '/dashboard/settings'));
-  console.log('Admin can access /interventi:', canAccessRoute('amministrazione', '/interventi'));
-  console.log('Admin can access /interventi/123:', canAccessRoute('amministrazione', '/interventi/123'));
+  const roles: UserRole[] = ['amministrazione', 'tecnico', 'ufficio', 'ufficio_tecnico', 'magazziniere'];
+  const routes = ['/dashboard', '/interventi', '/team', '/clienti', '/apparecchiature', '/inventario', '/notifiche'];
   
-  // Test per tecnico
-  console.log('Tecnico can access /dashboard:', canAccessRoute('tecnico', '/dashboard'));
-  console.log('Tecnico can access /dashboard/settings:', canAccessRoute('tecnico', '/dashboard/settings'));
-  console.log('Tecnico can access /interventi:', canAccessRoute('tecnico', '/interventi'));
-  console.log('Tecnico can access /interventi/123:', canAccessRoute('tecnico', '/interventi/123'));
-  console.log('Tecnico can access /clienti:', canAccessRoute('tecnico', '/clienti'));
+  roles.forEach(role => {
+    console.log(`\n--- Testing role: ${role} ---`);
+    console.log(`Default route: ${getDefaultRoute(role)}`);
+    console.log(`Is valid role: ${isValidRole(role)}`);
+    console.log(`Is technician role: ${isTechnicianRole(role)}`);
+    console.log(`Is admin role: ${isAdminRole(role)}`);
+    
+    routes.forEach(route => {
+      console.log(`${role} can access ${route}: ${canAccessRoute(role, route)}`);
+    });
+  });
   
-  console.log('✅ Pattern matching test completed');
+  console.log('\n✅ Pattern matching test completed for all roles');
 } 
