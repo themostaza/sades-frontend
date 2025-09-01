@@ -14,7 +14,7 @@ export interface BulkTransferRequest {
 export interface BulkLoadingRequest {
   loadings: {
     article_id: string;
-    from_warehouse_id: string;
+    to_warehouse_id: string;
     quantity: number;
     notes?: string;
   }[];
@@ -24,7 +24,7 @@ export interface BulkLoadingRequest {
 export interface BulkUnloadingRequest {
   unloadings: {
     article_id: string;
-    to_warehouse_id: string;
+    from_warehouse_id: string;
     quantity: number;
     notes?: string;
   }[];
@@ -83,6 +83,13 @@ export interface BulkOperationResult {
     unloading_data?: unknown;
     error: string;
   }>;
+  // Summary information for errors
+  summary?: {
+    total_attempted: number;
+    successful: number;
+    failed: number;
+    most_common_errors?: string[];
+  };
 }
 
 export interface BulkOperationResponse {
@@ -189,4 +196,45 @@ export interface InventoryActivitiesFilters {
   assistance_intervention_id?: number;
   page?: number;
   limit?: number;
+}
+
+// Complete Activity Types
+export interface WarehouseTransfer {
+  warehouse_id: string;
+  quantity: number;
+}
+
+export interface DistributionWarehouse {
+  warehouse_id: string;
+  quantity: number;
+}
+
+export interface CompleteActivityRequest {
+  activity_id: string;
+  warehouse_transfers?: WarehouseTransfer[];
+  distribution_warehouses?: DistributionWarehouse[];
+}
+
+export interface ActivityMovement {
+  movement_id: string;
+  article_id: string;
+  article_description: string;
+  from_warehouse?: string;
+  to_warehouse?: string;
+  quantity: number;
+  notes?: string;
+  created_at: string;
+}
+
+export interface CompleteActivityResponse {
+  message: string;
+  activity_id: string;
+  case_type: 'ECCESSO' | 'PARI' | 'USO_PARZIALE';
+  movements_executed: ActivityMovement[];
+  summary: {
+    article_id: string;
+    report_quantity: number;
+    intervention_quantity: number;
+    total_movements: number;
+  };
 }

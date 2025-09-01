@@ -6,7 +6,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { 
   InventoryActivity, 
   InventoryActivitiesResponse,
-  UpdateInventoryActivityRequest 
+  CompleteActivityRequest,
+  CompleteActivityResponse 
 } from '../../types/inventory';
 import { Article } from '../../types/article';
 
@@ -225,35 +226,73 @@ export default function ActivitiesView() {
         throw new Error('Attività non trovata');
       }
 
-      // Prepara i dati aggiornati
-      const currentData = (activity.data as ActivityData) || {};
-      const updatedData: ActivityData = {
-        ...currentData,
-        completed_at: new Date().toISOString(),
-        completed_by: auth.user?.id
+      const quantityStatus = getQuantityStatus(activity);
+
+      // Prepara i dati per la richiesta di completamento
+      const completeRequest: CompleteActivityRequest = {
+        activity_id: activityId
       };
 
-      // Se ci sono allocazioni magazzini, aggiungile ai dati
-      if (warehouseAllocations[activityId]) {
-        updatedData.warehouse_allocations = warehouseAllocations[activityId];
+      // Aggiungi i dati specifici in base al tipo di casistica
+      if (quantityStatus.status === 'ECCESSO') {
+        // Caso ECCESSO: serve warehouse_transfers (prelievi dai magazzini)
+        const allocations = warehouseAllocations[activityId] || [];
+        if (allocations.length === 0) {
+          throw new Error('Devi specificare da quali magazzini prelevare gli articoli');
+        }
+        
+        completeRequest.warehouse_transfers = allocations.map(allocation => ({
+          warehouse_id: allocation.warehouseId,
+          quantity: allocation.quantity
+        }));
+        
+      } else if (quantityStatus.status === 'USO_PARZIALE') {
+        // Caso USO_PARZIALE: serve distribution_warehouses (dove mettere la quantità non utilizzata)
+        const allocations = warehouseAllocations[activityId] || [];
+        if (allocations.length === 0) {
+          throw new Error('Devi specificare in quali magazzini mettere la quantità non utilizzata');
+        }
+        
+        completeRequest.distribution_warehouses = allocations.map(allocation => ({
+          warehouse_id: allocation.warehouseId,
+          quantity: allocation.quantity
+        }));
       }
+      // Per PARI non serve aggiungere nulla
 
-      const updateData: UpdateInventoryActivityRequest = {
-        status: 'done',
-        done_by: auth.user?.id,
-        done_at: new Date().toISOString(),
-        data: updatedData
-      };
+      console.log('🎯 Completing activity with request:', completeRequest);
 
-      const response = await fetch(`/api/inventory/activities/${activityId}`, {
-        method: 'PUT',
+      // Chiama il nuovo endpoint di completamento
+      const response = await fetch('/api/inventory/complete-activity', {
+        method: 'POST',
         headers,
-        body: JSON.stringify(updateData)
+        body: JSON.stringify(completeRequest)
       });
 
       if (!response.ok) {
-        throw new Error('Errore nell\'aggiornamento dell\'attività');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.details || errorData.message || 'Errore nel completamento dell\'attività';
+        throw new Error(errorMessage);
       }
+
+      const completionResult: CompleteActivityResponse = await response.json();
+      console.log('✅ Activity completed successfully:', completionResult);
+
+      // Mostra un messaggio di successo con i dettagli
+      const successMessage = `
+        Attività completata con successo!
+        
+        Caso: ${completionResult.case_type}
+        Movimenti eseguiti: ${completionResult.movements_executed.length}
+        
+        ${completionResult.summary ? `
+        Articolo: ${completionResult.summary.article_id}
+        Quantità report: ${completionResult.summary.report_quantity}
+        Quantità intervento: ${completionResult.summary.intervention_quantity}
+        ` : ''}
+      `.trim();
+
+      alert(successMessage);
 
       // Pulisci le allocazioni per questa attività
       setWarehouseAllocations(prev => {
@@ -276,8 +315,15 @@ export default function ActivitiesView() {
       }
 
     } catch (error) {
-      console.error('Error completing activity:', error);
-      alert('Errore durante il completamento dell\'attività');
+      console.error('❌ Error completing activity:', error);
+      
+      // Mostra un messaggio di errore più dettagliato
+      let errorMessage = 'Errore durante il completamento dell\'attività';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      alert(`${errorMessage}\n\nControlla i dati inseriti e riprova.`);
     } finally {
       setProcessingActivities(prev => {
         const newSet = new Set(prev);
@@ -348,7 +394,7 @@ export default function ActivitiesView() {
       return true; // Può completare direttamente
     }
     
-    if (quantityStatus.status === 'ECCESSO' || quantityStatus.status === 'USO PARZIALE') {
+    if (quantityStatus.status === 'ECCESSO' || quantityStatus.status === 'USO_PARZIALE') {
       const requiredQty = getRequiredQuantity(activity);
       const allocatedQty = getTotalAllocated(activity.id);
       const allocations = warehouseAllocations[activity.id] || [];
@@ -392,7 +438,7 @@ export default function ActivitiesView() {
   };
 
   const getQuantityStatus = (activity: InventoryActivity): { 
-    status: 'PARI' | 'ECCESSO' | 'USO PARZIALE' | 'VERIFICA'; 
+    status: 'PARI' | 'ECCESSO' | 'USO_PARZIALE' | 'VERIFICA'; 
     description: string; 
     article?: Article;
   } => {
@@ -419,7 +465,7 @@ export default function ActivitiesView() {
           };
         } else {
           return {
-            status: 'USO PARZIALE',
+            status: 'USO_PARZIALE',
             description: `La quantità del report è inferiore a quella dell'intervento`,
             article
           };
@@ -677,7 +723,7 @@ export default function ActivitiesView() {
                               })()}
 
                               {/* Gestione magazzini per ECCESSO e USO PARZIALE */}
-                              {activityInEdit === activity.id && (quantityStatus.status === 'ECCESSO' || quantityStatus.status === 'USO PARZIALE') && (
+                              {activityInEdit === activity.id && (quantityStatus.status === 'ECCESSO' || quantityStatus.status === 'USO_PARZIALE') && (
                                 <div className="mb-4 p-4 bg-white rounded border">
                                   <div className="flex items-center justify-between mb-3">
                                     <h4 className="font-medium text-gray-900">
@@ -891,7 +937,7 @@ export default function ActivitiesView() {
                                   )}
                                 </button>
                               );
-                            } else if (quantityStatus.status === 'ECCESSO' || quantityStatus.status === 'USO PARZIALE') {
+                            } else if (quantityStatus.status === 'ECCESSO' || quantityStatus.status === 'USO_PARZIALE') {
                               // Casi ECCESSO e USO PARZIALE: richiedono gestione magazzini
                               return (
                                 <div className="flex flex-col gap-2">
