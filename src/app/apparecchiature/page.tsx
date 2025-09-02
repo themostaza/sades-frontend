@@ -1,11 +1,18 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronDown, Loader2, AlertCircle } from 'lucide-react';
+import {
+  Search,
+  ChevronDown,
+  Loader2,
+  AlertCircle,
+  Upload,
+} from 'lucide-react';
 import { useEquipments } from '../../hooks/useEquipments';
 import { useFilters } from '../../hooks/useFilters';
 import { useAuth } from '../../contexts/AuthContext';
 import DettaglioApparecchiatura from './DettaglioApparecchiatura';
+import ImportEquipmentModal from './ImportEquipmentModal';
 
 export default function ApparecchiaturePage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -17,7 +24,7 @@ export default function ApparecchiaturePage() {
     totalPages,
     totalItems,
     fetchEquipments,
-    refetch
+    refetch,
   } = useEquipments();
 
   // Filters hook
@@ -26,17 +33,24 @@ export default function ApparecchiaturePage() {
     deviceBrands,
     deviceFamilies,
     deviceSubfamilies,
-    fetchDeviceSubfamilies
+    fetchDeviceSubfamilies,
   } = useFilters();
 
   // Local state for UI
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(
+    null
+  );
   const itemsPerPage = 20;
 
   // Stati per la navigazione
   const [currentView, setCurrentView] = useState<'list' | 'detail'>('list');
-  const [selectedEquipmentId, setSelectedEquipmentId] = useState<number | null>(null);
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState<number | null>(
+    null
+  );
+
+  // Stato per la modale di importazione
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Filter states
   const [selectedDeviceGroup, setSelectedDeviceGroup] = useState<string>('');
@@ -62,7 +76,7 @@ export default function ApparecchiaturePage() {
   // Handle search with debouncing
   const handleSearch = (value: string) => {
     setSearchTerm(value);
-    
+
     // Clear existing timeout
     if (searchTimeout) {
       clearTimeout(searchTimeout);
@@ -123,11 +137,17 @@ export default function ApparecchiaturePage() {
     });
   };
 
+  const handleImportComplete = () => {
+    // Ricarica la lista dopo l'importazione
+    handleEquipmentUpdated();
+    setIsImportModalOpen(false);
+  };
+
   // Handle filter changes
   const handleDeviceGroupChange = (groupId: string) => {
     setSelectedDeviceGroup(groupId);
-    setDropdownOpen(prev => ({ ...prev, apparecchiatura: false }));
-    
+    setDropdownOpen((prev) => ({ ...prev, apparecchiatura: false }));
+
     // Trigger search with filters
     fetchEquipments({
       page: '1',
@@ -142,8 +162,8 @@ export default function ApparecchiaturePage() {
 
   const handleBrandChange = (brandId: string) => {
     setSelectedBrand(brandId);
-    setDropdownOpen(prev => ({ ...prev, marchio: false }));
-    
+    setDropdownOpen((prev) => ({ ...prev, marchio: false }));
+
     // Trigger search with filters
     fetchEquipments({
       page: '1',
@@ -159,13 +179,13 @@ export default function ApparecchiaturePage() {
   const handleFamilyChange = (familyId: string) => {
     setSelectedFamily(familyId);
     setSelectedSubfamily(''); // Reset subfamily when family changes
-    setDropdownOpen(prev => ({ ...prev, modello: false }));
-    
+    setDropdownOpen((prev) => ({ ...prev, modello: false }));
+
     // Fetch subfamilies for the selected family
     if (familyId) {
       fetchDeviceSubfamilies(familyId);
     }
-    
+
     // Trigger search with filters (subfamily reset to empty)
     fetchEquipments({
       page: '1',
@@ -180,8 +200,8 @@ export default function ApparecchiaturePage() {
 
   const handleSubfamilyChange = (subfamilyId: string) => {
     setSelectedSubfamily(subfamilyId);
-    setDropdownOpen(prev => ({ ...prev, sottofamiglia: false }));
-    
+    setDropdownOpen((prev) => ({ ...prev, sottofamiglia: false }));
+
     // Trigger search with filters
     fetchEquipments({
       page: '1',
@@ -196,14 +216,17 @@ export default function ApparecchiaturePage() {
 
   // Toggle dropdown
   const toggleDropdown = (dropdownName: keyof typeof dropdownOpen) => {
-    setDropdownOpen(prev => ({
+    setDropdownOpen((prev) => ({
       ...prev,
-      [dropdownName]: !prev[dropdownName]
+      [dropdownName]: !prev[dropdownName],
     }));
   };
 
   // Format serial numbers display
-  const formatSerialNumbers = (serialNumber: string | null, linkedSerials: string | null) => {
+  const formatSerialNumbers = (
+    serialNumber: string | null,
+    linkedSerials: string | null
+  ) => {
     const serials = [];
     if (serialNumber) serials.push(serialNumber);
     if (linkedSerials) serials.push(linkedSerials);
@@ -211,9 +234,14 @@ export default function ApparecchiaturePage() {
   };
 
   // Truncate text for display
-  const truncateText = (text: string | null | undefined, maxLength: number = 25) => {
+  const truncateText = (
+    text: string | null | undefined,
+    maxLength: number = 25
+  ) => {
     if (!text) return '-';
-    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
+    return text.length > maxLength
+      ? `${text.substring(0, maxLength)}...`
+      : text;
   };
 
   // Show equipment detail if in detail view
@@ -243,8 +271,12 @@ export default function ApparecchiaturePage() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <AlertCircle className="mx-auto text-red-600 mb-4" size={48} />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Accesso richiesto</h2>
-          <p className="text-gray-600">Effettua il login per visualizzare le apparecchiature.</p>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            Accesso richiesto
+          </h2>
+          <p className="text-gray-600">
+            Effettua il login per visualizzare le apparecchiature.
+          </p>
         </div>
       </div>
     );
@@ -253,15 +285,27 @@ export default function ApparecchiaturePage() {
   return (
     <div className="p-6 bg-white min-h-screen">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Apparecchiature</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-gray-900">
+          Apparecchiature
+        </h1>
+        <button
+          onClick={() => setIsImportModalOpen(true)}
+          className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+        >
+          <Upload size={20} />
+          Importa da Excel
+        </button>
       </div>
 
       {/* Search and filters */}
       <div className="mb-6">
         <div className="flex items-center gap-4 flex-wrap">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <Search
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              size={20}
+            />
             <input
               type="text"
               placeholder="Cerca seriale, marchio, categoria, modello o nome apparecchiatura"
@@ -270,24 +314,25 @@ export default function ApparecchiaturePage() {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
             />
           </div>
-          
+
           {/* Apparecchiatura Filter */}
           <div className="relative">
-            <button 
+            <button
               onClick={() => toggleDropdown('apparecchiatura')}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
             >
               <span>
-                {selectedDeviceGroup 
-                  ? deviceGroups.find(g => g.id.toString() === selectedDeviceGroup)?.label || 'Apparecchiatura'
-                  : 'Apparecchiatura'
-                }
+                {selectedDeviceGroup
+                  ? deviceGroups.find(
+                      (g) => g.id.toString() === selectedDeviceGroup
+                    )?.label || 'Apparecchiatura'
+                  : 'Apparecchiatura'}
               </span>
               <ChevronDown size={16} />
             </button>
             {dropdownOpen.apparecchiatura && (
               <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
-                <div 
+                <div
                   className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
                   onClick={() => handleDeviceGroupChange('')}
                 >
@@ -305,7 +350,7 @@ export default function ApparecchiaturePage() {
               </div>
             )}
           </div>
-          
+
           {/* Proprietà Filter - Placeholder */}
           <div className="relative">
             <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700">
@@ -313,24 +358,24 @@ export default function ApparecchiaturePage() {
               <ChevronDown size={16} />
             </button>
           </div>
-          
+
           {/* Marchio Filter */}
           <div className="relative">
-            <button 
+            <button
               onClick={() => toggleDropdown('marchio')}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
             >
               <span>
-                {selectedBrand 
-                  ? deviceBrands.find(b => b.id.toString() === selectedBrand)?.label || 'Marchio'
-                  : 'Marchio'
-                }
+                {selectedBrand
+                  ? deviceBrands.find((b) => b.id.toString() === selectedBrand)
+                      ?.label || 'Marchio'
+                  : 'Marchio'}
               </span>
               <ChevronDown size={16} />
             </button>
             {dropdownOpen.marchio && (
               <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
-                <div 
+                <div
                   className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
                   onClick={() => handleBrandChange('')}
                 >
@@ -348,24 +393,24 @@ export default function ApparecchiaturePage() {
               </div>
             )}
           </div>
-          
+
           {/* Modello Filter */}
           <div className="relative">
-            <button 
+            <button
               onClick={() => toggleDropdown('modello')}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
             >
               <span>
-                {selectedFamily 
-                  ? deviceFamilies.find(f => f.id === selectedFamily)?.label || 'Famiglia'
-                  : 'Famiglia'
-                }
+                {selectedFamily
+                  ? deviceFamilies.find((f) => f.id === selectedFamily)
+                      ?.label || 'Famiglia'
+                  : 'Famiglia'}
               </span>
               <ChevronDown size={16} />
             </button>
             {dropdownOpen.modello && (
               <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
-                <div 
+                <div
                   className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
                   onClick={() => handleFamilyChange('')}
                 >
@@ -383,10 +428,10 @@ export default function ApparecchiaturePage() {
               </div>
             )}
           </div>
-          
+
           {/* Sottofamiglia Filter */}
           <div className="relative">
-            <button 
+            <button
               onClick={() => toggleDropdown('sottofamiglia')}
               disabled={!selectedFamily}
               className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 ${
@@ -394,16 +439,16 @@ export default function ApparecchiaturePage() {
               }`}
             >
               <span>
-                {selectedSubfamily 
-                  ? deviceSubfamilies.find(s => s.id === selectedSubfamily)?.label || 'Sottofamiglia'
-                  : 'Sottofamiglia'
-                }
+                {selectedSubfamily
+                  ? deviceSubfamilies.find((s) => s.id === selectedSubfamily)
+                      ?.label || 'Sottofamiglia'
+                  : 'Sottofamiglia'}
               </span>
               <ChevronDown size={16} />
             </button>
             {dropdownOpen.sottofamiglia && selectedFamily && (
               <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
-                <div 
+                <div
                   className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
                   onClick={() => handleSubfamilyChange('')}
                 >
@@ -428,7 +473,9 @@ export default function ApparecchiaturePage() {
       {loading && (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="animate-spin text-teal-600" size={32} />
-          <span className="ml-2 text-gray-600">Caricamento apparecchiature...</span>
+          <span className="ml-2 text-gray-600">
+            Caricamento apparecchiature...
+          </span>
         </div>
       )}
 
@@ -439,7 +486,7 @@ export default function ApparecchiaturePage() {
             <AlertCircle className="text-red-600" size={20} />
             <span className="ml-2 text-red-800">{error}</span>
           </div>
-          <button 
+          <button
             onClick={refetch}
             className="mt-2 text-red-600 hover:text-red-800 underline"
           >
@@ -478,13 +525,22 @@ export default function ApparecchiaturePage() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {equipments.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                      {searchTerm ? 'Nessuna apparecchiatura trovata per la ricerca corrente' : 'Nessuna apparecchiatura disponibile'}
+                    <td
+                      colSpan={6}
+                      className="px-6 py-12 text-center text-gray-500"
+                    >
+                      {searchTerm
+                        ? 'Nessuna apparecchiatura trovata per la ricerca corrente'
+                        : 'Nessuna apparecchiatura disponibile'}
                     </td>
                   </tr>
                 ) : (
                   equipments.map((equipment) => (
-                    <tr key={equipment.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => handleOpenEquipmentDetail(equipment.id)}>
+                    <tr
+                      key={equipment.id}
+                      className="hover:bg-gray-50 cursor-pointer"
+                      onClick={() => handleOpenEquipmentDetail(equipment.id)}
+                    >
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="font-medium">
                           {truncateText(equipment.description)}
@@ -503,7 +559,10 @@ export default function ApparecchiaturePage() {
                         {equipment.subfamily_name}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {formatSerialNumbers(equipment.serial_number, equipment.linked_serials)}
+                        {formatSerialNumbers(
+                          equipment.serial_number,
+                          equipment.linked_serials
+                        )}
                       </td>
                     </tr>
                   ))
@@ -511,15 +570,16 @@ export default function ApparecchiaturePage() {
               </tbody>
             </table>
           </div>
-          
+
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
               <div className="text-sm text-gray-700">
-                Pagina {currentPage} di {totalPages} - Totale: {totalItems} apparecchiature
+                Pagina {currentPage} di {totalPages} - Totale: {totalItems}{' '}
+                apparecchiature
               </div>
               <div className="flex items-center gap-2">
-                <button 
+                <button
                   onClick={() => handlePageChange(currentPage - 1)}
                   disabled={currentPage <= 1 || loading}
                   className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -529,7 +589,7 @@ export default function ApparecchiaturePage() {
                 <span className="px-3 py-1 text-sm text-gray-600">
                   {currentPage}
                 </span>
-                <button 
+                <button
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage >= totalPages || loading}
                   className="px-3 py-1 text-sm text-teal-600 hover:text-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -541,6 +601,13 @@ export default function ApparecchiaturePage() {
           )}
         </div>
       )}
+
+      {/* Import Modal */}
+      <ImportEquipmentModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImportComplete={handleImportComplete}
+      />
     </div>
   );
 }

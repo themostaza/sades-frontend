@@ -17,6 +17,16 @@ export interface ConnectedArticle {
   short_description: string;
   description: string;
   quantity: number;
+  movements?: Array<{
+    id: string;
+    article_id: string;
+    quantity: number;
+    from_warehouse_id: string | null;
+    to_warehouse_id: string | null;
+    created_at: string;
+    from_warehouse_name: string | null;
+    to_warehouse_name: string | null;
+  }>;
 }
 
 export interface AssistanceIntervention {
@@ -162,6 +172,11 @@ export interface UpdateAssistanceInterventionRequest {
   articles: Array<{
     article_id: string;
     quantity: number;
+    // opzionali per i movimenti di magazzino quando cambia la quantità
+    from_warehouses?: Array<{ warehouse_id?: string | number; id?: string | number; quantity: number }>;
+    warehouse_breakdown?: Array<{ warehouse_id?: string | number; id?: string | number; quantity: number }>;
+    to_warehouses?: Array<{ warehouse_id?: string | number; id?: string | number; quantity: number }>;
+    destination_warehouses?: Array<{ warehouse_id?: string | number; id?: string | number; quantity: number }>;
   }>;
   calendar_notes?: string;
   manual_check?: boolean;
@@ -195,4 +210,8 @@ export interface AssistanceInterventionsQueryParams {
   zone_id?: string;
   status_id?: string;
   customer_id?: string;
+  assigned_to_id?: string;
+  manual_check?: string | boolean;
+  sort_by?: 'id' | 'date';
+  sort_order?: 'asc' | 'desc';
 } 

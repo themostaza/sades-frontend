@@ -170,18 +170,6 @@ export default function CustomerSectionDetail({
     setSearchQuery(value);
     setRagioneSociale(value);
 
-    if (selectedCustomerForSearch && value !== selectedCustomerForSearch.company_name) {
-      setSelectedCustomerForSearch(null);
-      setCodiceCliente('');
-      setTelefonoFisso('');
-      setNumeroCellulare('');
-      setDestinazione('');
-      setCustomerLocations([]);
-      setSelectedCustomerId(null);
-      setZona('');
-      onCustomerLocationsLoaded?.(false);
-    }
-
     if (!value.trim()) {
       setSelectedCustomerForSearch(null);
       setCodiceCliente('');
@@ -266,7 +254,7 @@ export default function CustomerSectionDetail({
 
   // Debounce for customer search in creation mode
   useEffect(() => {
-    if (!isCreating || isSelecting) return;
+    if (!isCreating || isSelecting || selectedCustomerForSearch) return;
     const timeoutId = setTimeout(() => {
       if (searchQuery.trim() && searchQuery.length >= 2) {
         searchCustomers(searchQuery);
