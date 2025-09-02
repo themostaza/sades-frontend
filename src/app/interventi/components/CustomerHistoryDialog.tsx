@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, MapPin, User, FileText, Clock, ChevronRight } from 'lucide-react';
+import { X, Calendar, MapPin, User, FileText, Clock, ChevronRight, ExternalLink } from 'lucide-react';
 import { getStatusColor, toStatusKey } from '../../../utils/intervention-status';
 import { useAuth } from '../../../contexts/AuthContext';
 import { AssistanceIntervention, AssistanceInterventionsApiResponse } from '../../../types/assistance-interventions';
@@ -107,6 +107,27 @@ export default function CustomerHistoryDialog({
     });
   };
 
+  // Funzione per formattare data+ora
+  const formatDateTime = (dateString: string | null | undefined) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    const d = date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const t = date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    return `${d} ${t}`;
+  };
+
+  // Estrarre un'anteprima di contenuto (prime righe)
+  const getPreviewText = (text?: string | null, maxLen: number = 180) => {
+    if (!text) return '';
+    const trimmed = text.trim();
+    if (!trimmed) return '';
+    // Prendi al massimo le prime due righe
+    const lines = trimmed.split(/\r?\n/).slice(0, 2).join(' ');
+    if (lines.length <= maxLen) return lines;
+    return lines.slice(0, maxLen).trimEnd() + '…';
+  };
+
   // Funzione per formattare l'orario
   const formatTimeSlot = (timeSlot: string | null) => {
     if (!timeSlot) return '';
@@ -193,10 +214,22 @@ export default function CustomerHistoryDialog({
                 Totale interventi: {totalItems}
               </div>
 
-              {interventions.map((intervention) => (
+              {interventions.map((intervention) => {
+                const createdAtFormatted = formatDateTime(intervention.created_at);
+                const preview = getPreviewText(intervention.internal_notes || intervention.calendar_notes);
+                const openDetail = () => {
+                  const url = `/interventi?ai=${intervention.id}`;
+                  window.open(url, '_blank', 'noopener,noreferrer');
+                };
+                return (
                 <div
                   key={intervention.id}
-                  className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                  className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  onClick={openDetail}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(); } }}
+                  title="Apri dettaglio in una nuova scheda"
                 >
                   {/* Header intervento */}
                   <div className="flex items-start justify-between mb-3">
@@ -221,11 +254,17 @@ export default function CustomerHistoryDialog({
                           </span>
                         )}
                       </div>
+                      {createdAtFormatted && (
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                          <Clock size={14} className="text-gray-400" />
+                          <span>Creata il {createdAtFormatted}</span>
+                        </div>
+                      )}
                       <p className="text-sm text-gray-600">
                         {intervention.type_label}
                       </p>
                     </div>
-                    <ChevronRight size={16} className="text-gray-400 mt-1" />
+                    <ExternalLink size={16} className="text-gray-400 mt-1" />
                   </div>
 
                   {/* Dettagli intervento */}
@@ -274,6 +313,15 @@ export default function CustomerHistoryDialog({
                     </div>
                   </div>
 
+                  {/* Anteprima contenuto */}
+                  {preview && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <div className="text-sm text-gray-600">
+                        {preview}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Rapportino */}
                   {intervention.report_id && (
                     <div className="mt-3 pt-3 border-t border-gray-100">
@@ -289,22 +337,8 @@ export default function CustomerHistoryDialog({
                     </div>
                   )}
 
-                  {/* Note calendario */}
-                  {intervention.calendar_notes && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <div className="flex items-start gap-2">
-                        <Clock size={16} className="text-gray-400 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium text-gray-700">Note:</p>
-                          <p className="text-sm text-gray-600 mt-1">
-                            {intervention.calendar_notes}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
-              ))}
+              );})}
 
               {/* Pulsante carica di più */}
               {hasMore && (

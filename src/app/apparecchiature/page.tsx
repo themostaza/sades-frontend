@@ -503,6 +503,9 @@ export default function ApparecchiaturePage() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    PNC
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Apparecchiatura
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -526,7 +529,7 @@ export default function ApparecchiaturePage() {
                 {equipments.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="px-6 py-12 text-center text-gray-500"
                     >
                       {searchTerm
@@ -541,6 +544,9 @@ export default function ApparecchiaturePage() {
                       className="hover:bg-gray-50 cursor-pointer"
                       onClick={() => handleOpenEquipmentDetail(equipment.id)}
                     >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {equipment.id}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="font-medium">
                           {truncateText(equipment.description)}
