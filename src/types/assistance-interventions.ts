@@ -58,6 +58,7 @@ export interface AssistanceIntervention {
   status_color: string;
   location_address: string;
   location_city: string;
+  location_label: string;
   type_label: string;
   report_id: number | null;
   report_is_failed: boolean | null;

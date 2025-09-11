@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Search, MapPin, Filter, User, X, AlertCircle, Copy, FileText } from 'lucide-react';
+import { Search, MapPin, Filter, User, X, AlertCircle, Copy, FileText, CornerDownRight } from 'lucide-react';
 import { AssistanceIntervention } from '../../../types/assistance-interventions';
 import { getStatusColor, statusOptions, toStatusKey } from '../../../utils/intervention-status';
 import DateRangePicker from '../../../components/DateRangePicker';
@@ -564,79 +564,95 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 </tr>
               ) : (
                 interventionsData.map((intervention) => (
-                  <tr key={intervention.id} className="hover:bg-gray-50 transition-colors">
-                    {isAdmin && (
-                      <td className="px-3 sm:px-6 py-4 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedInterventions.includes(intervention.id)}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            handleSelectIntervention(intervention.id, e.target.checked);
-                          }}
-                          className="w-4 h-4 text-teal-600 bg-gray-100 border-gray-300 rounded focus:ring-teal-500 focus:ring-2"
-                        />
-                      </td>
-                    )}
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-900 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
-                      <div>
-                        <div className="font-medium break-words">{intervention.company_name}</div>
-                        <div className="text-xs text-gray-500">#{intervention.call_code} ({intervention.id})</div>
-                      </div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
-                      {formatDate(intervention.date)}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
-                      {intervention.from_datetime && intervention.to_datetime ? (
-                        `${intervention.from_datetime.substring(11, 16)} -> ${intervention.to_datetime.substring(11, 16)}`
-                      ) : (
-                        intervention.time_slot || '-'
+                  <React.Fragment key={intervention.id}>
+                    <tr className={`hover:bg-gray-50 transition-colors ${intervention.internal_notes ? '[&>td]:border-b-0' : ''}`}>
+                      {isAdmin && (
+                        <td className="px-3 sm:px-6 py-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedInterventions.includes(intervention.id)}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              handleSelectIntervention(intervention.id, e.target.checked);
+                            }}
+                            className="w-4 h-4 text-teal-600 bg-gray-100 border-gray-300 rounded focus:ring-teal-500 focus:ring-2"
+                          />
+                        </td>
                       )}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
-                      <div className="break-words">{intervention.zone_label}</div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
-                      <div className="break-words">{formatTechnician(intervention.assigned_to_name, intervention.assigned_to_surname)}</div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
-                      <div className="break-words">{intervention.type_label}</div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
-                      <div className="flex flex-col gap-1">
-                        <span
-                          className={`inline-flex w-fit px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(toStatusKey(intervention.status_label))}`}
-                        >
-                          {intervention.status_label}
-                        </span>
-                        {intervention.manual_check === false && (
-                          <span className="inline-flex w-fit px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                            non verificato!
-                          </span>
+                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-900 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
+                        <div>
+                          <div className="font-medium break-words">{intervention.company_name}</div>
+                          <div className="text-xs text-gray-500">#{intervention.call_code} ({intervention.id})</div>
+                          <div className="text-xs text-gray-600 mt-1 break-words">{intervention.location_label}</div>
+                        </div>
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
+                        {formatDate(intervention.date)}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
+                        {intervention.from_datetime && intervention.to_datetime ? (
+                          `${intervention.from_datetime.substring(11, 16)} -> ${intervention.to_datetime.substring(11, 16)}`
+                        ) : (
+                          intervention.time_slot || '-'
                         )}
-                        {intervention.manual_check === true && (
-                          <span className="inline-flex w-fit px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                            Verificato.
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
+                        <div className="break-words">{intervention.zone_label}</div>
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
+                        <div className="break-words">{formatTechnician(intervention.assigned_to_name, intervention.assigned_to_surname)}</div>
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
+                        <div className="break-words">{intervention.type_label}</div>
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
+                        <div className="flex flex-col gap-1">
+                          <span
+                            className={`inline-flex w-fit px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(toStatusKey(intervention.status_label))}`}
+                          >
+                            {intervention.status_label}
                           </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-3 sm:px-3 py-4 text-center">
-                      {intervention.report_id ? (
-                        <a
-                          href={`/interventi/rapportino/${intervention.report_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-teal-600 hover:text-teal-800 inline-flex items-center justify-center"
-                          title="Apri rapportino"
-                        >
-                          <FileText size={18} />
-                        </a>
-                      ) : null}
-                    </td>
-                  </tr>
+                          {intervention.manual_check === false && (
+                            <span className="inline-flex w-fit px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                              non verificato!
+                            </span>
+                          )}
+                          {intervention.manual_check === true && (
+                            <span className="inline-flex w-fit px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                              Verificato.
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 sm:px-3 py-4 text-center">
+                        {intervention.report_id ? (
+                          <a
+                            href={`/interventi/rapportino/${intervention.report_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-teal-600 hover:text-teal-800 inline-flex items-center justify-center"
+                            title="Apri rapportino"
+                          >
+                            <FileText size={18} />
+                          </a>
+                        ) : null}
+                      </td>
+                    </tr>
+                      {intervention.internal_notes && (
+                        <tr className="bg-gray-50">
+                          {isAdmin && <td className="px-3 sm:px-6 py-2"></td>}
+                          <td colSpan={isAdmin ? 8 : 7} className="px-3 sm:px-6 py-2 text-sm text-gray-700">
+                            <div className="flex items-start gap-2">
+                              <CornerDownRight size={16} className="text-gray-400 mt-0.5 flex-shrink-0" />
+                              <div className="italic break-words">
+                                <strong>note:</strong> {intervention.internal_notes}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                  </React.Fragment>
                 ))
               )}
             </tbody>
