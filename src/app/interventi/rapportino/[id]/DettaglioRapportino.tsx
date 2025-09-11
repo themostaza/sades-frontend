@@ -74,9 +74,10 @@ interface UpdateInterventionReportRequest {
 
 interface DettaglioRapportinoProps {
   reportData: InterventionReportDetail;
+  interventionData: AssistanceInterventionDetail | null;
 }
 
-export default function DettaglioRapportino({ reportData }: DettaglioRapportinoProps) {
+export default function DettaglioRapportino({ reportData, interventionData }: DettaglioRapportinoProps) {
   const [signatureRef, setSignatureRef] = useState<SignatureCanvasRef | null>(null);
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -484,10 +485,24 @@ export default function DettaglioRapportino({ reportData }: DettaglioRapportinoP
       {/* Header */}
       <div className="bg-teal-600 text-white px-4 md:px-6 py-6">
         <div className="max-w-4xl mx-auto">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <h1 className="text-xl md:text-2xl font-bold">
-              Rapportino Intervento #{updatedReportData.id}
-            </h1>
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+            <div className="flex-1">
+              <h1 className="text-xl md:text-2xl font-bold">
+                Rapportino Intervento #{updatedReportData.id}
+              </h1>
+              {/* Nome Cliente */}
+              {interventionData?.company_name && (
+                <p className="text-teal-100 text-sm md:text-base mt-1 font-medium">
+                  Cliente: {interventionData.company_name}
+                </p>
+              )}
+              {/* Tipologia Intervento */}
+              {interventionData?.type_label && (
+                <p className="text-teal-100 text-sm md:text-base mt-1 font-medium">
+                  Tipologia: {interventionData.type_label}
+                </p>
+              )}
+            </div>
             
             {/* Badge Intervento Fallito */}
             {updatedReportData.is_failed && (

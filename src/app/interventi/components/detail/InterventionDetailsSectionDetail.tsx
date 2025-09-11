@@ -94,6 +94,9 @@ export default function InterventionDetailsSectionDetail({
   const [showArticleDropdown, setShowArticleDropdown] = useState(false);
   const [isSearchingArticles, setIsSearchingArticles] = useState(false);
 
+  // Gamma sync lock: disable inputs from minute 1 to 14 of every hour
+  const [isGammaSyncLock, setIsGammaSyncLock] = useState(false);
+
   // Allocation dialog state
   const [showAllocationDialog, setShowAllocationDialog] = useState(false);
   const [allocationArticle, setAllocationArticle] = useState<ArticleListItem | null>(null);
@@ -263,6 +266,7 @@ export default function InterventionDetailsSectionDetail({
   };
 
   const handleArticleSelect = (article: ArticleListItem) => {
+    if (isGammaSyncLock || isFieldsDisabled) return;
     // Open allocation dialog with fresh inventory from /api/articles/{id}
     (async () => {
       const rows = await buildAllocationRows(String(article.id), []);
@@ -319,6 +323,18 @@ export default function InterventionDetailsSectionDetail({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Evaluate and refresh Gamma sync lock window periodically
+  useEffect(() => {
+    const updateLock = () => {
+      const now = new Date();
+      const minute = now.getMinutes();
+      setIsGammaSyncLock(minute >= 1 && minute < 5);
+    };
+    updateLock();
+    const id = setInterval(updateLock, 5000);
+    return () => clearInterval(id);
   }, []);
 
   return (
@@ -485,15 +501,15 @@ export default function InterventionDetailsSectionDetail({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Ricambi utilizzati</label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Merce preparata</label>
         <div className="relative article-search-container">
           <input
             type="text"
             value={articleSearchQuery}
             onChange={(e) => setArticleSearchQuery(e.target.value)}
-            onFocus={() => !isFieldsDisabled && searchArticles(articleSearchQuery)}
-            placeholder={isFieldsDisabled ? "Non modificabile" : "Cerca ricambi..."}
-            disabled={isFieldsDisabled}
+            onFocus={() => !isFieldsDisabled && !isGammaSyncLock && searchArticles(articleSearchQuery)}
+            placeholder={isFieldsDisabled ? "Non modificabile" : (isGammaSyncLock ? "Bloccato per sincronizzazione (-1 / +5 min di ogni ora)" : "Cerca ricambi...")}
+            disabled={isFieldsDisabled || isGammaSyncLock}
             className="w-full px-3 py-2 pr-10 border rounded-lg disabled:bg-gray-50 text-gray-700"
           />
           <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
@@ -593,10 +609,10 @@ export default function InterventionDetailsSectionDetail({
                     min="1"
                     value={selArt.quantity}
                     onChange={(e) => updateArticleQuantity(selArt.article.id, Number(e.target.value))}
-                    disabled={isFieldsDisabled || (selArt.allocations && selArt.allocations.length > 0)}
+                    disabled={isFieldsDisabled || isGammaSyncLock || (selArt.allocations && selArt.allocations.length > 0)}
                     className={`w-16 p-1 border rounded font-medium text-gray-700 ${(isFieldsDisabled || (selArt.allocations && selArt.allocations.length > 0)) ? 'bg-gray-200' : ''}`}
                   />
-                  {!isFieldsDisabled && selArt.allocations && selArt.allocations.length > 0 && (
+                  {!isFieldsDisabled && !isGammaSyncLock && selArt.allocations && selArt.allocations.length > 0 && (
                     <button
                       onClick={async () => {
                         const article = selArt.article;
@@ -680,7 +696,8 @@ export default function InterventionDetailsSectionDetail({
                             const next = Math.max(0, Math.min(row.max, raw));
                             setAllocationRows(prev => prev.map((r, i) => i === idx ? { ...r, value: next } : r));
                           }}
-                          className="w-20 p-3 border-2 border-gray-300 rounded-lg text-center text-lg font-bold text-gray-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                          disabled={isGammaSyncLock}
+                          className="w-20 p-3 border-2 border-gray-300 rounded-lg text-center text-lg font-bold text-gray-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 disabled:bg-gray-100"
                         />
                         <span className="text-sm text-gray-600">/ {row.max}</span>
                       </div>
@@ -720,6 +737,7 @@ export default function InterventionDetailsSectionDetail({
                 </button>
                 <button
                   onClick={() => {
+                    if (isGammaSyncLock) return;
                     const total = allocationRows.reduce((s, r) => s + (r.value || 0), 0);
                     if (!allocationArticle || total <= 0) return;
                     const allocations = allocationRows
@@ -752,11 +770,11 @@ export default function InterventionDetailsSectionDetail({
                     setAllocationEditArticleId(null);
                     setAllocationAlert(null);
                   }}
-                  disabled={allocationRows.reduce((s, r) => s + (r.value || 0), 0) <= 0}
+                  disabled={isGammaSyncLock || allocationRows.reduce((s, r) => s + (r.value || 0), 0) <= 0}
                   className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                    allocationRows.reduce((s, r) => s + (r.value || 0), 0) > 0 
-                      ? 'bg-teal-600 hover:bg-teal-700 text-white' 
-                      : 'bg-gray-400 cursor-not-allowed text-gray-200'
+                    (isGammaSyncLock || allocationRows.reduce((s, r) => s + (r.value || 0), 0) <= 0)
+                      ? 'bg-gray-400 cursor-not-allowed text-gray-200'
+                      : 'bg-teal-600 hover:bg-teal-700 text-white'
                   }`}
                 >
                   Conferma Prelievo

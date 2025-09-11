@@ -45,6 +45,8 @@ export default function ActivitiesView() {
   const [showAllGroups, setShowAllGroups] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Gamma sync lock: block full page from -1 to +5 minutes every hour
+  const [isGammaSyncLock, setIsGammaSyncLock] = useState(false);
   
   // Stati per il popup delle attività
   const [showActivitiesModal, setShowActivitiesModal] = useState(false);
@@ -69,6 +71,18 @@ export default function ActivitiesView() {
 
   useEffect(() => {
     fetchInitialData();
+  }, []);
+
+  // Evaluate and refresh Gamma sync lock window periodically (-1 to +5 minutes of each hour)
+  useEffect(() => {
+    const updateLock = () => {
+      const now = new Date();
+      const minute = now.getMinutes();
+      setIsGammaSyncLock(minute >= 59 || minute <= 5);
+    };
+    updateLock();
+    const id = setInterval(updateLock, 5000);
+    return () => clearInterval(id);
   }, []);
 
   const fetchInitialData = async () => {
@@ -484,18 +498,27 @@ export default function ActivitiesView() {
 
   if (loading) {
     return (
-      <div className="p-6 bg-white min-h-screen">
+      <div className="p-6 bg-white min-h-screen relative">
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
           <span className="ml-2 text-gray-600">Caricamento attività...</span>
         </div>
+        {isGammaSyncLock && (
+          <div className="absolute inset-0 z-50 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center">
+            <div className="bg-white rounded-lg p-6 shadow-lg border text-center max-w-md mx-4">
+              <div className="text-lg font-semibold text-gray-900">Sincronizzazione in corso</div>
+              <div className="text-sm text-gray-600 mt-1">Pagina bloccata tra -1 e +5 minuti di ogni ora.</div>
+              <div className="mt-3 text-xs text-gray-500">Attendi qualche minuto e riprova.</div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-6 bg-white min-h-screen">
+      <div className="p-6 bg-white min-h-screen relative">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-600">{error}</p>
           <button
@@ -505,12 +528,21 @@ export default function ActivitiesView() {
             Riprova
           </button>
         </div>
+        {isGammaSyncLock && (
+          <div className="absolute inset-0 z-50 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center">
+            <div className="bg-white rounded-lg p-6 shadow-lg border text-center max-w-md mx-4">
+              <div className="text-lg font-semibold text-gray-900">Sincronizzazione in corso</div>
+              <div className="text-sm text-gray-600 mt-1">Pagina bloccata tra -1 e +5 minuti di ogni ora.</div>
+              <div className="mt-3 text-xs text-gray-500">Attendi qualche minuto e riprova.</div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="p-6 bg-white min-h-screen">
+    <div className="p-6 bg-white min-h-screen relative">
       {/* Header */}
       <div className="mb-6">
         <h2 className="text-lg font-medium text-gray-900 mb-2">Attività da completare</h2>
@@ -1025,6 +1057,15 @@ export default function ActivitiesView() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {isGammaSyncLock && (
+        <div className="absolute inset-0 z-50 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 shadow-lg border text-center max-w-md mx-4">
+            <div className="text-lg font-semibold text-gray-900">Sincronizzazione in corso</div>
+            <div className="text-sm text-gray-600 mt-1">Pagina bloccata tra -1 e +5 minuti di ogni ora.</div>
+            <div className="mt-3 text-xs text-gray-500">Attendi qualche minuto e riprova.</div>
           </div>
         </div>
       )}

@@ -5,12 +5,14 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../../../contexts/AuthContext';
 import DettaglioRapportino from './DettaglioRapportino';
 import { InterventionReportDetail } from '../../../../types/intervention-reports';
+import type { AssistanceInterventionDetail } from '../../../../types/assistance-interventions';
 
 export default function RapportinoDetailPage() {
   const params = useParams();
   const { token } = useAuth();
   const reportId = params.id as string;
   const [reportData, setReportData] = useState<InterventionReportDetail | null>(null);
+  const [interventionData, setInterventionData] = useState<AssistanceInterventionDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,8 +40,22 @@ export default function RapportinoDetailPage() {
         return;
       }
 
-      const data: InterventionReportDetail = await response.json();
-      setReportData(data);
+      const reportData: InterventionReportDetail = await response.json();
+      setReportData(reportData);
+
+      // Carica anche i dati dell'intervento per ottenere il nome del cliente
+      if (reportData.intervention_id) {
+        try {
+          const interventionResponse = await fetch(`/api/assistance-interventions/${reportData.intervention_id}`, { headers });
+          if (interventionResponse.ok) {
+            const interventionData: AssistanceInterventionDetail = await interventionResponse.json();
+            setInterventionData(interventionData);
+          }
+        } catch (interventionError) {
+          console.error('Errore nel caricamento dei dati intervento:', interventionError);
+          // Non bloccare l'app se fallisce il caricamento dell'intervento
+        }
+      }
     } catch (error) {
       console.error('Errore nel caricamento del rapportino:', error);
       setError('Errore nel caricamento del rapportino');
@@ -82,5 +98,5 @@ export default function RapportinoDetailPage() {
     return null;
   }
 
-  return <DettaglioRapportino reportData={reportData} />;
+  return <DettaglioRapportino reportData={reportData} interventionData={interventionData} />;
 } 

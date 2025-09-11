@@ -37,6 +37,8 @@ export interface AssistanceIntervention {
   to_datetime: string;
   customer_location_id: string;
   call_code: string;
+  // Data di creazione della chiamata (opzionale nelle liste)
+  created_at?: string;
   approved_at: string | null;
   cancelled_by: string | null;
   cancelled_at: string | null;
@@ -60,6 +62,8 @@ export interface AssistanceIntervention {
   report_id: number | null;
   report_is_failed: boolean | null;
   calendar_notes?: string;
+  // Contenuto/descrizione interna della chiamata (opzionale nelle liste)
+  internal_notes?: string;
   assigned_to?: string | null;
   approved_by?: string | null;
   manual_check?: boolean;

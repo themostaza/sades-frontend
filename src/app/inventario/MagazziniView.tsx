@@ -59,6 +59,8 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  // Gamma sync lock: disable carico/scarico from minute 59 to minute 5 of each hour
+  const [isGammaSyncLock, setIsGammaSyncLock] = useState(false);
   
   // Stati per i filtri degli articoli
   const [articleFilters, setArticleFilters] = useState<ArticleFilters>({
@@ -131,6 +133,18 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
   useEffect(() => {
     fetchWarehousesStats();
     fetchPlaceTypes();
+  }, []);
+
+  // Evaluate and refresh Gamma sync lock window periodically (-1 to +5 minutes of each hour)
+  useEffect(() => {
+    const updateLock = () => {
+      const now = new Date();
+      const minute = now.getMinutes();
+      setIsGammaSyncLock(minute >= 59 || minute <= 5);
+    };
+    updateLock();
+    const id = setInterval(updateLock, 5000);
+    return () => clearInterval(id);
   }, []);
 
   // Fetch articoli quando cambia il magazzino selezionato
@@ -457,6 +471,10 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
 
   // Funzioni per il dialog carico articoli
   const handleOpenInsertDialog = () => {
+    if (isGammaSyncLock) {
+      showNotification('warning', 'Sincronizzazione in corso', 'Operazioni di carico/scarico bloccate tra -1 e +5 minuti di ogni ora.');
+      return;
+    }
     setShowInsertDialog(true);
     // Reset del form
     setSelectedSourceWarehouses([]);
@@ -476,6 +494,10 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
 
   // Funzioni per il dialog invio articoli
   const handleOpenSendDialog = () => {
+    if (isGammaSyncLock) {
+      showNotification('warning', 'Sincronizzazione in corso', 'Operazioni di carico/scarico bloccate tra -1 e +5 minuti di ogni ora.');
+      return;
+    }
     if (selectedArticles.length === 0) {
       showNotification('warning', 'Nessun articolo selezionato', 'Seleziona almeno un articolo per procedere con l\'invio.');
       return;
@@ -1005,6 +1027,11 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
     <div className="p-6 bg-white min-h-screen">
       {/* Header with search */}
       <div className="mb-6">
+        {isGammaSyncLock && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-yellow-800 text-sm">
+            Sincronizzazione in corso: i tasti di carico e scarico sono temporaneamente disabilitati (-1 / +5 minuti di ogni ora).
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
           <p className="text-gray-600 text-sm">
             Panoramica dei {warehouses.length} magazzini disponibili
