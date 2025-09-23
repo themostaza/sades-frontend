@@ -368,6 +368,10 @@ export default function InterventiPage() {
     return userInfo?.role === 'amministrazione' || userInfo?.role === 'ufficio' || userInfo?.role === 'magazziniere';
   };
 
+  const isTechOffice = () => {
+    return userInfo?.role === 'ufficio_tecnico';
+  };
+
   // Funzione per verificare se un intervento può essere annullato
   const canInterventionBeCancelled = (intervention: AssistanceIntervention): boolean => {
     const statusKey = (intervention.status_label || '')
@@ -818,7 +822,7 @@ export default function InterventiPage() {
           </div>
           {!userLoading && userInfo && (
             <>
-              {isAdmin() ? (
+              {(isAdmin() || isTechOffice()) && (
                 <button 
                   onClick={() => setShowNuovoIntervento(true)}
                   className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors w-full sm:w-auto justify-center"
@@ -826,7 +830,8 @@ export default function InterventiPage() {
                   <Plus size={16} />
                   Nuovo Intervento
                 </button>
-              ) : (
+              )}
+              {!isAdmin() && (
                 <button 
                   onClick={() => setShowRichiediAssenza(true)}
                   className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors w-full sm:w-auto justify-center"
@@ -899,7 +904,7 @@ export default function InterventiPage() {
         </div>
       )}
 
-      {isAdmin() && (
+      {(isAdmin() || isTechOffice()) && (
         <NuovoIntervento
           isOpen={showNuovoIntervento}
           onClose={() => {
