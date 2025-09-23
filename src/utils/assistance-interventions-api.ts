@@ -63,6 +63,27 @@ export const fetchAssistanceInterventions = async (
 };
 
 /**
+ * Aggiorna in bulk il flag manual_check per una lista di interventi
+ */
+export const bulkUpdateManualCheck = async (
+  ids: Array<number | string>,
+  options: { value?: boolean; toggle?: boolean },
+  token?: string
+): Promise<{ updated: number; items: Array<{ id: number; manual_check: boolean }> }> => {
+  const response = await fetch(`${API_BASE}/assistance-interventions/manual-check`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(token),
+    body: JSON.stringify({ ids, ...options }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to bulk update manual_check: ${response.status}`);
+  }
+
+  return response.json();
+};
+
+/**
  * Recupera i dettagli di un singolo intervento di assistenza
  */
 export const fetchAssistanceInterventionDetail = async (
