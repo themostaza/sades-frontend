@@ -405,6 +405,37 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
           } as SelectedArticle;
         });
         setSelectedArticles(articles);
+        // Enrich articles with fresh inventory so stock and warehouse counts are correct after refresh
+        try {
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+          };
+          if (auth.token) {
+            headers['Authorization'] = `Bearer ${auth.token}`;
+          }
+          const detailedArticles = await Promise.all(
+            articles.map(async (sa) => {
+              try {
+                const res = await fetch(`/api/articles/${encodeURIComponent(sa.article.id)}`, { headers });
+                if (!res.ok) return sa;
+                const detail = await res.json();
+                const inv = Array.isArray(detail.inventory) ? detail.inventory : [];
+                return {
+                  ...sa,
+                  article: {
+                    ...sa.article,
+                    inventory: inv,
+                  },
+                } as SelectedArticle;
+              } catch {
+                return sa;
+              }
+            })
+          );
+          setSelectedArticles(detailedArticles);
+        } catch (e) {
+          console.error('⚠️ Unable to enrich articles with inventory:', e);
+        }
         //setOriginalAllocationsByArticle(baseline);
       }
       

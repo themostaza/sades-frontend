@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronDown, Search, X } from 'lucide-react';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { Equipment } from '../../../../types/equipment';
-import { ArticleListItem } from '../../../../types/article';
+import { ArticleListItem, ArticleInventory } from '../../../../types/article';
 
 interface InterventionDetailsSectionDetailProps {
   data: string;
@@ -109,6 +109,14 @@ export default function InterventionDetailsSectionDetail({
     quantity_ordered?: number | null;
     in_stock?: number | null;
   };
+  type ExtendedInventory = ArticleInventory & { in_stock?: number | null };
+  const getStockValue = (inv: ArticleInventory): number => {
+    const extended = inv as ExtendedInventory;
+    const stockVal = typeof extended.in_stock === 'number' && extended.in_stock != null
+      ? extended.in_stock
+      : (inv.quantity_stock || 0);
+    return stockVal || 0;
+  };
   const [allocationRows, setAllocationRows] = useState<Array<{
     warehouse_id: string;
     warehouse_description: string;
@@ -186,7 +194,7 @@ export default function InterventionDetailsSectionDetail({
       setIsSearchingArticles(true);
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
-      const response = await fetch(`/api/articles?query=${encodeURIComponent(query)}`, { headers });
+      const response = await fetch(`/api/articles?stock=1&query=${encodeURIComponent(query)}`, { headers });
       if (response.ok) {
         const data = await response.json();
         const filteredArticles = (data.data || []).filter(
@@ -522,11 +530,13 @@ export default function InterventionDetailsSectionDetail({
             <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
               {articles.map((art) => {
                 // Calcola stock totale e numero magazzini (escludendo CL)
-                const availableInventory = art.inventory?.filter(inv => 
-                  String(inv.warehouse_id ?? '') !== 'CL' && (inv.quantity_stock || 0) > 0
-                ) || [];
+                const availableInventory = art.inventory?.filter(inv => {
+                  const wid = String(inv.warehouse_id ?? '');
+                  const stockVal = getStockValue(inv);
+                  return wid !== 'CL' && stockVal > 0;
+                }) || [];
                 const totalStock = art.inventory?.filter(inv => String(inv.warehouse_id ?? '') !== 'CL')
-                  .reduce((total, inv) => total + (inv.quantity_stock || 0), 0) || 0;
+                  .reduce((total, inv) => total + getStockValue(inv), 0) || 0;
                 const warehouseCount = availableInventory.length;
                 
                 return (
@@ -565,11 +575,13 @@ export default function InterventionDetailsSectionDetail({
           <div className="mt-3 space-y-2">
             {selectedArticles.map((selArt) => {
               // Calcola stock totale e numero magazzini (escludendo CL)
-              const availableInventory = selArt.article.inventory?.filter(inv => 
-                String(inv.warehouse_id ?? '') !== 'CL' && (inv.quantity_stock || 0) > 0
-              ) || [];
+              const availableInventory = selArt.article.inventory?.filter(inv => {
+                const wid = String(inv.warehouse_id ?? '');
+                const stockVal = getStockValue(inv);
+                return wid !== 'CL' && stockVal > 0;
+              }) || [];
               const totalStock = selArt.article.inventory?.filter(inv => String(inv.warehouse_id ?? '') !== 'CL')
-                .reduce((total, inv) => total + (inv.quantity_stock || 0), 0) || 0;
+                .reduce((total, inv) => total + getStockValue(inv), 0) || 0;
               const warehouseCount = availableInventory.length;
               
               return (

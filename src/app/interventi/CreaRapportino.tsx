@@ -92,17 +92,17 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
       selectedArticles: [],
       notes: '',
       hasGas: false,
-      tipologiaCompressore: 'ermetico',
-      nuovaInstallazione: 'Sì',
-      tipologiaGasCaricato: 'R404A',
-      quantitaGasCaricato: '12',
-      caricaMax: '120',
+      tipologiaCompressore: '',
+      nuovaInstallazione: '',
+      tipologiaGasCaricato: '',
+      quantitaGasCaricato: '0',
+      caricaMax: '0',
       modelloCompressore: '',
       matricolaCompressore: '',
       numeroUnivoco: '',
       serviziAggiuntivi: [],
-      tipologiaGasRecuperato: 'R404A',
-      quantitaGasRecuperato: '12',
+      tipologiaGasRecuperato: '',
+      quantitaGasRecuperato: '0',
       hasImages: false,
       images: []
     }
@@ -383,17 +383,17 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
       selectedArticles: [],
       notes: '',
       hasGas: false,
-      tipologiaCompressore: 'ermetico',
-      nuovaInstallazione: 'Sì',
-      tipologiaGasCaricato: 'R404A',
-      quantitaGasCaricato: '12',
-      caricaMax: '120',
+      tipologiaCompressore: '',
+      nuovaInstallazione: '',
+      tipologiaGasCaricato: '',
+      quantitaGasCaricato: '0',
+      caricaMax: '0',
       modelloCompressore: '',
       matricolaCompressore: '',
       numeroUnivoco: '',
       serviziAggiuntivi: [],
-      tipologiaGasRecuperato: 'R404A',
-      quantitaGasRecuperato: '12',
+      tipologiaGasRecuperato: '',
+      quantitaGasRecuperato: '0',
       hasImages: false,
       images: []
     };
@@ -1177,6 +1177,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                           onChange={(e) => updateEquipmentItem(item.id, 'tipologiaCompressore', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
                         >
+                          <option value="">Seleziona tipologia</option>
                           <option value="ermetico">Ermetico</option>
                           <option value="semiermetico">Semiermetico</option>
                         </select>
@@ -1190,6 +1191,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                           onChange={(e) => updateEquipmentItem(item.id, 'nuovaInstallazione', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
                         >
+                          <option value="">Seleziona opzione</option>
                           <option value="Sì">Sì</option>
                           <option value="No">No</option>
                         </select>
@@ -1206,6 +1208,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                           onChange={(e) => updateEquipmentItem(item.id, 'tipologiaGasCaricato', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
                         >
+                          <option value="">Seleziona gas</option>
                           <option value="R404A">R404A</option>
                           <option value="R134A">R134A</option>
                           <option value="R422A">R422A (BASSA) vedi R427A</option>
@@ -1325,6 +1328,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                             onChange={(e) => updateEquipmentItem(item.id, 'tipologiaGasRecuperato', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
                           >
+                            <option value="">Seleziona gas</option>
                             <option value="R404A">R404A</option>
                             <option value="R134A">R134A</option>
                             <option value="R422A">R422A (BASSA) vedi R427A</option>
