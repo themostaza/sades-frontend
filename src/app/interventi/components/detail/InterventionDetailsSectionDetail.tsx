@@ -427,7 +427,7 @@ export default function InterventionDetailsSectionDetail({
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Preventivo</label>
           <div className="flex">
-            <input type="number" step="0.01" min="0" value={preventivo} onChange={(e) => setPreventivo(Number(e.target.value))} disabled={isFieldsDisabled} className={`flex-1 px-3 py-2 border rounded-l-lg ${isFieldsDisabled ? 'bg-gray-50' : ''} text-gray-700`} placeholder="Inserisci importo"/>
+            <input type="number" step="0.01" min="0" value={preventivo} onChange={(e) => setPreventivo(Number(e.target.value))} onFocus={(e) => e.currentTarget.select()} onMouseDown={(e) => { if (document.activeElement === e.currentTarget) { e.preventDefault(); e.currentTarget.select(); } }} disabled={isFieldsDisabled} className={`flex-1 px-3 py-2 border rounded-l-lg ${isFieldsDisabled ? 'bg-gray-50' : ''} text-gray-700`} placeholder="Inserisci importo"/>
             <span className="bg-gray-100 border-t border-b border-r px-3 py-2 rounded-r-lg text-gray-600">EUR</span>
           </div>
         </div>
