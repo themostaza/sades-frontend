@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { getStatusColor } from '../../../utils/intervention-status';
+import { getStatusColor, statusOptions, toStatusKey } from '../../../utils/intervention-status';
 import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { useCalendarNotes } from '../../../hooks/useCalendarNotes';
 import CalendarNoteDialog from './CalendarNoteDialog';
@@ -42,19 +42,7 @@ interface CalendarGridProps {
   onStatusFilterChange: (filter: string[]) => void;
 }
 
-// Status options con colori
-const statusOptions = [
-  { id: 'da_assegnare', label: 'Da assegnare', color: 'bg-orange-100 text-orange-800' },
-  { id: 'attesa_preventivo', label: 'Attesa preventivo', color: 'bg-yellow-100 text-yellow-800' },
-  { id: 'attesa_ricambio', label: 'Attesa ricambio', color: 'bg-blue-100 text-blue-800' },
-  { id: 'in_carico', label: 'In carico', color: 'bg-teal-100 text-teal-800' },
-  { id: 'da_confermare', label: 'Da confermare', color: 'bg-purple-100 text-purple-800' },
-  { id: 'completato', label: 'Completato', color: 'bg-green-100 text-green-800' },
-  { id: 'non_completato', label: 'Non completato', color: 'bg-gray-100 text-gray-800' },
-  { id: 'annullato', label: 'Annullato', color: 'bg-red-100 text-red-800' },
-  { id: 'fatturato', label: 'Fatturato', color: 'bg-emerald-100 text-emerald-800' },
-  { id: 'collocamento', label: 'Collocamento', color: 'bg-indigo-100 text-indigo-800' }
-];
+// statusOptions e toStatusKey importati da utils/intervention-status
 
 // Fasce orarie
 const timeSlots = [
@@ -144,7 +132,7 @@ export default function CalendarGrid({
 
   // Funzioni di normalizzazione status
   const normalizeStatus = (status: string): string => (status ? status.toLowerCase().trim() : '');
-  const toStatusKey = (label?: string) => (label || '').toLowerCase().trim().replace(/\s+/g, '_');
+  // toStatusKey importata da utils
 
 
 
@@ -620,7 +608,7 @@ export default function CalendarGrid({
                   );
                   return (
                     <div
-                      key={status.id}
+                      key={status.key}
                       className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2"
                       onClick={() => {
                         if (isSelected) {
@@ -637,7 +625,7 @@ export default function CalendarGrid({
                         checked={isSelected}
                         readOnly
                       />
-                      <span className={`text-xs font-medium rounded-full px-2 py-1 ${getStatusColor(status.id)}`}>
+                      <span className={`text-xs font-medium rounded-full px-2 py-1 ${getStatusColor(status.key)}`}>
                         {status.label}
                       </span>
                     </div>
@@ -780,11 +768,13 @@ export default function CalendarGrid({
                             'bg-orange-100 text-orange-800': { bg: 'rgba(254, 215, 170, 0.9)', border: '#fb923c', text: '#7c2d12' },
                             'bg-yellow-100 text-yellow-800': { bg: 'rgba(254, 240, 138, 0.9)', border: '#facc15', text: '#713f12' },
                             'bg-blue-100 text-blue-800': { bg: 'rgba(191, 219, 254, 0.9)', border: '#3b82f6', text: '#1e3a8a' },
+                            'bg-cyan-100 text-cyan-800': { bg: 'rgba(207, 250, 254, 0.9)', border: '#06b6d4', text: '#155e75' },
                             'bg-teal-100 text-teal-800': { bg: 'rgba(204, 251, 241, 0.9)', border: '#14b8a6', text: '#134e4a' },
                             'bg-purple-100 text-purple-800': { bg: 'rgba(221, 214, 254, 0.9)', border: '#8b5cf6', text: '#3b0764' },
                             'bg-green-100 text-green-800': { bg: 'rgba(220, 252, 231, 0.9)', border: '#22c55e', text: '#14532d' },
                             'bg-gray-100 text-gray-800': { bg: 'rgba(243, 244, 246, 0.9)', border: '#9ca3af', text: '#1f2937' },
                             'bg-red-100 text-red-800': { bg: 'rgba(254, 202, 202, 0.9)', border: '#ef4444', text: '#7f1d1d' },
+                            'bg-lime-100 text-lime-800': { bg: 'rgba(236, 252, 203, 0.9)', border: '#84cc16', text: '#365314' },
                             'bg-emerald-100 text-emerald-800': { bg: 'rgba(209, 250, 229, 0.9)', border: '#10b981', text: '#064e3b' },
                             'bg-indigo-100 text-indigo-800': { bg: 'rgba(224, 231, 255, 0.9)', border: '#6366f1', text: '#312e81' },
                           } as Record<string, { bg: string; border: string; text: string }>;
@@ -940,11 +930,13 @@ export default function CalendarGrid({
                             'bg-orange-100 text-orange-800': { bg: 'rgba(254, 215, 170, 0.9)', border: '#fb923c', text: '#7c2d12' },
                             'bg-yellow-100 text-yellow-800': { bg: 'rgba(254, 240, 138, 0.9)', border: '#facc15', text: '#713f12' },
                             'bg-blue-100 text-blue-800': { bg: 'rgba(191, 219, 254, 0.9)', border: '#3b82f6', text: '#1e3a8a' },
+                            'bg-cyan-100 text-cyan-800': { bg: 'rgba(207, 250, 254, 0.9)', border: '#06b6d4', text: '#155e75' },
                             'bg-teal-100 text-teal-800': { bg: 'rgba(204, 251, 241, 0.9)', border: '#14b8a6', text: '#134e4a' },
                             'bg-purple-100 text-purple-800': { bg: 'rgba(221, 214, 254, 0.9)', border: '#8b5cf6', text: '#3b0764' },
                             'bg-green-100 text-green-800': { bg: 'rgba(220, 252, 231, 0.9)', border: '#22c55e', text: '#14532d' },
                             'bg-gray-100 text-gray-800': { bg: 'rgba(243, 244, 246, 0.9)', border: '#9ca3af', text: '#1f2937' },
                             'bg-red-100 text-red-800': { bg: 'rgba(254, 202, 202, 0.9)', border: '#ef4444', text: '#7f1d1d' },
+                            'bg-lime-100 text-lime-800': { bg: 'rgba(236, 252, 203, 0.9)', border: '#84cc16', text: '#365314' },
                             'bg-emerald-100 text-emerald-800': { bg: 'rgba(209, 250, 229, 0.9)', border: '#10b981', text: '#064e3b' },
                             'bg-indigo-100 text-indigo-800': { bg: 'rgba(224, 231, 255, 0.9)', border: '#6366f1', text: '#312e81' },
                           } as Record<string, { bg: string; border: string; text: string }>;

@@ -131,7 +131,7 @@ export const getStatusColor = (statusKey: string) => {
     case 'attesa_ricambio':
       return 'bg-blue-100 text-blue-800';
     case 'in_carico':
-      return 'bg-teal-100 text-teal-800';
+      return 'bg-cyan-100 text-cyan-800';
     case 'da_confermare':
       return 'bg-purple-100 text-purple-800';
     case 'completato':
@@ -141,7 +141,7 @@ export const getStatusColor = (statusKey: string) => {
     case 'annullato':
       return 'bg-red-100 text-red-800';
     case 'fatturato':
-      return 'bg-emerald-100 text-emerald-800';
+      return 'bg-lime-100 text-lime-800';
     case 'collocamento':
       return 'bg-indigo-100 text-indigo-800';
     default:
