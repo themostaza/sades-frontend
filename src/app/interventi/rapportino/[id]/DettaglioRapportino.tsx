@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Clock, Eye, CheckCircle, XCircle, PenTool, RotateCcw, Trash2 } from 'lucide-react';
+import { Clock, Eye, CheckCircle, XCircle, PenTool, RotateCcw, Trash2, MessageCircle, AlertTriangle } from 'lucide-react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useAuth } from '../../../../contexts/AuthContext';
@@ -615,12 +615,15 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
             </div>
           </div>
 
-          {/* Note per il cliente */}
+          {/* Note per il cliente - Versione compatta (principale è sopra) */}
           {updatedReportData.customer_notes && (
             <div>
-              <h3 className="font-medium text-gray-700 mb-2">Note per il cliente</h3>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-gray-800">{updatedReportData.customer_notes}</p>
+              <div className="flex items-center gap-2 mb-3">
+                <MessageCircle className="text-blue-600" size={20} />
+                <h3 className="font-semibold text-gray-900">Note per il cliente</h3>
+              </div>
+              <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-l-4 border-blue-500 rounded-lg p-5 shadow-sm">
+                <p className="text-gray-900 text-base leading-relaxed font-medium">{updatedReportData.customer_notes}</p>
               </div>
             </div>
           )}
@@ -628,9 +631,12 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
           {/* Intervento fallito */}
           {updatedReportData.is_failed && updatedReportData.failure_reason && (
             <div className="mt-6">
-              <h3 className="font-medium text-gray-700 mb-2">Motivo del fallimento</h3>
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-800">{updatedReportData.failure_reason}</p>
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="text-red-600" size={20} />
+                <h3 className="font-semibold text-gray-900">Motivo del fallimento</h3>
+              </div>
+              <div className="bg-gradient-to-r from-red-50 to-red-100 border-l-4 border-red-500 rounded-lg p-5 shadow-sm">
+                <p className="text-red-900 text-base leading-relaxed font-medium">{updatedReportData.failure_reason}</p>
               </div>
             </div>
           )}
@@ -702,12 +708,17 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
                     </div>
                   )}
 
-                  {/* Note per questa apparecchiatura */}
+                  {/* Note per questa apparecchiatura - Evidenza Maggiore */}
                   {item.note && (
                     <div className="mb-4">
-                      <h4 className="font-medium text-gray-700 mb-2">Note intervento per questa apparecchiatura</h4>
-                      <div className="bg-white border border-gray-200 rounded-lg p-3">
-                        <p className="text-gray-800">{item.note}</p>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="bg-amber-500 text-white p-1.5 rounded-full">
+                          <MessageCircle size={16} />
+                        </div>
+                        <h4 className="font-bold text-gray-900 text-base">Note intervento per questa apparecchiatura</h4>
+                      </div>
+                      <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-l-4 border-amber-500 rounded-lg p-4 shadow-sm">
+                        <p className="text-gray-900 text-base leading-relaxed font-medium">{item.note}</p>
                       </div>
                     </div>
                   )}
