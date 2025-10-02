@@ -673,7 +673,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
             <ArrowLeft size={20} />
           </button>
           <h1 className="text-lg md:text-xl">
-            Compila il rapporto di {interventionData.company_name}
+            Rapportino per {interventionData.company_name}
           </h1>
         </div>
       </div>
@@ -847,7 +847,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                 {/* Dialog selezione apparecchiatura */}
                 {showEquipmentSelectorDialogs[item.id] && (
                   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-4 md:p-6 max-w-3xl md:max-w-4xl w-full mx-4">
+                    <div className="bg-white rounded-lg p-4 md:p-6 max-w-3xl md:max-w-4xl w-full mx-4 h-[95vh] overflow-y-auto">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-semibold text-gray-900">Seleziona apparecchiatura</h3>
                         <button
@@ -861,7 +861,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                       {/* Apparecchiature già associate all'intervento */}
                       <div className="mb-4">
                         <div className="flex items-center justify-between mb-2">
-                          <label className="block text-sm font-medium text-gray-700">Apparecchiature già associate</label>
+                          <label className="block text-sm font-medium text-gray-700">Apparecchiature già associate all&apos;intervento</label>
                         </div>
                         <div className="border rounded-lg max-h-56 overflow-y-auto">
                           {(interventionData.connected_equipment || []).length === 0 ? (
@@ -901,7 +901,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                       {/* Ricerca apparecchiature */}
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <label className="block text-sm font-medium text-gray-700">Cerca altre apparecchiature</label>
+                          <label className="block text-sm font-medium text-gray-700">Cerca altre apparecchiature del cliente</label>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${interventionData.customer_location_id ? 'bg-teal-100 text-teal-800' : 'bg-gray-100 text-gray-800'}`}>
                             {interventionData.customer_location_id ? 'Da: Destinazione' : 'Da: Cliente'}
                           </span>
@@ -925,7 +925,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                           )}
                         </div>
                         {(equipmentsResults[item.id]?.length || 0) > 0 && (
-                          <div className="mt-2 border rounded-lg max-h-60 overflow-y-auto">
+                          <div className="mt-2 border rounded-lg max-h-96 overflow-y-auto">
                             {equipmentsResults[item.id].map(eq => (
                               <div
                                 key={eq.id}
@@ -996,7 +996,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                 {/* Dialog selezione ricambi */}
                 {showArticleSelectorDialogs[item.id] && (
                   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-4 md:p-6 max-w-3xl md:max-w-4xl w-full mx-4">
+                    <div className="bg-white rounded-lg p-4 md:p-6 max-w-3xl md:max-w-4xl w-full mx-4 h-[95vh] overflow-y-auto">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-semibold text-gray-900">Seleziona pezzi di ricambio</h3>
                         <button
@@ -1010,12 +1010,12 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                       {/* Ricambi già associati all'intervento */}
                       <div className="mb-4">
                         <div className="flex items-center justify-between mb-2">
-                          <label className="block text-sm font-medium text-gray-700">Ricambi preventivati</label>
-                          <span className="text-xs text-gray-500">Quantità indicate nella pianificazione</span>
+                          <label className="block text-sm font-medium text-gray-700">Ricambi già associati all&apos;intervento</label>
+                          <span className="text-xs text-gray-500">Quantità preventivate</span>
                         </div>
                         <div className="border rounded-lg max-h-56 overflow-y-auto">
                           {(interventionData.connected_articles || []).length === 0 ? (
-                            <div className="px-4 py-3 text-sm text-gray-500">Nessun ricambio preventivato</div>
+                            <div className="px-4 py-3 text-sm text-gray-500">Nessun ricambio associato</div>
                           ) : (
                             (interventionData.connected_articles || [])
                               .filter(article => !item.selectedArticles.some(sel => sel.article.id === article.id))
@@ -1058,7 +1058,7 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                           )}
                         </div>
                         {(articleResults[item.id]?.length || 0) > 0 && (
-                          <div className="mt-2 border rounded-lg max-h-60 overflow-y-auto">
+                          <div className="mt-2 border rounded-lg max-h-96 overflow-y-auto">
                             {articleResults[item.id].map(art => (
                               <div
                                 key={art.id}

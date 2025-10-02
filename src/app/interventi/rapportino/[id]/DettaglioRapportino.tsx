@@ -1,35 +1,32 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Clock, Eye, CheckCircle, XCircle, PenTool, RotateCcw, Trash2, MessageCircle, AlertTriangle, Plus } from 'lucide-react';
-import Image from 'next/image';
-import dynamic from 'next/dynamic';
+import { CheckCircle, XCircle, PenTool, Trash2, Plus } from 'lucide-react';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { InterventionReportDetail } from '../../../../types/intervention-reports';
 import { EquipmentDetail } from '../../../../types/equipment';
-import type { AssistanceInterventionDetail } from '../../../../types/assistance-interventions';
+import type { AssistanceInterventionDetail, ConnectedArticle, ConnectedEquipment } from '../../../../types/assistance-interventions';
 import type { Article } from '../../../../types/article';
+import { 
+  EquipmentItemEditable, 
+  EquipmentItemReadOnly, 
+  EquipmentSelectorDialog, 
+  ArticleSelectorDialog,
+  BasicInfoSection,
+  SignatureSection,
+  SignatureDialog,
+  DeleteConfirmDialog,
+  ResultDialog,
+  Lightbox
+} from './components';
+import type { EditableEquipmentItem, SelectedArticle, AttachedFile } from './components/types';
 
-// Interfaccia per il tipo SignatureCanvas
+// Interfaccia per il tipo SignatureCanvas (per gestione stato locale)
 interface SignatureCanvasRef {
   clear: () => void;
   toDataURL: () => string;
   isEmpty: () => boolean;
 }
-
-// Import dinamico di SignatureCanvas per evitare errori SSR
-const SignatureCanvas = dynamic(() => import('react-signature-canvas'), { 
-  ssr: false,
-  loading: () => <div className="w-full h-32 bg-gray-100 animate-pulse rounded-lg"></div>
-}) as React.ComponentType<{
-  ref: (ref: SignatureCanvasRef | null) => void;
-  penColor: string;
-  canvasProps: {
-    width: number;
-    height: number;
-    className: string;
-  };
-}>;
 
 // Interface per la PUT request - compatibile con i tipi esistenti
 interface UpdateInterventionReportRequest {
@@ -98,6 +95,21 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
+  // Stati per la modifica degli items (apparecchiature, ricambi, gas, immagini)
+  const [editableItems, setEditableItems] = useState<EditableEquipmentItem[]>([]);
+  
+  // Stati per ricerca apparecchiature
+  const [equipmentSearchQueries, setEquipmentSearchQueries] = useState<{ [itemId: string]: string }>({});
+  const [equipmentsResults, setEquipmentsResults] = useState<{ [itemId: string]: ConnectedEquipment[] }>({});
+  const [isSearchingEquipments, setIsSearchingEquipments] = useState<{ [itemId: string]: boolean }>({});
+  const [showEquipmentSelectorDialogs, setShowEquipmentSelectorDialogs] = useState<{ [itemId: string]: boolean }>({});
+  
+  // Stati per selezione ricambi
+  const [articleSearchQueries, setArticleSearchQueries] = useState<{ [itemId: string]: string }>({});
+  const [articleResults, setArticleResults] = useState<{ [itemId: string]: ConnectedArticle[] }>({});
+  const [isSearchingArticles, setIsSearchingArticles] = useState<{ [itemId: string]: boolean }>({});
+  const [showArticleSelectorDialogs, setShowArticleSelectorDialogs] = useState<{ [itemId: string]: boolean }>({});
+
   // Tipi per mapping id -> name
   interface GasCompressorType { id: number; name: string }
   interface RechargeableGasType { id: number; name: string }
@@ -125,6 +137,109 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   const formatAdditionalServices = (services: string) => {
     if (!services || services.trim() === '') return 'Nessun servizio aggiuntivo';
     return services.split(',').map(s => s.trim()).filter(s => s).join(', ');
+  };
+
+  // Helper function per convertire items del report in items editabili
+  const convertReportItemsToEditable = (items: InterventionReportDetail['items']): EditableEquipmentItem[] => {
+    if (!items || items.length === 0) return [];
+    
+    return items.map((item, index) => {
+      // Converti equipment_id in ConnectedEquipment se disponibile
+      const equipment = item.equipment_id ? equipmentById[item.equipment_id] : null;
+      const connectedEquipment: ConnectedEquipment | null = equipment ? {
+        id: equipment.id,
+        description: equipment.description,
+        model: equipment.model,
+        serial_number: equipment.serial_number,
+        brand_name: equipment.brand_label || '',
+        subfamily_name: equipment.subfamily_label || '',
+        customer_name: '', // Non disponibile in EquipmentDetail
+        linked_serials: ''
+      } : null;
+
+      // Converti articles in SelectedArticle[]
+      const selectedArticles: SelectedArticle[] = (item.articles || []).map(art => {
+        const articleData = articleById[art.article_id];
+        return {
+          article: {
+            id: art.article_id,
+            pnc_code: articleData?.pnc_code || null,
+            short_description: articleData?.short_description || art.article_name || '',
+            description: articleData?.description || art.article_description || '',
+            quantity: art.quantity
+          },
+          quantity: art.quantity
+        };
+      });
+
+      // Converti images
+      const images: AttachedFile[] = (item.images || []).map(img => ({
+        id: img.id?.toString() || Date.now().toString(),
+        name: img.file_name,
+        uploadDate: new Date().toLocaleDateString('it-IT'),
+        url: img.file_url
+      }));
+
+      // Ottieni nomi dei tipi gas
+      const compressorTypeName = item.gas_compressor_types_id 
+        ? getCompressorTypeName(item.gas_compressor_types_id) 
+        : '';
+      const gasTypeName = item.rechargeable_gas_types_id 
+        ? getRechargeableGasTypeName(item.rechargeable_gas_types_id) 
+        : '';
+      const recoveredGasTypeName = item.recovered_rech_gas_types_id 
+        ? getRechargeableGasTypeName(item.recovered_rech_gas_types_id) 
+        : '';
+
+      return {
+        id: item.id?.toString() || `item_${index}`,
+        originalId: item.id,
+        selectedEquipment: connectedEquipment,
+        selectedArticles,
+        notes: item.note || '',
+        hasGas: item.fl_gas,
+        tipologiaCompressore: compressorTypeName,
+        nuovaInstallazione: item.is_new_installation ? 'Sì' : 'No',
+        tipologiaGasCaricato: gasTypeName,
+        quantitaGasCaricato: (item.qty_gas_recharged || 0).toString(),
+        caricaMax: (item.max_charge || 0).toString(),
+        modelloCompressore: item.compressor_model || '',
+        matricolaCompressore: item.compressor_serial_num || '',
+        numeroUnivoco: item.compressor_unique_num || '',
+        serviziAggiuntivi: item.additional_services ? item.additional_services.split(',').map(s => s.trim()) : [],
+        tipologiaGasRecuperato: recoveredGasTypeName,
+        quantitaGasRecuperato: (item.qty_gas_recovered || 0).toString(),
+        hasImages: images.length > 0,
+        images
+      };
+    });
+  };
+
+  // Helper per mappare nome compressore/gas al suo ID
+  const getGasCompressorTypeId = (typeName: string): number => {
+    if (!gasCompressorTypes || gasCompressorTypes.length === 0 || !typeName) return 0;
+    const type = gasCompressorTypes.find(t => t && t.name && t.name.toLowerCase() === typeName.toLowerCase());
+    return type ? type.id : 0;
+  };
+
+  const getRechargeableGasTypeId = (gasName: string): number => {
+    if (!rechargeableGasTypes || rechargeableGasTypes.length === 0 || !gasName) return 0;
+    const type = rechargeableGasTypes.find(t => t && t.name && t.name.toLowerCase() === gasName.toLowerCase());
+    return type ? type.id : 0;
+  };
+
+  // Helper per determinare se mostrare campi recupero gas
+  const shouldShowRecuperoGasFields = (item: EditableEquipmentItem): boolean => {
+    return !(item.serviziAggiuntivi.length === 1 && item.serviziAggiuntivi[0] === 'Ricerca perdite');
+  };
+
+  // Helper per controllare se un testo è placeholder
+  const isPlaceholderText = (text: string): boolean => {
+    return text.startsWith('*') || text.includes('*') || text === '';
+  };
+
+  const getTextColorClass = (text: string): string => {
+    return isPlaceholderText(text) ? 'text-gray-500' : 'text-gray-700';
   };
 
   // Carica mapping tipi gas/compressori per visualizzare i nomi
@@ -173,19 +288,27 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
     setShowNotesField(!!updatedReportData.customer_notes);
   }, [updatedReportData]);
 
+  // Inizializza editableItems quando i dati del report sono pronti
+  useEffect(() => {
+    if (updatedReportData.items && gasCompressorTypes.length > 0 && rechargeableGasTypes.length > 0) {
+      const converted = convertReportItemsToEditable(updatedReportData.items);
+      setEditableItems(converted);
+    }
+  }, [updatedReportData.items, equipmentById, articleById, gasCompressorTypes, rechargeableGasTypes]);
+
   // Detecta modifiche non salvate
   useEffect(() => {
     const workHoursChanged = editableWorkHours !== updatedReportData.work_hours;
     const travelHoursChanged = editableTravelHours !== updatedReportData.travel_hours;
     const notesChanged = editableCustomerNotes !== (updatedReportData.customer_notes || '');
     
-    setHasUnsavedChanges(workHoursChanged || travelHoursChanged || notesChanged);
-  }, [editableWorkHours, editableTravelHours, editableCustomerNotes, updatedReportData]);
+    // Controlla se gli items sono stati modificati (solo se canDeleteReport è true)
+    const itemsChanged = canDeleteReport() && JSON.stringify(editableItems) !== JSON.stringify(convertReportItemsToEditable(updatedReportData.items || []));
+    
+    setHasUnsavedChanges(workHoursChanged || travelHoursChanged || notesChanged || itemsChanged);
+  }, [editableWorkHours, editableTravelHours, editableCustomerNotes, editableItems, updatedReportData]);
 
-  // Determina se il rapportino è modificabile
-  const canEditReport = (): boolean => {
-    return canDeleteReport();
-  };
+ 
 
   // Carica dettagli dell'intervento associato per controlli UI (es. eliminazione)
   useEffect(() => {
@@ -212,6 +335,21 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
     // Blocca per stati non cancellabili
     const blocked = [
       'completato',
+      'non completato',
+      'annullato',
+      'fatturato',
+      'collocamento'
+    ];
+    return !blocked.some(b => label.includes(b));
+  };
+
+  // Determina se i campi base (ore e note) sono modificabili
+  // ECCEZIONE: questi campi sono modificabili anche con stato "completato"
+  const canEditBasicFields = (): boolean => {
+    if (!interventionDetail) return true;
+    const label = (interventionDetail.status_label || '').toLowerCase();
+    // Blocca solo per stati definitivi (escluso "completato" che è permesso)
+    const blocked = [
       'non completato',
       'annullato',
       'fatturato',
@@ -268,6 +406,166 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
     }
   }, [updatedReportData, token]);
 
+  // Funzioni per gestire gli items editabili
+  const addEquipmentItem = () => {
+    const newItem: EditableEquipmentItem = {
+      id: Date.now().toString(),
+      originalId: undefined, // Nuovo item senza ID dal DB
+      selectedEquipment: null,
+      selectedArticles: [],
+      notes: '',
+      hasGas: false,
+      tipologiaCompressore: '',
+      nuovaInstallazione: '',
+      tipologiaGasCaricato: '',
+      quantitaGasCaricato: '0',
+      caricaMax: '0',
+      modelloCompressore: '',
+      matricolaCompressore: '',
+      numeroUnivoco: '',
+      serviziAggiuntivi: [],
+      tipologiaGasRecuperato: '',
+      quantitaGasRecuperato: '0',
+      hasImages: false,
+      images: []
+    };
+    setEditableItems([...editableItems, newItem]);
+  };
+
+  const removeEquipmentItem = (id: string) => {
+    setEditableItems(editableItems.filter(item => item.id !== id));
+  };
+
+  const updateEquipmentItem = (id: string, field: keyof EditableEquipmentItem, value: unknown) => {
+    setEditableItems(editableItems.map(item => 
+      item.id === id ? { ...item, [field]: value } : item
+    ));
+  };
+
+  const removeArticleFromItem = (itemId: string, articleId: string) => {
+    const item = editableItems.find(item => item.id === itemId)!;
+    updateEquipmentItem(itemId, 'selectedArticles', 
+      item.selectedArticles.filter(art => art.article.id !== articleId)
+    );
+  };
+
+  const updateArticleQuantity = (itemId: string, articleId: string, quantity: number) => {
+    const item = editableItems.find(item => item.id === itemId)!;
+    updateEquipmentItem(itemId, 'selectedArticles',
+      item.selectedArticles.map(art => 
+        art.article.id === articleId ? { ...art, quantity } : art
+      )
+    );
+  };
+
+  const handleImageUpload = (itemId: string, fileInfo: { cdnUrl?: string; name?: string }) => {
+    console.log('Uploadcare success for item:', itemId, fileInfo);
+    if (fileInfo && fileInfo.cdnUrl) {
+      const item = editableItems.find(item => item.id === itemId);
+      if (item) {
+        const newImage: AttachedFile = {
+          id: Date.now().toString(),
+          name: fileInfo.name || `image_${Date.now()}.jpg`,
+          uploadDate: new Date().toLocaleDateString('it-IT'),
+          url: fileInfo.cdnUrl
+        };
+        
+        const updatedImages = [...item.images, newImage];
+        updateEquipmentItem(itemId, 'images', updatedImages);
+      }
+    }
+  };
+
+  const removeImageFromItem = (itemId: string, imageId: string) => {
+    const item = editableItems.find(item => item.id === itemId);
+    if (item) {
+      const updatedImages = item.images.filter(img => img.id !== imageId);
+      updateEquipmentItem(itemId, 'images', updatedImages);
+    }
+  };
+
+  const handleServiziAggiuntiviToggle = (itemId: string, servizio: string) => {
+    const item = editableItems.find(item => item.id === itemId);
+    if (item) {
+      const currentServizi = item.serviziAggiuntivi;
+      const updatedServizi = currentServizi.includes(servizio)
+        ? currentServizi.filter(s => s !== servizio)
+        : [...currentServizi, servizio];
+      
+      updateEquipmentItem(itemId, 'serviziAggiuntivi', updatedServizi);
+    }
+  };
+
+  // Funzione di ricerca live per apparecchiature
+  const searchEquipments = async (itemId: string, query: string = '') => {
+    if (!interventionData?.customer_id) {
+      setEquipmentsResults(prev => ({ ...prev, [itemId]: [] }));
+      return;
+    }
+    try {
+      setIsSearchingEquipments(prev => ({ ...prev, [itemId]: true }));
+      let apiUrl = `/api/equipments?customer_id=${interventionData.customer_id}`;
+      if (interventionData.customer_location_id) {
+        apiUrl += `&customer_location_id=${encodeURIComponent(interventionData.customer_location_id)}`;
+      }
+      if (query.trim()) {
+        apiUrl += `&query=${encodeURIComponent(query)}`;
+      }
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const response = await fetch(apiUrl, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        // Escludi già selezionati in altri items
+        const alreadySelectedIds = editableItems.map(item => item.selectedEquipment?.id).filter(Boolean);
+        const filtered = (data.data || []).filter((eq: ConnectedEquipment) => !alreadySelectedIds.includes(eq.id));
+        setEquipmentsResults(prev => ({ ...prev, [itemId]: filtered }));
+      } else {
+        setEquipmentsResults(prev => ({ ...prev, [itemId]: [] }));
+      }
+    } catch {
+      setEquipmentsResults(prev => ({ ...prev, [itemId]: [] }));
+    } finally {
+      setIsSearchingEquipments(prev => ({ ...prev, [itemId]: false }));
+    }
+  };
+
+  // Ricerca ricambi
+  const searchArticles = async (itemId: string, query: string = '') => {
+    try {
+      setIsSearchingArticles(prev => ({ ...prev, [itemId]: true }));
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const response = await fetch(`/api/articles?query=${encodeURIComponent(query)}`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        const currentItem = editableItems.find(ei => ei.id === itemId);
+        const excludeIds = (currentItem?.selectedArticles || []).map(a => a.article.id);
+        const mapped: ConnectedArticle[] = (data.data || [])
+          .filter((art: ConnectedArticle) => !excludeIds.includes(art.id))
+          .map((art: ConnectedArticle) => ({
+            id: art.id,
+            pnc_code: art.pnc_code ?? null,
+            short_description: art.short_description ?? '',
+            description: art.description ?? '',
+            quantity: 0,
+          }));
+        setArticleResults(prev => ({ ...prev, [itemId]: mapped }));
+      } else {
+        setArticleResults(prev => ({ ...prev, [itemId]: [] }));
+      }
+    } catch {
+      setArticleResults(prev => ({ ...prev, [itemId]: [] }));
+    } finally {
+      setIsSearchingArticles(prev => ({ ...prev, [itemId]: false }));
+    }
+  };
+
+  const getPlannedArticleQty = (articleId: string): number => {
+    const planned = interventionData?.connected_articles?.find(a => a.id === articleId);
+    return planned?.quantity ?? 0;
+  };
+
   // Funzione per convertire canvas in blob
   const canvasToBlob = (canvas: HTMLCanvasElement): Promise<Blob> => {
     return new Promise((resolve) => {
@@ -298,15 +596,43 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
 
   // Funzione per costruire il payload completo della PUT
   const buildCompletePayload = (signatureUrl: string): UpdateInterventionReportRequest => {
-    return {
-      work_hours: updatedReportData.work_hours,
-      travel_hours: updatedReportData.travel_hours,
-      customer_notes: updatedReportData.customer_notes || '',
-      is_failed: updatedReportData.is_failed,
-      failure_reason: updatedReportData.failure_reason || '',
-      status: updatedReportData.status,
-      signature_url: signatureUrl,
-      items: updatedReportData.items?.map(item => ({
+    // Usa editableItems se canDeleteReport() è true, altrimenti usa i dati originali
+    const itemsToSave = canDeleteReport() && editableItems.length > 0 
+      ? editableItems.map(item => ({
+          id: item.originalId || 0, // 0 per nuovi items
+          equipment_id: item.selectedEquipment?.id ?? 0,
+          note: item.notes,
+          fl_gas: item.hasGas,
+          gas_compressor_types_id: getGasCompressorTypeId(item.tipologiaCompressore) || 0,
+          is_new_installation: item.nuovaInstallazione === 'Sì',
+          rechargeable_gas_types_id: getRechargeableGasTypeId(item.tipologiaGasCaricato) || 0,
+          qty_gas_recharged: parseInt(item.quantitaGasCaricato) || 0,
+          max_charge: parseInt(item.caricaMax) || 0,
+          compressor_model: item.modelloCompressore || '',
+          compressor_model_img_url: '', // TODO: implementare upload immagini
+          compressor_serial_num: item.matricolaCompressore || '',
+          compressor_serial_num_img_url: '', // TODO: implementare upload immagini
+          compressor_unique_num: item.numeroUnivoco || '',
+          compressor_unique_num_img_url: '', // TODO: implementare upload immagini
+          additional_services: item.serviziAggiuntivi.length > 0 ? item.serviziAggiuntivi.join(', ') : '',
+          recovered_rech_gas_types_id: shouldShowRecuperoGasFields(item) 
+            ? (getRechargeableGasTypeId(item.tipologiaGasRecuperato) || 0)
+            : 0,
+          qty_gas_recovered: shouldShowRecuperoGasFields(item) 
+            ? (parseInt(item.quantitaGasRecuperato) || 0)
+            : 0,
+          images: item.images.map(file => ({
+            id: parseInt(file.id) || 0,
+            file_name: file.name,
+            file_url: file.url
+          })),
+          articles: item.selectedArticles.map(article => ({
+            id: 0, // L'API genererà un nuovo ID
+            article_id: article.article.id,
+            quantity: article.quantity
+          }))
+        }))
+      : updatedReportData.items?.map(item => ({
         id: item.id,
         equipment_id: item.equipment_id,
         note: item.note || '',
@@ -335,7 +661,17 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
           article_id: art.article_id,
           quantity: art.quantity
         })) || []
-      })) || []
+        })) || [];
+
+    return {
+      work_hours: updatedReportData.work_hours,
+      travel_hours: updatedReportData.travel_hours,
+      customer_notes: updatedReportData.customer_notes || '',
+      is_failed: updatedReportData.is_failed,
+      failure_reason: updatedReportData.failure_reason || '',
+      status: updatedReportData.status,
+      signature_url: signatureUrl,
+      items: itemsToSave
     };
   };
 
@@ -467,7 +803,7 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
 
   // Funzione per salvare le modifiche al rapportino
   const handleSaveChanges = async () => {
-    if (!hasUnsavedChanges || isSaving) return;
+    if (!hasUnsavedChanges || isSaving || !canEditBasicFields()) return;
 
     try {
       setIsSaving(true);
@@ -563,7 +899,7 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div className="flex-1">
               <h1 className="text-xl md:text-2xl">
-                Rapportino Intervento #{updatedReportData.id}
+                Rapportino Intervento #{updatedReportData.intervention_id}
               </h1>
               {/* Nome Cliente */}
               {interventionData?.company_name && (
@@ -580,8 +916,8 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
             </div>
             
             <div className="flex items-center gap-3">
-              {/* Pulsante Salva - visibile solo se modificabile */}
-              {canEditReport() && (
+              {/* Pulsante Salva - visibile se i campi base sono modificabili */}
+              {canEditBasicFields() && (
                 <button
                   onClick={handleSaveChanges}
                   disabled={!hasUnsavedChanges || isSaving}
@@ -622,401 +958,96 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
         </div>
 
         {/* Sezione Firma Cliente */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
-                <PenTool size={20} className="text-teal-600" />
-                Firma Cliente
-              </h3>
-              <p className="text-sm text-gray-600 mt-1">
-                {updatedReportData.signature_url 
-                  ? 'Firma acquisita ✓' 
-                  : updatedReportData.status === 'DRAFT' 
-                    ? 'Clicca per raccogliere la firma del cliente'
-                    : 'Nessuna firma disponibile'
-                }
-              </p>
-            </div>
-            {updatedReportData.status === 'DRAFT' && (
-              <button
-                onClick={openSignatureDialog}
-                disabled={isSavingSignature}
-                className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {isSavingSignature ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Salvando...
-                  </>
-                ) : (
-                  <>
-                    <PenTool size={16} />
-                    {updatedReportData.signature_url ? 'Modifica Firma' : 'Firma'}
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-          
-          {/* Mostra la firma esistente se presente */}
-          {updatedReportData.signature_url && (
-            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-              <div className="text-sm font-medium text-gray-600 mb-2">Firma del cliente:</div>
-              <div className="bg-white rounded border p-4">
-                <Image
-                  src={updatedReportData.signature_url}
-                  alt="Firma del cliente"
-                  width={400}
-                  height={200}
-                  className="max-w-full h-auto"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                  }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
+        <SignatureSection
+          signatureUrl={updatedReportData.signature_url}
+          status={updatedReportData.status}
+          isSavingSignature={isSavingSignature}
+          onOpenSignatureDialog={openSignatureDialog}
+        />
 
         {/* Informazioni principali */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Informazioni Generali</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="text-teal-600" size={20} />
-                <span className="font-medium text-gray-700">Ore Lavoro</span>
-              </div>
-              {canEditReport() ? (
-                <input
-                  type="number"
-                  value={editableWorkHours}
-                  onChange={(e) => setEditableWorkHours(parseFloat(e.target.value) || 0)}
-                  onFocus={(e) => e.target.select()}
-                  inputMode="decimal"
-                  min="0"
-                  step="0.5"
-                  className="text-2xl font-bold text-gray-900 bg-white border-2 border-teal-200 rounded-lg px-3 py-1 w-full focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                />
-              ) : (
-                <div className="text-2xl font-bold text-gray-900">{updatedReportData.work_hours}h</div>
-              )}
-              <div className="text-sm text-gray-600">Ore effettive</div>
-            </div>
-            
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="text-orange-600" size={20} />
-                <span className="font-medium text-gray-700">Ore Viaggio</span>
-              </div>
-              {canEditReport() ? (
-                <input
-                  type="number"
-                  value={editableTravelHours}
-                  onChange={(e) => setEditableTravelHours(parseFloat(e.target.value) || 0)}
-                  onFocus={(e) => e.target.select()}
-                  inputMode="decimal"
-                  min="0"
-                  step="0.5"
-                  className="text-2xl font-bold text-gray-900 bg-white border-2 border-orange-200 rounded-lg px-3 py-1 w-full focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                />
-              ) : (
-                <div className="text-2xl font-bold text-gray-900">{updatedReportData.travel_hours}h</div>
-              )}
-              <div className="text-sm text-gray-600">Ore trasferimento</div>
-            </div>
-            
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="text-blue-600" size={20} />
-                <span className="font-medium text-gray-700">Intervento</span>
-              </div>
-              <div className="text-2xl font-bold text-gray-900">#{updatedReportData.intervention_id}</div>
-              <div className="text-sm text-gray-600">ID Intervento</div>
-            </div>
-          </div>
-
-          {/* Note per il cliente */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <MessageCircle className="text-blue-600" size={20} />
-                <h3 className="font-semibold text-gray-900">Note per il cliente</h3>
-              </div>
-              {canEditReport() && !showNotesField && (
-                <button
-                  onClick={() => setShowNotesField(true)}
-                  className="text-sm text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1"
-                >
-                  <Plus size={16} />
-                  Aggiungi note
-                </button>
-              )}
-            </div>
-            
-            {showNotesField ? (
-              canEditReport() ? (
-                <textarea
-                  value={editableCustomerNotes}
-                  onChange={(e) => setEditableCustomerNotes(e.target.value)}
-                  rows={4}
-                  className="w-full px-4 py-3 border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-gray-900"
-                  placeholder="Note che saranno leggibili dal cliente"
-                />
-              ) : (
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-l-4 border-blue-500 rounded-lg p-5 shadow-sm">
-                  <p className="text-gray-900 text-base leading-relaxed font-medium">{updatedReportData.customer_notes}</p>
-                </div>
-              )
-            ) : (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
-                <p className="text-gray-500 text-sm">Nessuna nota inserita per il cliente</p>
-              </div>
-            )}
-          </div>
-
-          {/* Intervento fallito */}
-          {updatedReportData.is_failed && updatedReportData.failure_reason && (
-            <div className="mt-6">
-              <div className="flex items-center gap-2 mb-3">
-                <AlertTriangle className="text-red-600" size={20} />
-                <h3 className="font-semibold text-gray-900">Motivo del fallimento</h3>
-              </div>
-              <div className="bg-gradient-to-r from-red-50 to-red-100 border-l-4 border-red-500 rounded-lg p-5 shadow-sm">
-                <p className="text-red-900 text-base leading-relaxed font-medium">{updatedReportData.failure_reason}</p>
-              </div>
-            </div>
-          )}
-        </div>
+        <BasicInfoSection
+          editableWorkHours={editableWorkHours}
+          editableTravelHours={editableTravelHours}
+          editableCustomerNotes={editableCustomerNotes}
+          showNotesField={showNotesField}
+          interventionId={updatedReportData.intervention_id}
+          isFailed={updatedReportData.is_failed}
+          failureReason={updatedReportData.failure_reason}
+          canEditBasicFields={canEditBasicFields()}
+          onWorkHoursChange={setEditableWorkHours}
+          onTravelHoursChange={setEditableTravelHours}
+          onCustomerNotesChange={setEditableCustomerNotes}
+          onShowNotesField={() => setShowNotesField(true)}
+        />
 
         {/* Apparecchiature e interventi */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-6">Apparecchiature e Interventi</h2>
-          {updatedReportData.items && updatedReportData.items.length > 0 ? (
+          
+          {/* Rendering condizionale: editabile se canDeleteReport() è true */}
+          {canDeleteReport() && editableItems.length >= 0 ? (
+            /* VERSIONE EDITABILE */
             <div className="space-y-6">
-              {updatedReportData.items.map((item) => (
-                <div key={item.id} className="border border-gray-200 rounded-lg p-6 bg-gray-50">
-                  {/* Header apparecchiatura */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-medium text-gray-900">
-                        {(() => {
-                          const equipmentId = item.equipment_id;
-                          const eq = equipmentId ? equipmentById[equipmentId] : undefined;
-                          if (eq) {
-                            return eq.description || `Apparecchiatura #${equipmentId}`;
-                          }
-                          return equipmentId ? `Apparecchiatura #${equipmentId}` : 'Apparecchiatura non specificata';
-                        })()}
-                      </h3>
-                      {item.equipment_id && equipmentById[item.equipment_id] && (
-                        <div className="text-sm text-gray-600 mt-1">
-                          {equipmentById[item.equipment_id].brand_label && (
-                            <span className="mr-2">{equipmentById[item.equipment_id].brand_label}</span>
-                          )}
-                          {equipmentById[item.equipment_id].model && (
-                            <span className="mr-2">{equipmentById[item.equipment_id].model}</span>
-                          )}
-                          {equipmentById[item.equipment_id].serial_number && (
-                            <span className="text-gray-500">S/N: {equipmentById[item.equipment_id].serial_number}</span>
-                          )}
+              {editableItems.map((item, index) => (
+                <EquipmentItemEditable
+                  key={item.id}
+                  item={item}
+                  index={index}
+                  equipmentSearchQueries={equipmentSearchQueries}
+                  articleSearchQueries={articleSearchQueries}
+                  onOpenEquipmentDialog={(itemId) => {
+                    setShowEquipmentSelectorDialogs(prev => ({ ...prev, [itemId]: true }));
+                    searchEquipments(itemId, equipmentSearchQueries[itemId] || '');
+                  }}
+                  onOpenArticleDialog={(itemId) => {
+                    setShowArticleSelectorDialogs(prev => ({ ...prev, [itemId]: true }));
+                    searchArticles(itemId, articleSearchQueries[itemId] || '');
+                  }}
+                  onRemoveEquipment={() => removeEquipmentItem(item.id)}
+                  onUpdateItem={(field, value) => updateEquipmentItem(item.id, field, value)}
+                  onRemoveArticle={(articleId) => removeArticleFromItem(item.id, articleId)}
+                  onUpdateArticleQuantity={(articleId, quantity) => updateArticleQuantity(item.id, articleId, quantity)}
+                  onImageUpload={(fileInfo) => handleImageUpload(item.id, fileInfo)}
+                  onRemoveImage={(imageId) => removeImageFromItem(item.id, imageId)}
+                  onToggleServizio={(servizio) => handleServiziAggiuntiviToggle(item.id, servizio)}
+                  getPlannedArticleQty={getPlannedArticleQty}
+                  shouldShowRecuperoGasFields={() => shouldShowRecuperoGasFields(item)}
+                  getTextColorClass={getTextColorClass}
+                  lightboxUrl={lightboxUrl}
+                  setLightboxUrl={setLightboxUrl}
+                  allItems={editableItems}
+                />
+              ))}
+              
+              <button
+                onClick={addEquipmentItem}
+                className="bg-teal-100 hover:bg-teal-200 text-teal-700 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors mb-6"
+              >
+                <Plus size={16} />
+                Aggiungi apparecchiatura
+              </button>
                         </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Ricambi utilizzati */}
-                  {item.articles && item.articles.length > 0 && (
-                    <div className="mb-4">
-                      <h4 className="font-medium text-gray-700 mb-3">Pezzi di ricambio usati</h4>
-                      <div className="bg-white border border-teal-200 rounded-lg p-4">
-                        <div className="space-y-2">
-                          {item.articles.map((article, idx) => (
-                            <div key={idx} className="flex items-center justify-between bg-teal-50 border border-teal-200 p-3 rounded-lg">
-                              <div className="flex-1">
-                                {(() => {
-                                  const ad = articleById[article.article_id];
-                                  const title = ad?.short_description || article.article_name || 'Articolo';
-                                  const desc = ad?.description || article.article_description;
-                                  return (
-                                    <>
-                                      <span className="text-gray-900 font-medium">{title}</span>
-                                      {desc && <div className="text-sm text-gray-600">{desc}</div>}
-                                      <div className="text-xs text-gray-500">ID: {article.article_id}{ad?.pnc_code ? ` • PNC: ${ad.pnc_code}` : ''}</div>
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                              <div className="ml-3 text-sm text-gray-700 whitespace-nowrap">Qt: {article.quantity}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Note per questa apparecchiatura - Evidenza Maggiore */}
-                  {item.note && (
-                    <div className="mb-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="bg-amber-500 text-white p-1.5 rounded-full">
-                          <MessageCircle size={16} />
-                        </div>
-                        <h4 className="font-bold text-gray-900 text-base">Note intervento per questa apparecchiatura</h4>
-                      </div>
-                      <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-l-4 border-amber-500 rounded-lg p-4 shadow-sm">
-                        <p className="text-gray-900 text-base leading-relaxed font-medium">{item.note}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Gestione Gas per questa apparecchiatura */}
-                  {item.fl_gas && (
-                    <div className="mb-4">
-                      <h4 className="text-md font-medium text-gray-900 mb-3">Gestione gas per questa apparecchiatura</h4>
-                      <div className="bg-white border border-gray-200 rounded-lg p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <div className="text-sm font-medium text-gray-600 mb-1">Tipologia compressore</div>
-                            <div className="text-gray-900">{getCompressorTypeName(item.gas_compressor_types_id)}</div>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-gray-600 mb-1">Nuova installazione</div>
-                            <div className="text-gray-900">{item.is_new_installation ? 'Sì' : 'No'}</div>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-gray-600 mb-1">Tipologia gas caricato</div>
-                            <div className="text-gray-900">{getRechargeableGasTypeName(item.rechargeable_gas_types_id)}</div>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-gray-600 mb-1">Quantità gas caricato</div>
-                            <div className="text-gray-900">{item.qty_gas_recharged} gr</div>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-gray-600 mb-1">Carica max</div>
-                            <div className="text-gray-900">{item.max_charge} gr</div>
-                          </div>
-                          {item.compressor_model && (
-                            <div>
-                              <div className="text-sm font-medium text-gray-600 mb-1">Modello compressore</div>
-                              <div className="text-gray-900">{item.compressor_model}</div>
-                            </div>
-                          )}
-                          {item.compressor_serial_num && (
-                            <div>
-                              <div className="text-sm font-medium text-gray-600 mb-1">Matricola compressore</div>
-                              <div className="text-gray-900">{item.compressor_serial_num}</div>
-                            </div>
-                          )}
-                          {item.compressor_unique_num && (
-                            <div>
-                              <div className="text-sm font-medium text-gray-600 mb-1">Numero univoco</div>
-                              <div className="text-gray-900">{item.compressor_unique_num}</div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Servizi aggiuntivi */}
-                        {item.additional_services && (
-                          <div className="mt-4 pt-4 border-t border-gray-200">
-                            <div className="text-sm font-medium text-gray-600 mb-2">Servizi aggiuntivi</div>
-                            <div className="text-gray-900">{formatAdditionalServices(item.additional_services)}</div>
-                          </div>
-                        )}
-
-                        {/* Recupero gas (se presente) */}
-                        {(item.recovered_rech_gas_types_id || item.qty_gas_recovered) && (
-                          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {item.recovered_rech_gas_types_id && (
-                              <div>
-                                <div className="text-sm font-medium text-gray-600 mb-1">Tipologia gas recuperato</div>
-                                <div className="text-gray-900">{getRechargeableGasTypeName(item.recovered_rech_gas_types_id)}</div>
-                              </div>
-                            )}
-                            {item.qty_gas_recovered && (
-                              <div>
-                                <div className="text-sm font-medium text-gray-600 mb-1">Quantità gas recuperato</div>
-                                <div className="text-gray-900">{item.qty_gas_recovered} gr</div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Immagini compressore (se presenti URL dedicati) */}
-                  {(item.compressor_model_img_url || item.compressor_serial_num_img_url || item.compressor_unique_num_img_url) && (
-                    <div className="mb-4">
-                      <h4 className="font-medium text-gray-700 mb-3">Immagini compressore</h4>
-                      <div className="bg-white border border-gray-200 rounded-lg p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          {item.compressor_model_img_url && (
-                            <div>
-                              <div className="text-sm font-medium text-gray-600 mb-2">Modello</div>
-                              <a href={item.compressor_model_img_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800">
-                                <Eye size={16} />
-                                Visualizza immagine
-                              </a>
-                            </div>
-                          )}
-                          {item.compressor_serial_num_img_url && (
-                            <div>
-                              <div className="text-sm font-medium text-gray-600 mb-2">Matricola</div>
-                              <a href={item.compressor_serial_num_img_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800">
-                                <Eye size={16} />
-                                Visualizza immagine
-                              </a>
-                            </div>
-                          )}
-                          {item.compressor_unique_num_img_url && (
-                            <div>
-                              <div className="text-sm font-medium text-gray-600 mb-2">Numero Univoco</div>
-                              <a href={item.compressor_unique_num_img_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800">
-                                <Eye size={16} />
-                                Visualizza immagine
-                              </a>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Immagini per questa apparecchiatura */}
-                  {item.images && item.images.length > 0 && (
-                    <div className="mb-1">
-                      <h4 className="text-md font-medium text-gray-900 mb-3">Immagini per questa apparecchiatura</h4>
-                      <div className="bg-white border border-gray-200 rounded-lg p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          {item.images.map((image, imgIndex) => (
-                            <div key={imgIndex} className="border border-gray-200 rounded-lg overflow-hidden">
-                              <Image
-                                src={image.file_url}
-                                alt={image.file_name}
-                                width={200}
-                                height={150}
-                                className="w-full h-32 object-cover cursor-zoom-in"
-                                onClick={() => setLightboxUrl(image.file_url)}
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = 'none';
-                                }}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+          ) : (
+            /* VERSIONE READ-ONLY */
+            updatedReportData.items && updatedReportData.items.length > 0 ? (
+              <div className="space-y-6">
+                {updatedReportData.items.map((item) => (
+                  <EquipmentItemReadOnly
+                    key={item.id}
+                    item={item}
+                    equipmentById={equipmentById}
+                    articleById={articleById}
+                    getCompressorTypeName={getCompressorTypeName}
+                    getRechargeableGasTypeName={getRechargeableGasTypeName}
+                    formatAdditionalServices={formatAdditionalServices}
+                    setLightboxUrl={setLightboxUrl}
+                  />
               ))}
             </div>
           ) : (
             <div className="text-center py-8 text-gray-500">Nessuna apparecchiatura registrata per questo rapportino</div>
+            )
           )}
         </div>
 
@@ -1041,7 +1072,6 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
               )}
             </button>
           )}
-          {/* Pulsante stampa rimosso su richiesta */}
           {canDeleteReport() && (
             <button
               onClick={() => setShowDeleteDialog(true)}
@@ -1054,179 +1084,84 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
         </div>
       </div>
 
+      {/* Dialog selezione apparecchiature e ricambi */}
+      {canDeleteReport() && editableItems.map((item) => (
+        <React.Fragment key={`dialogs-${item.id}`}>
+          {showEquipmentSelectorDialogs[item.id] && (
+            <EquipmentSelectorDialog
+              itemId={item.id}
+              interventionData={interventionData}
+              equipmentSearchQuery={equipmentSearchQueries[item.id] || ''}
+              setEquipmentSearchQuery={(query) => setEquipmentSearchQueries(prev => ({ ...prev, [item.id]: query }))}
+              equipmentsResults={equipmentsResults[item.id] || []}
+              isSearching={isSearchingEquipments[item.id] || false}
+              onSearch={(query) => searchEquipments(item.id, query)}
+              onSelect={(equipment) => {
+                updateEquipmentItem(item.id, 'selectedEquipment', equipment);
+                setEquipmentSearchQueries(prev => ({ ...prev, [item.id]: '' }));
+                setShowEquipmentSelectorDialogs(prev => ({ ...prev, [item.id]: false }));
+              }}
+              onClose={() => setShowEquipmentSelectorDialogs(prev => ({ ...prev, [item.id]: false }))}
+              alreadySelectedEquipmentIds={editableItems
+                .filter(ei => ei.id !== item.id)
+                .map(ei => ei.selectedEquipment?.id)
+                .filter((id): id is number => typeof id === 'number')
+              }
+            />
+          )}
+
+          {showArticleSelectorDialogs[item.id] && (
+            <ArticleSelectorDialog
+              itemId={item.id}
+              interventionData={interventionData}
+              articleSearchQuery={articleSearchQueries[item.id] || ''}
+              setArticleSearchQuery={(query) => setArticleSearchQueries(prev => ({ ...prev, [item.id]: query }))}
+              articleResults={articleResults[item.id] || []}
+              isSearching={isSearchingArticles[item.id] || false}
+              onSearch={(query) => searchArticles(item.id, query)}
+              onSelect={(article) => {
+                const newSelectedArticles = [...item.selectedArticles, { article, quantity: 1 }];
+                updateEquipmentItem(item.id, 'selectedArticles', newSelectedArticles);
+                setShowArticleSelectorDialogs(prev => ({ ...prev, [item.id]: false }));
+              }}
+              onClose={() => setShowArticleSelectorDialogs(prev => ({ ...prev, [item.id]: false }))}
+              selectedArticles={item.selectedArticles}
+            />
+          )}
+        </React.Fragment>
+      ))}
+
       {/* Dialog Firma */}
-      {showSignatureDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                  <PenTool size={24} className="text-teal-600" />
-                  Firma Cliente
-                </h2>
-                <button
-                  onClick={() => setShowSignatureDialog(false)}
-                  disabled={isSavingSignature}
-                  className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
-                >
-                  <XCircle size={24} />
-                </button>
-              </div>
-              
-              <p className="text-sm text-gray-600 mb-4">
-                Il cliente può firmare nell&apos;area sottostante utilizzando il dito o un pennino.
-              </p>
-              
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 bg-gray-50 mb-4">
-                <SignatureCanvas
-                  ref={(ref: SignatureCanvasRef | null) => { setSignatureRef(ref); }}
-                  penColor="black"
-                  canvasProps={{
-                    width: 600,
-                    height: 250,
-                    className: 'signature-canvas w-full bg-white rounded border'
-                  }}
-                />
-              </div>
-              
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={clearSignature}
-                  disabled={isSavingSignature}
-                  className="flex items-center gap-2 px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  <RotateCcw size={16} />
-                  Cancella
-                </button>
-                <button
-                  onClick={() => setShowSignatureDialog(false)}
-                  disabled={isSavingSignature}
-                  className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  Annulla
-                </button>
-                <button
-                  onClick={saveSignature}
-                  disabled={isSavingSignature}
-                  className="flex items-center gap-2 px-4 py-2 text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  {isSavingSignature ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Salvando...
-                    </>
-                  ) : (
-                    <>
-                      <PenTool size={16} />
-                      Salva Firma
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <SignatureDialog
+        isOpen={showSignatureDialog}
+        isSaving={isSavingSignature}
+        signatureRef={signatureRef}
+        setSignatureRef={setSignatureRef}
+        onClose={() => setShowSignatureDialog(false)}
+        onClear={clearSignature}
+        onSave={saveSignature}
+      />
 
       {/* Dialog Conferma Eliminazione */}
-      {showDeleteDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                  <Trash2 size={24} className="text-red-600" />
-                  Conferma Eliminazione
-                </h2>
-              </div>
-              
-              <p className="text-gray-600 mb-6">
-                Sei sicuro di voler eliminare definitivamente questo rapportino? 
-                <br />
-                <strong>Questa azione non può essere annullata.</strong>
-              </p>
-              
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => setShowDeleteDialog(false)}
-                  disabled={isDeleting}
-                  className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  Annulla
-                </button>
-                <button
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                  className="flex items-center gap-2 px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isDeleting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Eliminazione...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 size={16} />
-                      Elimina Definitivamente
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmDialog
+        isOpen={showDeleteDialog}
+        isDeleting={isDeleting}
+        onConfirm={handleDelete}
+        onCancel={() => setShowDeleteDialog(false)}
+      />
 
       {/* Dialog Risultato */}
-      {showResultDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                  {resultDialogType === 'success' ? (
-                    <CheckCircle size={24} className="text-green-600" />
-                  ) : (
-                    <XCircle size={24} className="text-red-600" />
-                  )}
-                  {resultDialogMessage}
-                </h2>
-              </div>
-              
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => {
-                    console.log('🔄 Chiusura dialog risultato - shouldRedirectOnClose:', shouldRedirectOnClose);
-                    setShowResultDialog(false);
-                    if (shouldRedirectOnClose) {
-                      const interventionUrl = `/interventi?ai=${updatedReportData.intervention_id}`;
-                      console.log('✅ Refresh e redirect alla pagina intervento:', interventionUrl);
-                      window.location.href = interventionUrl;
-                    } else {
-                      console.log('⏸️ Nessun redirect necessario');
-                    }
-                  }}
-                  className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                >
-                  Chiudi
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ResultDialog
+        isOpen={showResultDialog}
+        type={resultDialogType}
+        message={resultDialogMessage}
+        shouldRedirectOnClose={shouldRedirectOnClose}
+        interventionId={updatedReportData.intervention_id}
+        onClose={() => setShowResultDialog(false)}
+      />
 
       {/* Lightbox immagine a tutto schermo */}
-      {lightboxUrl && (
-        <div className="fixed inset-0 z-[70] bg-black bg-opacity-90 flex items-center justify-center" onClick={() => setLightboxUrl(null)}>
-          <div className="max-w-5xl max-h-[90vh] p-4" onClick={(e) => e.stopPropagation()}>
-            <Image src={lightboxUrl} alt="Preview" width={1600} height={1200} className="w-auto h-auto max-w-full max-h-[85vh] object-contain" />
-          </div>
-          <button className="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2" onClick={() => setLightboxUrl(null)}>
-            <XCircle size={28} />
-          </button>
-        </div>
-      )}
+      <Lightbox imageUrl={lightboxUrl} onClose={() => setLightboxUrl(null)} />
     </div>
   );
 } 
