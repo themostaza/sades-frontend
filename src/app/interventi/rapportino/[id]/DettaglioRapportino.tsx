@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Clock, Eye, CheckCircle, XCircle, PenTool, RotateCcw, Trash2, MessageCircle, AlertTriangle } from 'lucide-react';
+import { Clock, Eye, CheckCircle, XCircle, PenTool, RotateCcw, Trash2, MessageCircle, AlertTriangle, Plus } from 'lucide-react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useAuth } from '../../../../contexts/AuthContext';
@@ -90,6 +90,14 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   const [updatedReportData, setUpdatedReportData] = useState<InterventionReportDetail>(reportData);
   const { token } = useAuth();
 
+  // Stati per la modifica del rapportino
+  const [editableWorkHours, setEditableWorkHours] = useState<number>(reportData.work_hours);
+  const [editableTravelHours, setEditableTravelHours] = useState<number>(reportData.travel_hours);
+  const [editableCustomerNotes, setEditableCustomerNotes] = useState<string>(reportData.customer_notes || '');
+  const [showNotesField, setShowNotesField] = useState<boolean>(!!reportData.customer_notes);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
   // Tipi per mapping id -> name
   interface GasCompressorType { id: number; name: string }
   interface RechargeableGasType { id: number; name: string }
@@ -155,6 +163,28 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   const getRechargeableGasTypeName = (id?: number) => {
     if (!id) return '';
     return rechargeableGasTypes.find(t => t.id === id)?.name || `ID: ${id}`;
+  };
+
+  // Sincronizza gli stati editabili quando updatedReportData cambia
+  useEffect(() => {
+    setEditableWorkHours(updatedReportData.work_hours);
+    setEditableTravelHours(updatedReportData.travel_hours);
+    setEditableCustomerNotes(updatedReportData.customer_notes || '');
+    setShowNotesField(!!updatedReportData.customer_notes);
+  }, [updatedReportData]);
+
+  // Detecta modifiche non salvate
+  useEffect(() => {
+    const workHoursChanged = editableWorkHours !== updatedReportData.work_hours;
+    const travelHoursChanged = editableTravelHours !== updatedReportData.travel_hours;
+    const notesChanged = editableCustomerNotes !== (updatedReportData.customer_notes || '');
+    
+    setHasUnsavedChanges(workHoursChanged || travelHoursChanged || notesChanged);
+  }, [editableWorkHours, editableTravelHours, editableCustomerNotes, updatedReportData]);
+
+  // Determina se il rapportino è modificabile
+  const canEditReport = (): boolean => {
+    return canDeleteReport();
   };
 
   // Carica dettagli dell'intervento associato per controlli UI (es. eliminazione)
@@ -435,6 +465,51 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
     setShowSignatureDialog(true);
   };
 
+  // Funzione per salvare le modifiche al rapportino
+  const handleSaveChanges = async () => {
+    if (!hasUnsavedChanges || isSaving) return;
+
+    try {
+      setIsSaving(true);
+      console.log('💾 Salvataggio modifiche rapportino...');
+
+      // Costruisci il payload aggiornato con i nuovi valori
+      const payload = buildCompletePayload(updatedReportData.signature_url || '');
+      
+      // Sovrascrivi con i valori modificati
+      payload.work_hours = editableWorkHours;
+      payload.travel_hours = editableTravelHours;
+      payload.customer_notes = editableCustomerNotes;
+
+      console.log('📤 Payload aggiornato:', payload);
+
+      // Chiama la PUT per aggiornare il rapportino
+      await updateInterventionReport(payload);
+      console.log('✅ Modifiche salvate con successo');
+
+      // Ricarica i dati freschi dal server
+      console.log('🔄 Ricaricamento dati aggiornati...');
+      const freshReportData = await reloadReportData();
+      console.log('✅ Dati ricaricati:', freshReportData);
+      
+      // Aggiorna lo stato locale
+      setUpdatedReportData(freshReportData);
+      
+      // Mostra notifica di successo
+      setResultDialogType('success');
+      setResultDialogMessage('Modifiche salvate con successo!');
+      setShowResultDialog(true);
+
+    } catch (error) {
+      console.error('❌ Errore durante il salvataggio:', error);
+      setResultDialogType('error');
+      setResultDialogMessage(error instanceof Error ? error.message : 'Errore durante il salvataggio delle modifiche.');
+      setShowResultDialog(true);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleDelete = async () => {
     try {
       setIsDeleting(true);
@@ -487,30 +562,53 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
         <div className="max-w-4xl mx-auto">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div className="flex-1">
-              <h1 className="text-xl md:text-2xl font-bold">
+              <h1 className="text-xl md:text-2xl">
                 Rapportino Intervento #{updatedReportData.id}
               </h1>
               {/* Nome Cliente */}
               {interventionData?.company_name && (
-                <p className="text-teal-100 text-sm md:text-base mt-1 font-medium">
-                  Cliente: {interventionData.company_name}
+                <p className="text-teal-100 mt-1 font-bold">
+                  {interventionData.company_name}
                 </p>
               )}
               {/* Tipologia Intervento */}
               {interventionData?.type_label && (
                 <p className="text-teal-100 text-sm md:text-base mt-1 font-medium">
-                  Tipologia: {interventionData.type_label}
+                  {interventionData.type_label}
                 </p>
               )}
             </div>
             
-            {/* Badge Intervento Fallito */}
-            {updatedReportData.is_failed && (
-              <div className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg border-2 border-red-400 shadow-lg">
-                <XCircle size={20} className="text-red-200" />
-                <span className="font-bold text-sm md:text-base">INTERVENTO FALLITO</span>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              {/* Pulsante Salva - visibile solo se modificabile */}
+              {canEditReport() && (
+                <button
+                  onClick={handleSaveChanges}
+                  disabled={!hasUnsavedChanges || isSaving}
+                  className="flex items-center gap-2 bg-white text-teal-600 px-4 py-2 rounded-lg font-medium transition-colors disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed hover:bg-teal-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+                      Salvataggio...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={18} />
+                      Salva
+                    </>
+                  )}
+                </button>
+              )}
+              
+              {/* Badge Intervento Fallito */}
+              {updatedReportData.is_failed && (
+                <div className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg border-2 border-red-400 shadow-lg">
+                  <XCircle size={20} className="text-red-200" />
+                  <span className="font-bold text-sm md:text-base">INTERVENTO FALLITO</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -592,7 +690,20 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
                 <Clock className="text-teal-600" size={20} />
                 <span className="font-medium text-gray-700">Ore Lavoro</span>
               </div>
-              <div className="text-2xl font-bold text-gray-900">{updatedReportData.work_hours}h</div>
+              {canEditReport() ? (
+                <input
+                  type="number"
+                  value={editableWorkHours}
+                  onChange={(e) => setEditableWorkHours(parseFloat(e.target.value) || 0)}
+                  onFocus={(e) => e.target.select()}
+                  inputMode="decimal"
+                  min="0"
+                  step="0.5"
+                  className="text-2xl font-bold text-gray-900 bg-white border-2 border-teal-200 rounded-lg px-3 py-1 w-full focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                />
+              ) : (
+                <div className="text-2xl font-bold text-gray-900">{updatedReportData.work_hours}h</div>
+              )}
               <div className="text-sm text-gray-600">Ore effettive</div>
             </div>
             
@@ -601,7 +712,20 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
                 <Clock className="text-orange-600" size={20} />
                 <span className="font-medium text-gray-700">Ore Viaggio</span>
               </div>
-              <div className="text-2xl font-bold text-gray-900">{updatedReportData.travel_hours}h</div>
+              {canEditReport() ? (
+                <input
+                  type="number"
+                  value={editableTravelHours}
+                  onChange={(e) => setEditableTravelHours(parseFloat(e.target.value) || 0)}
+                  onFocus={(e) => e.target.select()}
+                  inputMode="decimal"
+                  min="0"
+                  step="0.5"
+                  className="text-2xl font-bold text-gray-900 bg-white border-2 border-orange-200 rounded-lg px-3 py-1 w-full focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+              ) : (
+                <div className="text-2xl font-bold text-gray-900">{updatedReportData.travel_hours}h</div>
+              )}
               <div className="text-sm text-gray-600">Ore trasferimento</div>
             </div>
             
@@ -615,18 +739,44 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
             </div>
           </div>
 
-          {/* Note per il cliente - Versione compatta (principale è sopra) */}
-          {updatedReportData.customer_notes && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
+          {/* Note per il cliente */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
                 <MessageCircle className="text-blue-600" size={20} />
                 <h3 className="font-semibold text-gray-900">Note per il cliente</h3>
               </div>
-              <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-l-4 border-blue-500 rounded-lg p-5 shadow-sm">
-                <p className="text-gray-900 text-base leading-relaxed font-medium">{updatedReportData.customer_notes}</p>
-              </div>
+              {canEditReport() && !showNotesField && (
+                <button
+                  onClick={() => setShowNotesField(true)}
+                  className="text-sm text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1"
+                >
+                  <Plus size={16} />
+                  Aggiungi note
+                </button>
+              )}
             </div>
-          )}
+            
+            {showNotesField ? (
+              canEditReport() ? (
+                <textarea
+                  value={editableCustomerNotes}
+                  onChange={(e) => setEditableCustomerNotes(e.target.value)}
+                  rows={4}
+                  className="w-full px-4 py-3 border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-gray-900"
+                  placeholder="Note che saranno leggibili dal cliente"
+                />
+              ) : (
+                <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-l-4 border-blue-500 rounded-lg p-5 shadow-sm">
+                  <p className="text-gray-900 text-base leading-relaxed font-medium">{updatedReportData.customer_notes}</p>
+                </div>
+              )
+            ) : (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+                <p className="text-gray-500 text-sm">Nessuna nota inserita per il cliente</p>
+              </div>
+            )}
+          </div>
 
           {/* Intervento fallito */}
           {updatedReportData.is_failed && updatedReportData.failure_reason && (
