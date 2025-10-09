@@ -849,10 +849,10 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   // Logica automatica per servizio domicilio in base a tipologia intervento
   useEffect(() => {
     if (tipologiaIntervento === '12' || tipologiaIntervento === '4') {
-      setServizioDomicilio('Si');
+      setServizioDomicilio('No');
       setScontoServizioDomicilio(false);
     } else if (tipologiaIntervento) {
-      setServizioDomicilio('No');
+      setServizioDomicilio('Si');
       setScontoServizioDomicilio(false);
     }
     // Se tipologiaIntervento è vuoto, non forzare nulla
