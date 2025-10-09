@@ -9,6 +9,7 @@ export interface Equipment {
   brand_name: string;
   subfamily_name: string;
   customer_name: string;
+  pnc_code: string | null;
 }
 
 export interface EquipmentDetail {
