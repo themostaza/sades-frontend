@@ -263,6 +263,21 @@ export default function DocumentiEquipment({
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tipo documento
+              </label>
+              <select
+                onChange={(e) => setDocumentName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700 mb-3"
+                disabled={uploadingDocument}
+              >
+                <option value="">Seleziona un tipo...</option>
+                <option value="CATALOGO RICAMBI">CATALOGO RICAMBI</option>
+                <option value="MANUALE USO">MANUALE USO</option>
+                <option value="MANUALE SERVICE">MANUALE SERVICE</option>
+                <option value="ALTRO">ALTRO</option>
+              </select>
+
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Nome documento
               </label>
               <input
@@ -286,7 +301,6 @@ export default function DocumentiEquipment({
                 }}
                 multiple={false}
                 sourceList="local,url,dropbox,gdrive"
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png"
                 className="uc-light"
               />
             </div>
