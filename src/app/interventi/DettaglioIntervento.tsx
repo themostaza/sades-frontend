@@ -355,7 +355,8 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
           linked_serials: eq.linked_serials ?? null,
           brand_name: eq.brand_name || '',
           subfamily_name: eq.subfamily_name || '',
-          customer_name: eq.customer_name || ''
+          customer_name: eq.customer_name || '',
+          pnc_code: eq.pnc_code ?? null
         }));
         setSelectedEquipments(equipments);
       }
