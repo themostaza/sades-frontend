@@ -575,23 +575,39 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
     });
   };
 
-  // Funzione per upload automatico tramite Uploadcare
-  const uploadSignatureToUploadcare = async (signatureBlob: Blob): Promise<string> => {
-    const formData = new FormData();
-    formData.append('UPLOADCARE_PUB_KEY', process.env.NEXT_PUBLIC_UPLOADER_PUBLIC_KEY || '');
-    formData.append('file', signatureBlob, 'signature.png');
-
-    const response = await fetch('https://upload.uploadcare.com/base/', {
+  // Funzione per upload automatico tramite S3
+  const uploadSignatureToS3 = async (signatureBlob: Blob): Promise<string> => {
+    // Step 1: Richiedi presigned URL
+    const presignedResponse = await fetch('/api/s3/presigned-url', {
       method: 'POST',
-      body: formData,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: `signature_${Date.now()}.png`,
+        fileType: 'image/png',
+        folder: 'intervention-signatures',
+      }),
     });
 
-    if (!response.ok) {
-      throw new Error('Upload failed');
+    if (!presignedResponse.ok) {
+      throw new Error('Errore durante la richiesta del presigned URL');
     }
 
-    const result = await response.json();
-    return `https://ucarecdn.com/${result.file}/`;
+    const { presignedUrl, fileUrl } = await presignedResponse.json();
+
+    // Step 2: Carica il file su S3
+    const uploadResponse = await fetch(presignedUrl, {
+      method: 'PUT',
+      body: signatureBlob,
+      headers: {
+        'Content-Type': 'image/png',
+      },
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error('Errore durante il caricamento su S3');
+    }
+
+    return fileUrl;
   };
 
   // Funzione per costruire il payload completo della PUT
@@ -761,9 +777,9 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       
       const signatureBlob = await canvasToBlob(canvas);
 
-      // 2. Upload automatico tramite Uploadcare
-      console.log('🔄 Uploading signature to Uploadcare...');
-      const uploadedSignatureUrl = await uploadSignatureToUploadcare(signatureBlob);
+      // 2. Upload automatico tramite S3
+      console.log('🔄 Uploading signature to S3...');
+      const uploadedSignatureUrl = await uploadSignatureToS3(signatureBlob);
       console.log('✅ Signature uploaded:', uploadedSignatureUrl);
 
       // 3. Costruisci payload completo

@@ -5,8 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ArrowLeft, Clock, X, Plus, Eye, Download, Trash2, AlertTriangle, Search } from 'lucide-react';
 import Image from 'next/image';
 import { AssistanceInterventionDetail, ConnectedArticle, ConnectedEquipment } from '../../types/assistance-interventions';
-import { FileUploaderRegular } from "@uploadcare/react-uploader/next";
-import "@uploadcare/react-uploader/core.css";
+import S3ImageUploader from '@/components/S3ImageUploader';
 import { InterventionReportSummary } from '../../types/intervention-reports';
 
 interface CreaRapportinoProps {
@@ -1441,18 +1440,16 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                     
                     {/* Uploader per aggiungere nuove immagini */}
                     <div>
-                      <FileUploaderRegular
-                        pubkey={process.env.NEXT_PUBLIC_UPLOADER_PUBLIC_KEY || ''}
-                        onFileUploadSuccess={(fileInfo: { cdnUrl?: string; name?: string }) => 
-                          handleImageUpload(item.id, fileInfo)
+                      <S3ImageUploader
+                        onUploadSuccess={(fileInfo: { cdnUrl: string; name: string }) => 
+                          handleImageUpload(item.id, { cdnUrl: fileInfo.cdnUrl, name: fileInfo.name })
                         }
-                        onFileUploadFailed={(e: { status: string; [key: string]: unknown }) => {
-                          console.error('Error uploading equipment image:', e);
+                        onUploadFailed={(error: Error) => {
+                          console.error('Error uploading equipment image:', error);
                           alert('Errore durante il caricamento dell\'immagine dell\'apparecchiatura');
                         }}
-                        imgOnly={true}
                         multiple={true}
-                        sourceList="local,url,camera,dropbox,gdrive"
+                        folder="intervention-report-images"
                       />
                     </div>
                     

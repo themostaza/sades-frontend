@@ -10,6 +10,7 @@ export interface ConnectedEquipment {
   subfamily_name?: string;
   customer_name?: string;
   pnc_code?: string | null;
+  sale_date?: string | null;
 }
 
 export interface ConnectedArticle {

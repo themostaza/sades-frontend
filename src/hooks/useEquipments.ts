@@ -43,6 +43,12 @@ export function useEquipments(): UseEquipmentsReturn {
   }, [token]);
 
   const fetchEquipments = useCallback(async (params: EquipmentQueryParams = {}) => {
+    console.log('========================================');
+    console.log('🔵 [useEquipments] Starting fetchEquipments');
+    console.log('🔵 [useEquipments] Params:', params);
+    console.log('🔵 [useEquipments] Has token:', !!token);
+    console.log('========================================');
+    
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
       setLastParams(params);
@@ -76,15 +82,31 @@ export function useEquipments(): UseEquipmentsReturn {
         searchParams.append('subfamily_id', params.subfamily_id);
       }
 
-      const response = await fetch(`/api/equipments?${searchParams.toString()}`, {
+      const url = `/api/equipments?${searchParams.toString()}`;
+      console.log('🔵 [useEquipments] Fetching URL:', url);
+      console.log('🔵 [useEquipments] Headers:', getAuthHeaders());
+
+      const response = await fetch(url, {
         headers: getAuthHeaders(),
       });
 
+      console.log('🔵 [useEquipments] Response status:', response.status);
+      console.log('🔵 [useEquipments] Response ok:', response.ok);
+
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [useEquipments] Error response:', errorText);
         throw new Error(`Errore ${response.status}: ${response.statusText}`);
       }
 
       const data: EquipmentsApiResponse = await response.json();
+      console.log('✅ [useEquipments] Success! Data received:');
+      console.log('✅ [useEquipments] Equipments count:', data.data?.length || 0);
+      console.log('✅ [useEquipments] Total items:', data.meta?.total || 0);
+      console.log('✅ [useEquipments] Current page:', data.meta?.page);
+      console.log('✅ [useEquipments] Total pages:', data.meta?.totalPages);
+      console.log('✅ [useEquipments] First equipment:', data.data?.[0]);
+      console.log('========================================');
       
       setState(prev => ({
         ...prev,
@@ -97,7 +119,12 @@ export function useEquipments(): UseEquipmentsReturn {
       }));
       
     } catch (err) {
-      console.error('Error fetching equipments:', err);
+      console.error('💥 [useEquipments] Error fetching equipments:', err);
+      console.error('💥 [useEquipments] Error type:', err instanceof Error ? 'Error' : typeof err);
+      console.error('💥 [useEquipments] Error message:', err instanceof Error ? err.message : String(err));
+      console.error('💥 [useEquipments] Error stack:', err instanceof Error ? err.stack : 'No stack');
+      console.log('========================================');
+      
       const errorMessage = err instanceof Error ? err.message : 'Errore nel caricamento delle apparecchiature';
       
       setState(prev => ({
@@ -107,7 +134,7 @@ export function useEquipments(): UseEquipmentsReturn {
         error: errorMessage,
       }));
     }
-  }, [getAuthHeaders]);
+  }, [getAuthHeaders, token]);
 
   const refetch = useCallback(() => {
     return fetchEquipments(lastParams);

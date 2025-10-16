@@ -1,10 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Eye, Download, Trash2, X, Plus } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Eye, Download, Trash2, X, Plus, Upload } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { FileUploaderRegular } from "@uploadcare/react-uploader/next";
-import "@uploadcare/react-uploader/core.css";
 
 interface EquipmentDocument {
   id: number;
@@ -30,15 +28,62 @@ export default function DocumentiEquipment({
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [documentName, setDocumentName] = useState('');
   const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [deletingDocumentId, setDeletingDocumentId] = useState<number | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const auth = useAuth();
 
-  // Funzione per caricare un nuovo documento
-  const handleUploadSuccess = async (uploadedFileUrl: string) => {
+  // Funzione per gestire la selezione del file
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!documentName.trim()) {
+      alert('Inserisci il nome del documento prima di caricarlo');
+      return;
+    }
+
     try {
+      setUploadingDocument(true);
+      setUploadProgress(0);
+
+      // Step 1: Richiedi presigned URL
+      const presignedResponse = await fetch('/api/s3/presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileType: file.type,
+          folder: 'equipment-documents',
+        }),
+      });
+
+      if (!presignedResponse.ok) {
+        throw new Error('Errore durante la richiesta del presigned URL');
+      }
+
+      const { presignedUrl, fileUrl } = await presignedResponse.json();
+
+      // Step 2: Carica il file su S3
+      setUploadProgress(50);
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type,
+        },
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Errore durante il caricamento su S3');
+      }
+
+      setUploadProgress(75);
+
+      // Step 3: Salva l'URL nel database
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -47,22 +92,24 @@ export default function DocumentiEquipment({
         headers['Authorization'] = `Bearer ${auth.token}`;
       }
 
-      const response = await fetch(`/api/equipments/${equipmentId}/documents`, {
+      const saveResponse = await fetch(`/api/equipments/${equipmentId}/documents`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ 
-          document_url: uploadedFileUrl,
-          name: documentName.trim() || 'Documento'
+          document_url: fileUrl,
+          name: documentName.trim()
         }),
       });
 
-      if (!response.ok) {
-        if (response.status === 401) {
+      if (!saveResponse.ok) {
+        if (saveResponse.status === 401) {
           auth.logout();
           return;
         }
-        throw new Error('Errore durante il caricamento del documento');
+        throw new Error('Errore durante il salvataggio del documento');
       }
+
+      setUploadProgress(100);
 
       // Notifica il componente padre per aggiornare i documenti
       onDocumentsUpdated();
@@ -71,19 +118,17 @@ export default function DocumentiEquipment({
       setShowUploadDialog(false);
       setDocumentName('');
       
+      // Reset input file
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
     } catch (err) {
-      console.error('Error saving document:', err);
-      alert('Errore durante il salvataggio del documento');
+      console.error('Error uploading document:', err);
+      alert('Errore durante il caricamento del documento');
     } finally {
       setUploadingDocument(false);
-    }
-  };
-
-  // Funzione gestione cambio file Uploadcare
-  const handleUploadcareSuccess = (fileInfo: { cdnUrl?: string }) => {
-    console.log('Uploadcare success:', fileInfo);
-    if (fileInfo && fileInfo.cdnUrl) {
-      handleUploadSuccess(fileInfo.cdnUrl);
+      setUploadProgress(0);
     }
   };
 
@@ -193,13 +238,8 @@ export default function DocumentiEquipment({
                     key={document.id}
                     className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
                   >
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-900">{document.name}</span>
-                        <span className="text-sm text-gray-500">
-                          {new Date(document.created_at).toLocaleDateString('it-IT')}
-                        </span>
-                      </div>
+                    <div className="w-fit">
+                      <span className="text-sm font-medium text-gray-900">{document.name}</span>
                     </div>
 
                     <div className="ml-4 flex items-center gap-2">
@@ -291,26 +331,40 @@ export default function DocumentiEquipment({
             </div>
 
             <div className="mb-6">
-              <FileUploaderRegular
-                pubkey={process.env.NEXT_PUBLIC_UPLOADER_PUBLIC_KEY || ''}
-                onFileUploadSuccess={handleUploadcareSuccess}
-                onFileUploadFailed={(e: { status: string; [key: string]: unknown }) => {
-                  console.error('Error uploading document:', e);
-                  alert('Errore durante il caricamento del documento');
-                  setUploadingDocument(false);
-                }}
-                multiple={false}
-                sourceList="local,url,dropbox,gdrive"
-                className="uc-light"
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={handleFileSelect}
+                disabled={uploadingDocument}
+                className="hidden"
+                id="document-upload-input"
               />
+              <label
+                htmlFor="document-upload-input"
+                className={`
+                  flex items-center justify-center gap-2 px-4 py-3 
+                  border-2 border-dashed border-gray-300 rounded-lg
+                  cursor-pointer hover:border-teal-500 hover:bg-teal-50
+                  transition-colors
+                  ${uploadingDocument ? 'opacity-50 cursor-not-allowed' : ''}
+                `}
+              >
+                <Upload size={20} className="text-gray-600" />
+                <span className="text-gray-700">
+                  {uploadingDocument ? `Caricamento... ${uploadProgress}%` : 'Clicca per selezionare un file'}
+                </span>
+              </label>
+              {uploadingDocument && (
+                <div className="mt-2">
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-teal-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
             </div>
-
-            {uploadingDocument && (
-              <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
-                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                Caricamento in corso...
-              </div>
-            )}
           </div>
         </div>
       )}
