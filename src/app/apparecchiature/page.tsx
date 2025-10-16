@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Search,
   ChevronDown,
@@ -15,6 +16,8 @@ import DettaglioApparecchiatura from './DettaglioApparecchiatura';
 import ImportEquipmentModal from './ImportEquipmentModal';
 
 export default function ApparecchiaturePage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const {
     equipments,
@@ -65,6 +68,18 @@ export default function ApparecchiaturePage() {
     modello: false,
     sottofamiglia: false,
   });
+
+  // Check URL parameters on mount to restore equipment detail view
+  useEffect(() => {
+    const equipmentId = searchParams.get('id');
+    if (equipmentId) {
+      const id = parseInt(equipmentId, 10);
+      if (!isNaN(id)) {
+        setSelectedEquipmentId(id);
+        setCurrentView('detail');
+      }
+    }
+  }, [searchParams]);
 
   // Initial load
   useEffect(() => {
@@ -117,11 +132,15 @@ export default function ApparecchiaturePage() {
   const handleOpenEquipmentDetail = (equipmentId: number) => {
     setSelectedEquipmentId(equipmentId);
     setCurrentView('detail');
+    // Aggiorna URL con l'ID dell'apparecchiatura
+    router.push(`/apparecchiature?id=${equipmentId}`, { scroll: false });
   };
 
   const handleCloseEquipmentDetail = () => {
     setCurrentView('list');
     setSelectedEquipmentId(null);
+    // Rimuovi l'ID dall'URL quando torni alla lista
+    router.push('/apparecchiature', { scroll: false });
   };
 
   const handleEquipmentUpdated = () => {
@@ -231,17 +250,6 @@ export default function ApparecchiaturePage() {
     if (serialNumber) serials.push(serialNumber);
     if (linkedSerials) serials.push(linkedSerials);
     return serials.length > 0 ? serials.join(', ') : '-';
-  };
-
-  // Truncate text for display
-  const truncateText = (
-    text: string | null | undefined,
-    maxLength: number = 25
-  ) => {
-    if (!text) return '-';
-    return text.length > maxLength
-      ? `${text.substring(0, maxLength)}...`
-      : text;
   };
 
   // Show equipment detail if in detail view
@@ -544,27 +552,27 @@ export default function ApparecchiaturePage() {
                       className="hover:bg-gray-50 cursor-pointer"
                       onClick={() => handleOpenEquipmentDetail(equipment.id)}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {equipment.id}
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {equipment.pnc_code || '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="font-medium">
-                          {truncateText(equipment.description)}
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        <div className="font-medium break-words">
+                          {equipment.description}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {truncateText(equipment.customer_name)}
+                      <td className="px-6 py-4 text-sm text-gray-600 break-words">
+                        {equipment.customer_name}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <td className="px-6 py-4 text-sm text-gray-600">
                         {equipment.brand_name}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <td className="px-6 py-4 text-sm text-gray-600 break-words">
                         {equipment.model || '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <td className="px-6 py-4 text-sm text-gray-600 break-words">
                         {equipment.subfamily_name}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <td className="px-6 py-4 text-sm text-gray-600 break-words">
                         {formatSerialNumbers(
                           equipment.serial_number,
                           equipment.linked_serials

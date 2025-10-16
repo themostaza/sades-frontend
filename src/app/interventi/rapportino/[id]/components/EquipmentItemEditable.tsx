@@ -3,8 +3,7 @@
 import React from 'react';
 import { X, Search, Eye, Download, Trash2 } from 'lucide-react';
 import Image from 'next/image';
-import { FileUploaderRegular } from "@uploadcare/react-uploader/next";
-import "@uploadcare/react-uploader/core.css";
+import S3ImageUploader from '@/components/S3ImageUploader';
 import type { EditableEquipmentItem } from './types';
 
 interface EquipmentItemEditableProps {
@@ -73,7 +72,7 @@ export default function EquipmentItemEditable({
           <div className="mt-2 flex items-center justify-between bg-gray-100 p-3 rounded-lg">
             <div>
               <div className="font-medium text-gray-700">{item.selectedEquipment.description}</div>
-              <div className="text-sm text-gray-500">Modello: {item.selectedEquipment.model} | S/N: {item.selectedEquipment.serial_number} | ID: {item.selectedEquipment.id}</div>
+              <div className="text-sm text-gray-500">Modello: {item.selectedEquipment.model} | S/N: {item.selectedEquipment.serial_number} | PNC: {item.selectedEquipment.pnc_code || 'N/A'} | Data vendita: {item.selectedEquipment.sale_date ? new Date(item.selectedEquipment.sale_date).toLocaleDateString('it-IT') : 'N/A'} | ID: {item.selectedEquipment.id}</div>
             </div>
             <button
               onClick={() => onUpdateItem('selectedEquipment', null)}
@@ -462,18 +461,16 @@ export default function EquipmentItemEditable({
             
             {/* Uploader per aggiungere nuove immagini */}
             <div>
-              <FileUploaderRegular
-                pubkey={process.env.NEXT_PUBLIC_UPLOADER_PUBLIC_KEY || ''}
-                onFileUploadSuccess={(fileInfo: { cdnUrl?: string; name?: string }) => 
-                  onImageUpload(fileInfo)
+              <S3ImageUploader
+                onUploadSuccess={(fileInfo: { cdnUrl: string; name: string }) => 
+                  onImageUpload({ cdnUrl: fileInfo.cdnUrl, name: fileInfo.name })
                 }
-                onFileUploadFailed={(e: { status: string; [key: string]: unknown }) => {
-                  console.error('Error uploading equipment image:', e);
+                onUploadFailed={(error: Error) => {
+                  console.error('Error uploading equipment image:', error);
                   alert('Errore durante il caricamento dell\'immagine dell\'apparecchiatura');
                 }}
-                imgOnly={true}
                 multiple={true}
-                sourceList="local,url,camera,dropbox,gdrive"
+                folder="intervention-report-images"
               />
             </div>
             

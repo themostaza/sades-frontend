@@ -62,7 +62,7 @@ export default function EquipmentSelectorDialog({
                     className={`px-4 py-3 ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'} text-gray-700`}
                   >
                     <div className="font-medium text-gray-700">{eq.description}</div>
-                    <div className="text-sm text-gray-500">{eq.brand_name || ''} {eq.model} (S/N: {eq.serial_number}) | ID: {eq.id}</div>
+                    <div className="text-sm text-gray-500">{eq.brand_name || ''} {eq.model} (S/N: {eq.serial_number}) | PNC: {eq.pnc_code || 'N/A'} | Data vendita: {eq.sale_date ? new Date(eq.sale_date).toLocaleDateString('it-IT') : 'N/A'} | ID: {eq.id}</div>
                     <div className="text-xs text-gray-500">
                       {eq.subfamily_name && <span className="mr-2">{eq.subfamily_name}</span>}
                       {eq.customer_name && <span className="mr-2">• Cliente: {eq.customer_name}</span>}
@@ -110,7 +110,7 @@ export default function EquipmentSelectorDialog({
                   className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700"
                 >
                   <div className="font-medium text-gray-700">{eq.description}</div>
-                  <div className="text-sm text-gray-500">{eq.brand_name || ''} {eq.model} (S/N: {eq.serial_number}) | ID: {eq.id}</div>
+                  <div className="text-sm text-gray-500">{eq.brand_name || ''} {eq.model} (S/N: {eq.serial_number}) | PNC: {eq.pnc_code || 'N/A'} | Data vendita: {eq.sale_date ? new Date(eq.sale_date).toLocaleDateString('it-IT') : 'N/A'} | ID: {eq.id}</div>
                   <div className="text-xs text-gray-500">
                     {eq.subfamily_name && <span className="mr-2">{eq.subfamily_name}</span>}
                     {eq.customer_name && <span className="mr-2">• Cliente: {eq.customer_name}</span>}

@@ -479,7 +479,7 @@ export default function InterventionDetailsSectionDetail({
               {equipments.map((eq) => (
                 <div key={eq.id} onMouseDown={() => handleEquipmentSelect(eq)} className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700">
                   <div className="font-medium text-gray-700">{eq.description}</div>
-                  <div className="text-sm text-gray-500">{eq.brand_name} {eq.model} (S/N: {eq.serial_number}) | PNC: {eq.pnc_code || 'N/A'}</div>
+                  <div className="text-sm text-gray-500">{eq.brand_name} {eq.model} (S/N: {eq.serial_number}) | PNC: {eq.pnc_code || 'N/A'} | Data vendita: {eq.sale_date ? new Date(eq.sale_date).toLocaleDateString('it-IT') : 'N/A'}</div>
                   <div className="text-xs text-gray-500">
                     <span className="mr-2">{eq.subfamily_name}</span>
                     <span className="mr-2">• ID: {eq.id}</span>
@@ -501,7 +501,7 @@ export default function InterventionDetailsSectionDetail({
                 <div>
                   <div className="font-medium text-gray-700">{eq.description}</div>
                   <div className="text-sm text-gray-500">
-                    Modello: {eq.model} | S/N: {eq.serial_number} | PNC: {eq.pnc_code || 'N/A'} | ID: {eq.id}
+                    Modello: {eq.model} | S/N: {eq.serial_number} | PNC: {eq.pnc_code || 'N/A'} | Data vendita: {eq.sale_date ? new Date(eq.sale_date).toLocaleDateString('it-IT') : 'N/A'} | ID: {eq.id}
                   </div>
                 </div>
                 {!isFieldsDisabled && <button onClick={() => removeEquipment(eq.id)} className="text-red-500"><X size={16} /></button>}

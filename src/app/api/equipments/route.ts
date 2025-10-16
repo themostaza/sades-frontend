@@ -6,9 +6,16 @@ import { validateCreateEquipmentRequest } from '../../../utils/equipment-validat
 const BASE_URL = config.BASE_URL;
 
 export async function GET(request: NextRequest) {
+  console.log('========================================');
+  console.log('🚀 [EQUIPMENTS API] Starting GET request');
+  console.log('========================================');
+  
   try {
     const authHeader = request.headers.get('authorization');
     const { searchParams } = new URL(request.url);
+    
+    console.log('📝 [EQUIPMENTS API] Request URL:', request.url);
+    console.log('🔑 [EQUIPMENTS API] Auth header present:', !!authHeader);
     
     // Estrai i parametri di query
     const page = searchParams.get('page') || '1';
@@ -21,9 +28,17 @@ export async function GET(request: NextRequest) {
     const family_id = searchParams.get('family_id');
     const subfamily_id = searchParams.get('subfamily_id');
     
-    console.log('🔄 Proxying equipments request to:', `${BASE_URL}api/equipments`);
-    console.log('🔑 Auth header:', authHeader);
-    console.log('📋 Query params:', { page, skip, customer_id, customer_location_id, query, group_id, brand_id, family_id, subfamily_id });
+    console.log('📋 [EQUIPMENTS API] Query params:', { 
+      page, 
+      skip, 
+      customer_id, 
+      customer_location_id, 
+      query, 
+      group_id, 
+      brand_id, 
+      family_id, 
+      subfamily_id 
+    });
 
     const headers: Record<string, string> = {
       'accept': 'application/json',
@@ -47,31 +62,48 @@ export async function GET(request: NextRequest) {
     if (family_id) backendUrl.searchParams.append('family_id', family_id);
     if (subfamily_id) backendUrl.searchParams.append('subfamily_id', subfamily_id);
 
+    console.log('🔄 [EQUIPMENTS API] Calling backend:', backendUrl.toString());
+
     const response = await fetch(backendUrl.toString(), {
       method: 'GET',
       headers,
     });
 
-    console.log('📡 Backend response status:', response.status);
+    console.log('📡 [EQUIPMENTS API] Backend response status:', response.status);
+    console.log('📡 [EQUIPMENTS API] Backend response headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Backend error:', errorText);
+      console.error('❌ [EQUIPMENTS API] Backend error response:', errorText);
+      console.error('❌ [EQUIPMENTS API] Status:', response.status);
+      console.error('❌ [EQUIPMENTS API] Status text:', response.statusText);
       
       return NextResponse.json(
-        { error: 'Failed to fetch equipments' },
+        { error: 'Failed to fetch equipments', details: errorText },
         { status: response.status }
       );
     }
 
     const data: EquipmentsApiResponse = await response.json();
-    console.log('✅ Backend success - equipments fetched:', data.data?.length || 0, 'equipments');
+    console.log('✅ [EQUIPMENTS API] Backend success!');
+    console.log('✅ [EQUIPMENTS API] Equipments count:', data.data?.length || 0);
+    console.log('✅ [EQUIPMENTS API] Total items:', data.meta?.total || 0);
+    console.log('✅ [EQUIPMENTS API] Sample first equipment:', data.data?.[0] ? {
+      id: data.data[0].id,
+      description: data.data[0].description,
+      pnc_code: data.data[0].pnc_code
+    } : 'No equipments');
+    console.log('========================================');
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error('💥 Proxy error:', error);
+    console.error('💥 [EQUIPMENTS API] Proxy error:', error);
+    console.error('💥 [EQUIPMENTS API] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('💥 [EQUIPMENTS API] Error message:', error instanceof Error ? error.message : String(error));
+    console.log('========================================');
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

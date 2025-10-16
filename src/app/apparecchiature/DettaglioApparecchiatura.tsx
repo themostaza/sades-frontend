@@ -63,6 +63,7 @@ interface Equipment {
   family_id: string;
   subfamily_id: string;
   customer_location_id: number | null;
+  pnc_code: string | null;
   group_label: string;
   brand_label: string;
   subgroup_label: string | null;
@@ -249,11 +250,11 @@ export default function DettaglioApparecchiatura({ equipmentId, onBack }: Dettag
 
                   <div>
                     <label className="block text-sm font-medium text-gray-500 mb-1">
-                      Numero seriale
+                      PNC
                     </label>
                     <input
                       type="text"
-                      value={equipment.serial_number ?? ''}
+                      value={equipment.pnc_code ?? ''}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
                     />
