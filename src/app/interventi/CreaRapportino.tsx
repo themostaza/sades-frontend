@@ -67,9 +67,9 @@ interface RechargeableGasType {
 export default function CreaRapportino({ isOpen, onClose, interventionData }: CreaRapportinoProps) {
   const { token } = useAuth();
   
-  // Stati per ore di lavoro - ora sono number
-  const [oreLavoro, setOreLavoro] = useState<number>(4);
-  const [oreViaggio, setOreViaggio] = useState<number>(2);
+  // Stati per ore di lavoro - ora sono string per gestire meglio punto/virgola
+  const [oreLavoro, setOreLavoro] = useState<string>('4');
+  const [oreViaggio, setOreViaggio] = useState<string>('2');
   
   // Stati per note intervento cliente
   const [noteCliente, setNoteCliente] = useState('');
@@ -137,6 +137,22 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
   const [articleResults, setArticleResults] = useState<{ [itemId: string]: ConnectedArticle[] }>({});
   const [isSearchingArticles, setIsSearchingArticles] = useState<{ [itemId: string]: boolean }>({});
   const [showArticleSelectorDialogs, setShowArticleSelectorDialogs] = useState<{ [itemId: string]: boolean }>({});
+
+  // Funzioni helper per gestire i campi decimali (ore lavoro/viaggio)
+  const normalizeDecimalInput = (value: string): string => {
+    // Sostituisci punto con virgola per mostrare sempre la virgola
+    // Permetti solo numeri, virgola e punto
+    const cleaned = value.replace(/[^0-9.,]/g, '');
+    return cleaned.replace('.', ',');
+  };
+
+  const parseDecimalValue = (value: string): number => {
+    // Converti virgola in punto per il parsing numerico
+    if (!value || value.trim() === '') return 0;
+    const normalized = value.replace(',', '.');
+    const parsed = parseFloat(normalized);
+    return isNaN(parsed) ? 0 : parsed;
+  };
 
   // Carica i tipi di gas e compressori quando il componente si monta
   useEffect(() => {
@@ -556,8 +572,8 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
       console.log('📋 Items filtrati:', equipmentItems.filter(item => isItemEmpty(item)).length);
       
       const apiPayload = {
-        work_hours: oreLavoro,
-        travel_hours: oreViaggio,
+        work_hours: parseDecimalValue(oreLavoro),
+        travel_hours: parseDecimalValue(oreViaggio),
         customer_notes: noteCliente,
         is_failed: interventoNonRiuscito,
         failure_reason: interventoNonRiuscito ? motivoNonRiuscito : null,
@@ -765,13 +781,12 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
               <div className="relative">
                 <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <input
-                  type="number"
+                  type="text"
                   value={oreLavoro}
-                  onChange={(e) => setOreLavoro(parseFloat(e.target.value) || 0)}
+                  onChange={(e) => setOreLavoro(normalizeDecimalInput(e.target.value))}
                   onFocus={(e) => e.target.select()}
+                  onClick={(e) => e.currentTarget.select()}
                   inputMode="decimal"
-                  min="0"
-                  step="0.5"
                   className={`w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700`}
                   placeholder="4"
                 />
@@ -784,13 +799,12 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
               <div className="relative">
                 <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <input
-                  type="number"
+                  type="text"
                   value={oreViaggio}
-                  onChange={(e) => setOreViaggio(parseFloat(e.target.value) || 0)}
+                  onChange={(e) => setOreViaggio(normalizeDecimalInput(e.target.value))}
                   onFocus={(e) => e.target.select()}
+                  onClick={(e) => e.currentTarget.select()}
                   inputMode="decimal"
-                  min="0"
-                  step="0.5"
                   className={`w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700`}
                   placeholder="2"
                 />
