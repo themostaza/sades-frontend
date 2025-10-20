@@ -87,9 +87,9 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   const [updatedReportData, setUpdatedReportData] = useState<InterventionReportDetail>(reportData);
   const { token } = useAuth();
 
-  // Stati per la modifica del rapportino
-  const [editableWorkHours, setEditableWorkHours] = useState<number>(reportData.work_hours);
-  const [editableTravelHours, setEditableTravelHours] = useState<number>(reportData.travel_hours);
+  // Stati per la modifica del rapportino - ore gestite come string per supporto punto/virgola
+  const [editableWorkHours, setEditableWorkHours] = useState<string>(reportData.work_hours.toString().replace('.', ','));
+  const [editableTravelHours, setEditableTravelHours] = useState<string>(reportData.travel_hours.toString().replace('.', ','));
   const [editableCustomerNotes, setEditableCustomerNotes] = useState<string>(reportData.customer_notes || '');
   const [showNotesField, setShowNotesField] = useState<boolean>(!!reportData.customer_notes);
   const [isSaving, setIsSaving] = useState(false);
@@ -121,6 +121,15 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   const [articleById, setArticleById] = useState<Record<string, Article>>({});
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [interventionDetail, setInterventionDetail] = useState<AssistanceInterventionDetail | null>(null);
+
+  // Helper function per convertire string con virgola/punto in number
+  const parseDecimalValue = (value: string): number => {
+    // Converti virgola in punto per il parsing numerico
+    if (!value || value.trim() === '') return 0;
+    const normalized = value.replace(',', '.');
+    const parsed = parseFloat(normalized);
+    return isNaN(parsed) ? 0 : parsed;
+  };
 
   // Helper function per formattare la data
   const formatDate = (dateString: string) => {
@@ -282,8 +291,8 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
 
   // Sincronizza gli stati editabili quando updatedReportData cambia
   useEffect(() => {
-    setEditableWorkHours(updatedReportData.work_hours);
-    setEditableTravelHours(updatedReportData.travel_hours);
+    setEditableWorkHours(updatedReportData.work_hours.toString().replace('.', ','));
+    setEditableTravelHours(updatedReportData.travel_hours.toString().replace('.', ','));
     setEditableCustomerNotes(updatedReportData.customer_notes || '');
     setShowNotesField(!!updatedReportData.customer_notes);
   }, [updatedReportData]);
@@ -298,8 +307,8 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
 
   // Detecta modifiche non salvate
   useEffect(() => {
-    const workHoursChanged = editableWorkHours !== updatedReportData.work_hours;
-    const travelHoursChanged = editableTravelHours !== updatedReportData.travel_hours;
+    const workHoursChanged = parseDecimalValue(editableWorkHours) !== updatedReportData.work_hours;
+    const travelHoursChanged = parseDecimalValue(editableTravelHours) !== updatedReportData.travel_hours;
     const notesChanged = editableCustomerNotes !== (updatedReportData.customer_notes || '');
     
     // Controlla se gli items sono stati modificati (solo se canDeleteReport è true)
@@ -828,9 +837,9 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       // Costruisci il payload aggiornato con i nuovi valori
       const payload = buildCompletePayload(updatedReportData.signature_url || '');
       
-      // Sovrascrivi con i valori modificati
-      payload.work_hours = editableWorkHours;
-      payload.travel_hours = editableTravelHours;
+      // Sovrascrivi con i valori modificati (converti stringhe con virgola in numeri)
+      payload.work_hours = parseDecimalValue(editableWorkHours);
+      payload.travel_hours = parseDecimalValue(editableTravelHours);
       payload.customer_notes = editableCustomerNotes;
 
       console.log('📤 Payload aggiornato:', payload);

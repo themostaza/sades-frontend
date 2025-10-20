@@ -4,19 +4,27 @@ import React from 'react';
 import { Clock, MessageCircle, AlertTriangle, Plus } from 'lucide-react';
 
 interface BasicInfoSectionProps {
-  editableWorkHours: number;
-  editableTravelHours: number;
+  editableWorkHours: string;
+  editableTravelHours: string;
   editableCustomerNotes: string;
   showNotesField: boolean;
   interventionId: number;
   isFailed: boolean;
   failureReason?: string;
   canEditBasicFields: boolean;
-  onWorkHoursChange: (hours: number) => void;
-  onTravelHoursChange: (hours: number) => void;
+  onWorkHoursChange: (hours: string) => void;
+  onTravelHoursChange: (hours: string) => void;
   onCustomerNotesChange: (notes: string) => void;
   onShowNotesField: () => void;
 }
+
+// Funzioni helper per gestire i campi decimali
+const normalizeDecimalInput = (value: string): string => {
+  // Sostituisci punto con virgola per mostrare sempre la virgola
+  // Permetti solo numeri, virgola e punto
+  const cleaned = value.replace(/[^0-9.,]/g, '');
+  return cleaned.replace('.', ',');
+};
 
 export default function BasicInfoSection({
   editableWorkHours,
@@ -44,13 +52,12 @@ export default function BasicInfoSection({
           </div>
           {canEditBasicFields ? (
             <input
-              type="number"
+              type="text"
               value={editableWorkHours}
-              onChange={(e) => onWorkHoursChange(parseFloat(e.target.value) || 0)}
+              onChange={(e) => onWorkHoursChange(normalizeDecimalInput(e.target.value))}
               onFocus={(e) => e.target.select()}
+              onClick={(e) => e.currentTarget.select()}
               inputMode="decimal"
-              min="0"
-              step="0.5"
               className="text-2xl font-bold text-gray-900 bg-white border-2 border-teal-200 rounded-lg px-3 py-1 w-full focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
             />
           ) : (
@@ -66,13 +73,12 @@ export default function BasicInfoSection({
           </div>
           {canEditBasicFields ? (
             <input
-              type="number"
+              type="text"
               value={editableTravelHours}
-              onChange={(e) => onTravelHoursChange(parseFloat(e.target.value) || 0)}
+              onChange={(e) => onTravelHoursChange(normalizeDecimalInput(e.target.value))}
               onFocus={(e) => e.target.select()}
+              onClick={(e) => e.currentTarget.select()}
               inputMode="decimal"
-              min="0"
-              step="0.5"
               className="text-2xl font-bold text-gray-900 bg-white border-2 border-orange-200 rounded-lg px-3 py-1 w-full focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
             />
           ) : (
