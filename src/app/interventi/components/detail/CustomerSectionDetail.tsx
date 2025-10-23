@@ -169,9 +169,10 @@ export default function CustomerSectionDetail({
     setIsSelecting(false);
     setSearchQuery(value);
     setRagioneSociale(value);
+    // Reset sempre il cliente selezionato quando l'utente modifica il testo
+    setSelectedCustomerForSearch(null);
 
     if (!value.trim()) {
-      setSelectedCustomerForSearch(null);
       setCodiceCliente('');
       setTelefonoFisso('');
       setNumeroCellulare('');
