@@ -177,7 +177,8 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
             description: articleData?.description || art.article_description || '',
             quantity: art.quantity
           },
-          quantity: art.quantity
+          quantity: art.quantity,
+          relationId: typeof art.id === 'string' ? parseInt(art.id) : art.id // ✅ Salva l'ID della relazione dal DB (convertito a numero)
         };
       });
 
@@ -652,7 +653,7 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
             file_url: file.url
           })),
           articles: item.selectedArticles.map(article => ({
-            id: 0, // L'API genererà un nuovo ID
+            id: article.relationId || 0, // ✅ Usa l'ID esistente se disponibile, 0 per nuovi articoli
             article_id: article.article.id,
             quantity: article.quantity
           }))

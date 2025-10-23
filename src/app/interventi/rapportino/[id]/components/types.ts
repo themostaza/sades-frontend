@@ -4,6 +4,7 @@ import type { ConnectedEquipment, ConnectedArticle } from '../../../../../types/
 export interface SelectedArticle {
   article: ConnectedArticle;
   quantity: number;
+  relationId?: number; // ID della relazione nel DB (undefined per nuovi articoli)
 }
 
 export interface AttachedFile {

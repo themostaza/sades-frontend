@@ -68,8 +68,8 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
   const { token } = useAuth();
   
   // Stati per ore di lavoro - ora sono string per gestire meglio punto/virgola
-  const [oreLavoro, setOreLavoro] = useState<string>('4');
-  const [oreViaggio, setOreViaggio] = useState<string>('2');
+  const [oreLavoro, setOreLavoro] = useState<string>('0');
+  const [oreViaggio, setOreViaggio] = useState<string>('0');
   
   // Stati per note intervento cliente
   const [noteCliente, setNoteCliente] = useState('');
