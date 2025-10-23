@@ -51,7 +51,7 @@ async function duplicateFailedInterventionBackend(
       // Campi che non copiamo (da programmare)
       quotation_price: 0,
       opening_hours: "",
-      internal_notes: `Intervento duplicato da #${interventionId} (rapportino failed)`,
+      internal_notes: `[Intervento duplicato da #${interventionId} (rapportino failed)]\n${originalIntervention.internal_notes || ''}`,
       status_id: 1, // Presumo che 1 sia "da programmare"
       
       // Equipments: estraggo solo gli ID
