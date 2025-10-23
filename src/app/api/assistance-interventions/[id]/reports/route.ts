@@ -39,7 +39,25 @@ async function duplicateFailedInterventionBackend(
     const originalIntervention = await getResponse.json();
     console.log('📋 Dati intervento originale per duplicazione:', originalIntervention.id);
 
-    // 2. Mappa i dati per la creazione del nuovo intervento
+    // 2. Estrai gli articoli con i loro magazzini di origine dai movements
+    const articlesWithWarehouses = originalIntervention.connected_articles?.map((art: ConnectedArticle) => {
+      const fromWarehouses = art.movements
+        ?.filter(m => String(m.to_warehouse_id) === 'CL' && m.from_warehouse_id)
+        .map(m => ({
+          warehouse_id: String(m.from_warehouse_id),
+          quantity: m.quantity || 0
+        })) || [];
+      
+      return {
+        article_id: String(art.id),
+        quantity: art.quantity || 1,
+        from_warehouses: fromWarehouses
+      };
+    }).filter((art: { article_id: string; quantity: number; from_warehouses: Array<{ warehouse_id: string; quantity: number }> }) => art.from_warehouses.length > 0) || [];
+
+    console.log('📦 Articoli da riassegnare:', articlesWithWarehouses.length);
+
+    // 3. Crea il nuovo intervento VUOTO (senza articoli)
     const newInterventionPayload = {
       customer_id: originalIntervention.customer_id,
       type_id: originalIntervention.type_id,
@@ -54,19 +72,15 @@ async function duplicateFailedInterventionBackend(
       internal_notes: `[Intervento duplicato da #${interventionId} (rapportino failed)]\n${originalIntervention.internal_notes || ''}`,
       status_id: 1, // Presumo che 1 sia "da programmare"
       
-      // Equipments: estraggo solo gli ID
+      // Equipments: estraggo solo gli ID (sono riferimenti, quindi ok duplicarli)
       equipments: originalIntervention.connected_equipment?.map((eq: Equipment) => eq.id) || [],
       
-      // Articles: mantengo la struttura { article_id, quantity }
-      articles: originalIntervention.connected_articles?.map((art: ConnectedArticle) => ({
-        article_id: art.id,
-        quantity: art.quantity || 1
-      })) || []
+      // Articles: VUOTO - verranno aggiunti dopo con PUT
+      articles: []
     };
 
-    console.log('📤 Payload nuovo intervento duplicato:', newInterventionPayload);
+    console.log('📤 Payload nuovo intervento duplicato (senza articoli):', newInterventionPayload);
 
-    // 3. Crea il nuovo intervento
     const postHeaders = {
       ...headers,
       'Content-Type': 'application/json',
@@ -84,11 +98,116 @@ async function duplicateFailedInterventionBackend(
     }
 
     const newIntervention = await postResponse.json();
-    console.log('✅ Nuovo intervento creato per rapportino failed:', newIntervention.id);
+    console.log('✅ Nuovo intervento creato (vuoto):', newIntervention.id);
+
+    // 4. AWAIT - Rimuovi articoli dall'intervento originale (tornano a magazzino)
+    if (articlesWithWarehouses.length > 0) {
+      console.log('🔄 Step 1/2: Rimozione articoli dall\'intervento originale...');
+      
+      const removeArticlesPayload = {
+        customer_id: originalIntervention.customer_id,
+        type_id: originalIntervention.type_id,
+        zone_id: originalIntervention.zone_id,
+        customer_location_id: originalIntervention.customer_location_id,
+        flg_home_service: originalIntervention.flg_home_service,
+        flg_discount_home_service: originalIntervention.flg_discount_home_service,
+        date: originalIntervention.date || null,
+        time_slot: originalIntervention.time_slot || null,
+        from_datetime: originalIntervention.from_datetime || null,
+        to_datetime: originalIntervention.to_datetime || null,
+        quotation_price: parseFloat(String(originalIntervention.quotation_price)) || 0,
+        opening_hours: originalIntervention.opening_hours || "",
+        assigned_to: originalIntervention.assigned_to || "",
+        call_code: originalIntervention.call_code || "",
+        internal_notes: originalIntervention.internal_notes || "",
+        status_id: originalIntervention.status_id,
+        equipments: originalIntervention.connected_equipment?.map((eq: Equipment) => eq.id) || [],
+        articles: [] // Rimuovi tutti gli articoli
+      };
+
+      const removeResponse = await fetch(`${BASE_URL}api/assistance-interventions/${interventionId}`, {
+        method: 'PUT',
+        headers: postHeaders,
+        body: JSON.stringify(removeArticlesPayload)
+      });
+
+      if (!removeResponse.ok) {
+        const errorText = await removeResponse.text();
+        throw new Error(`Errore nella rimozione articoli dall'intervento originale: ${errorText}`);
+      }
+
+      console.log('✅ Articoli rimossi dall\'intervento originale (tornati a magazzino)');
+
+      // 5. AWAIT - Aggiungi articoli al nuovo intervento (prelievo da magazzino)
+      console.log('🔄 Step 2/2: Assegnazione articoli al nuovo intervento...');
+
+      // Ricarica il nuovo intervento per avere tutti i dati aggiornati
+      const getNewResponse = await fetch(`${BASE_URL}api/assistance-interventions/${newIntervention.id}`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!getNewResponse.ok) {
+        const errorText = await getNewResponse.text();
+        throw new Error(`Errore nel recupero del nuovo intervento: ${errorText}`);
+      }
+
+      const newInterventionData = await getNewResponse.json();
+
+      const addArticlesPayload = {
+        customer_id: newInterventionData.customer_id,
+        type_id: newInterventionData.type_id,
+        zone_id: newInterventionData.zone_id,
+        customer_location_id: newInterventionData.customer_location_id,
+        flg_home_service: newInterventionData.flg_home_service,
+        flg_discount_home_service: newInterventionData.flg_discount_home_service,
+        date: newInterventionData.date || null,
+        time_slot: newInterventionData.time_slot || null,
+        from_datetime: newInterventionData.from_datetime || null,
+        to_datetime: newInterventionData.to_datetime || null,
+        quotation_price: parseFloat(String(newInterventionData.quotation_price)) || 0,
+        opening_hours: newInterventionData.opening_hours || "",
+        assigned_to: newInterventionData.assigned_to || "",
+        call_code: newInterventionData.call_code || "",
+        internal_notes: newInterventionData.internal_notes || "",
+        status_id: newInterventionData.status_id,
+        equipments: newInterventionData.connected_equipment?.map((eq: Equipment) => eq.id) || [],
+        articles: articlesWithWarehouses
+      };
+
+      const addResponse = await fetch(`${BASE_URL}api/assistance-interventions/${newIntervention.id}`, {
+        method: 'PUT',
+        headers: postHeaders,
+        body: JSON.stringify(addArticlesPayload)
+      });
+
+      if (!addResponse.ok) {
+        const errorText = await addResponse.text();
+        throw new Error(`Errore nell'assegnazione articoli al nuovo intervento: ${errorText}`);
+      }
+
+      console.log('✅ Articoli assegnati al nuovo intervento (prelevati da magazzino)');
+    } else {
+      console.log('ℹ️ Nessun articolo da riassegnare');
+    }
+
+    // 6. Ricarica il nuovo intervento con tutti gli articoli aggiornati
+    const getFinalResponse = await fetch(`${BASE_URL}api/assistance-interventions/${newIntervention.id}`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!getFinalResponse.ok) {
+      const errorText = await getFinalResponse.text();
+      throw new Error(`Errore nel recupero finale del nuovo intervento: ${errorText}`);
+    }
+
+    const finalNewIntervention = await getFinalResponse.json();
+    console.log('✅ Duplicazione completata con successo:', finalNewIntervention.id);
 
     return {
       success: true,
-      data: newIntervention
+      data: finalNewIntervention
     };
 
   } catch (error) {
