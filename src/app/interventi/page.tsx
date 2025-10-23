@@ -74,6 +74,9 @@ export default function InterventiPage() {
 
   // Stato per tracciare se abbiamo letto i parametri URL
   const [urlParamsRead, setUrlParamsRead] = useState(false);
+  
+  // Stato per tracciare se abbiamo già impostato i filtri di default
+  const [defaultFiltersSet, setDefaultFiltersSet] = useState(false);
 
   const auth = useAuth();
   const router = useRouter();
@@ -141,6 +144,17 @@ export default function InterventiPage() {
       fetchUserInfo();
     }
   }, [auth.token]);
+
+  // Effect per impostare i filtri di default per i tecnici
+  useEffect(() => {
+    if (userInfo && !defaultFiltersSet && !isAdmin()) {
+      // Solo per i tecnici: imposta filtro "in_carico" e data odierna
+      const today = new Date().toISOString().split('T')[0]; // formato YYYY-MM-DD
+      setSelectedStatus('in_carico');
+      setDateRange({ from: today, to: '' });
+      setDefaultFiltersSet(true);
+    }
+  }, [userInfo, defaultFiltersSet]);
 
   // Funzione per gestire il click su una riga della tabella
   const handleRowClick = (interventionId: number) => {
