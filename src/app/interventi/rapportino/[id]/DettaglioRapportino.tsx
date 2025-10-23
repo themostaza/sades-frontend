@@ -121,6 +121,7 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   const [articleById, setArticleById] = useState<Record<string, Article>>({});
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [interventionDetail, setInterventionDetail] = useState<AssistanceInterventionDetail | null>(null);
+  const [isFetchingDetails, setIsFetchingDetails] = useState(false);
 
   // Helper function per convertire string con virgola/punto in number
   const parseDecimalValue = (value: string): number => {
@@ -300,11 +301,12 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
 
   // Inizializza editableItems quando i dati del report sono pronti
   useEffect(() => {
-    if (updatedReportData.items && gasCompressorTypes.length > 0 && rechargeableGasTypes.length > 0) {
+    // Aspetta che il fetch dei dettagli sia completato prima di convertire
+    if (!isFetchingDetails && updatedReportData.items && gasCompressorTypes.length > 0 && rechargeableGasTypes.length > 0) {
       const converted = convertReportItemsToEditable(updatedReportData.items);
       setEditableItems(converted);
     }
-  }, [updatedReportData.items, equipmentById, articleById, gasCompressorTypes, rechargeableGasTypes]);
+  }, [updatedReportData.items, equipmentById, articleById, gasCompressorTypes, rechargeableGasTypes, isFetchingDetails]);
 
   // Detecta modifiche non salvate
   useEffect(() => {
@@ -389,25 +391,51 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
     const missingArticles = articleIds.filter(id => !articleById[id]);
 
     const fetchAll = async () => {
+      setIsFetchingDetails(true);
       try {
-        await Promise.all([
-          // equipments
-          ...missingEquipments.map(async (id) => {
-            const res = await fetch(`/api/equipments/${id}`, { headers });
-            if (!res.ok) return;
-            const data: EquipmentDetail = await res.json();
-            setEquipmentById(prev => ({ ...prev, [id]: data }));
-          }),
-          // articles
-          ...missingArticles.map(async (id) => {
-            const res = await fetch(`/api/articles/${encodeURIComponent(id)}`, { headers });
-            if (!res.ok) return;
-            const data: Article = await res.json();
-            setArticleById(prev => ({ ...prev, [id]: data }));
-          })
+        // Batch fetch: prima fetcha tutti gli equipments
+        const equipmentPromises = missingEquipments.map(async (id) => {
+          const res = await fetch(`/api/equipments/${id}`, { headers });
+          if (!res.ok) return null;
+          const data: EquipmentDetail = await res.json();
+          return { id, data };
+        });
+
+        // Poi fetcha tutti gli articles
+        const articlePromises = missingArticles.map(async (id) => {
+          const res = await fetch(`/api/articles/${encodeURIComponent(id)}`, { headers });
+          if (!res.ok) return null;
+          const data: Article = await res.json();
+          return { id, data };
+        });
+
+        // Aspetta che TUTTI i fetch siano completati
+        const [equipmentResults, articleResults] = await Promise.all([
+          Promise.all(equipmentPromises),
+          Promise.all(articlePromises)
         ]);
-      } catch {
+
+        // Aggiorna lo stato UNA VOLTA SOLA con tutti i dati
+        const newEquipments: Record<number, EquipmentDetail> = {};
+        equipmentResults.forEach(result => {
+          if (result) newEquipments[result.id] = result.data;
+        });
+        if (Object.keys(newEquipments).length > 0) {
+          setEquipmentById(prev => ({ ...prev, ...newEquipments }));
+        }
+
+        const newArticles: Record<string, Article> = {};
+        articleResults.forEach(result => {
+          if (result) newArticles[result.id] = result.data;
+        });
+        if (Object.keys(newArticles).length > 0) {
+          setArticleById(prev => ({ ...prev, ...newArticles }));
+        }
+      } catch (error) {
+        console.error('❌ Error fetching equipment/article details:', error);
         // best effort; in caso di errore si mostrano fallback
+      } finally {
+        setIsFetchingDetails(false);
       }
     };
 
@@ -810,13 +838,49 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       setShowSignatureDialog(false);
 
       setResultDialogType('success');
-      setResultDialogMessage('Firma salvata con successo!');
+      setResultDialogMessage('Firma o documento salvato con successo!');
       setShowResultDialog(true);
 
     } catch (error) {
       console.error('❌ Error saving signature:', error);
       setResultDialogType('error');
-      setResultDialogMessage(error instanceof Error ? error.message : 'Errore durante il salvataggio della firma.');
+      setResultDialogMessage(error instanceof Error ? error.message : 'Errore durante il salvataggio della firma o documento.');
+      setShowResultDialog(true);
+    } finally {
+      setIsSavingSignature(false);
+    }
+  };
+
+  // Funzione per gestire l'upload diretto di file (immagini o PDF)
+  const handleFileUpload = async (fileInfo: { cdnUrl: string; name: string; type: string }) => {
+    try {
+      setIsSavingSignature(true);
+      console.log('🔄 Saving uploaded file as signature:', fileInfo);
+
+      // 1. Costruisci payload completo con l'URL del file caricato
+      const payload = buildCompletePayload(fileInfo.cdnUrl);
+      console.log('📤 Updating intervention report with uploaded file...');
+
+      // 2. Chiama PUT per aggiornare il rapportino
+      await updateInterventionReport(payload);
+      console.log('✅ Report updated successfully');
+
+      // 3. Ricarica i dati freschi dal server
+      console.log('🔄 Reloading fresh data from server...');
+      const freshReportData = await reloadReportData();
+      console.log('✅ Fresh data loaded:', freshReportData);
+      
+      // 4. Aggiorna lo stato locale con i dati freschi
+      setUpdatedReportData(freshReportData);
+
+      setResultDialogType('success');
+      setResultDialogMessage('Documento caricato e salvato con successo!');
+      setShowResultDialog(true);
+
+    } catch (error) {
+      console.error('❌ Error saving uploaded file:', error);
+      setResultDialogType('error');
+      setResultDialogMessage(error instanceof Error ? error.message : 'Errore durante il salvataggio del documento.');
       setShowResultDialog(true);
     } finally {
       setIsSavingSignature(false);
@@ -1007,12 +1071,20 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
           onShowNotesField={() => setShowNotesField(true)}
         />
 
-        {/* Apparecchiature e interventi */}
+        {/* Apparecchiature e ricambi */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">Apparecchiature e Interventi</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">Apparecchiature e Ricambi</h2>
           
-          {/* Rendering condizionale: editabile se canDeleteReport() è true */}
-          {canDeleteReport() && editableItems.length >= 0 ? (
+          {/* Mostra spinner durante il caricamento dei dettagli */}
+          {isFetchingDetails ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="w-12 h-12 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+              <p className="text-gray-600 text-sm">Caricamento dati apparecchiature e ricambi...</p>
+            </div>
+          ) : (
+            <>
+              {/* Rendering condizionale: editabile se canDeleteReport() è true */}
+              {canDeleteReport() && editableItems.length >= 0 ? (
             /* VERSIONE EDITABILE */
             <div className="space-y-6">
               {editableItems.map((item, index) => (
@@ -1075,6 +1147,8 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
             <div className="text-center py-8 text-gray-500">Nessuna apparecchiatura registrata per questo rapportino</div>
             )
           )}
+            </>
+          )}
         </div>
 
         {/* Pulsanti azione */}
@@ -1093,7 +1167,7 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
               ) : (
                 <>
                   <PenTool size={16} />
-                  {updatedReportData.signature_url ? 'Modifica Firma' : 'Firma'}
+                  {updatedReportData.signature_url ? 'Modifica Firma o Documento' : 'Firma o importa documento'}
                 </>
               )}
             </button>
@@ -1166,6 +1240,7 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
         onClose={() => setShowSignatureDialog(false)}
         onClear={clearSignature}
         onSave={saveSignature}
+        onFileUpload={handleFileUpload}
       />
 
       {/* Dialog Conferma Eliminazione */}
