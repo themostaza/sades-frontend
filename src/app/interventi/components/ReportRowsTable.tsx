@@ -147,14 +147,11 @@ export default function ReportRowsTable({ interventionId }: ReportRowsTableProps
     );
   }
 
+  // Se non ci sono righe, non mostrare nulla
+  // (probabilmente il backend non ha ancora l'endpoint implementato
+  // o non ci sono ancora righe del rapporto generate)
   if (rows.length === 0) {
-    return (
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="text-center text-gray-500">
-          Nessuna riga trovata per questo rapporto
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (

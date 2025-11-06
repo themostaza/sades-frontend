@@ -8,8 +8,17 @@ import {
 const BASE_URL = config.BASE_URL;
 
 export async function GET(request: NextRequest) {
+  console.log('========================================');
+  console.log('🚀 [ASSISTANCE INTERVENTIONS API] Starting GET request');
+  console.log('========================================');
+  
   try {
+    const authHeader = request.headers.get('authorization');
     const { searchParams } = new URL(request.url);
+    
+    console.log('📝 [ASSISTANCE INTERVENTIONS API] Request URL:', request.url);
+    console.log('🔑 [ASSISTANCE INTERVENTIONS API] Auth header present:', !!authHeader);
+    
     const query = searchParams.get('query') || '';
     const page = searchParams.get('page') || '1';
     const skip = searchParams.get('skip') || '20';
@@ -22,9 +31,36 @@ export async function GET(request: NextRequest) {
     const statusId = searchParams.get('status_id') || '';
     const customerId = searchParams.get('customer_id') || '';
     const assignedToId = searchParams.get('assigned_to_id') || '';
-  const manualCheck = searchParams.get('manual_check') || '';
+    const manualCheck = searchParams.get('manual_check') || '';
     const sortBy = searchParams.get('sort_by') || '';
     const sortOrder = searchParams.get('sort_order') || '';
+
+    console.log('📋 [ASSISTANCE INTERVENTIONS API] Query params:', {
+      query,
+      page,
+      skip,
+      companyName,
+      assignedToName,
+      date,
+      fromDate,
+      toDate,
+      zoneId,
+      statusId,
+      customerId,
+      assignedToId,
+      manualCheck,
+      sortBy,
+      sortOrder
+    });
+
+    const headers: Record<string, string> = {
+      'accept': 'application/json',
+      'Content-Type': 'application/json',
+    };
+
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
 
     // Costruisco l'URL con i parametri
     const apiUrl = new URL(`${BASE_URL}api/assistance-interventions`);
@@ -70,46 +106,47 @@ export async function GET(request: NextRequest) {
     if (assignedToId) {
       apiUrl.searchParams.append('assigned_to_id', assignedToId);
     }
-  if (manualCheck) {
-    apiUrl.searchParams.append('manual_check', manualCheck);
-  }
+    
+    if (manualCheck) {
+      apiUrl.searchParams.append('manual_check', manualCheck);
+    }
+    
     if (sortBy) {
       apiUrl.searchParams.append('sort_by', sortBy);
     }
+    
     if (sortOrder) {
       apiUrl.searchParams.append('sort_order', sortOrder);
     }
 
-    console.log('🔄 Proxying assistance interventions request to:', apiUrl.toString());
-
-    const authHeader = request.headers.get('authorization');
-    const headers: Record<string, string> = {
-      'accept': '*/*',
-    };
-
-    if (authHeader) {
-      headers['Authorization'] = authHeader;
-    }
+    console.log('🔄 [ASSISTANCE INTERVENTIONS API] Calling backend:', apiUrl.toString());
 
     const response = await fetch(apiUrl.toString(), {
       method: 'GET',
       headers,
     });
 
-    console.log('📡 Backend response status:', response.status);
+    console.log('📡 [ASSISTANCE INTERVENTIONS API] Backend response status:', response.status);
+    console.log('📡 [ASSISTANCE INTERVENTIONS API] Backend response headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Backend error:', errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
+      console.error('❌ [ASSISTANCE INTERVENTIONS API] Backend error response:', errorText);
+      console.error('❌ [ASSISTANCE INTERVENTIONS API] Status:', response.status);
+      console.error('❌ [ASSISTANCE INTERVENTIONS API] Status text:', response.statusText);
+      
+      return NextResponse.json(
+        { error: 'Failed to fetch assistance interventions' },
+        { status: response.status }
+      );
     }
 
     const data: AssistanceInterventionsApiResponse = await response.json();
-    console.log('✅ Assistance interventions fetched successfully:', data.meta);
+    console.log('✅ [ASSISTANCE INTERVENTIONS API] Success - interventions fetched:', data.meta);
     
     return NextResponse.json(data);
   } catch (error) {
-    console.error('💥 Error fetching assistance interventions:', error);
+    console.error('💥 [ASSISTANCE INTERVENTIONS API] Proxy error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch assistance interventions' },
       { status: 500 }
@@ -119,12 +156,17 @@ export async function GET(request: NextRequest) {
 
 // POST - Create new assistance intervention
 export async function POST(request: NextRequest) {
+  console.log('========================================');
+  console.log('🚀 [ASSISTANCE INTERVENTIONS API] Starting POST request');
+  console.log('========================================');
+  
   try {
-    const body: CreateAssistanceInterventionRequest = await request.json();
     const authHeader = request.headers.get('authorization');
+    const body: CreateAssistanceInterventionRequest = await request.json();
     
-    console.log('🔄 Proxying assistance intervention creation to:', `${BASE_URL}api/assistance-interventions`);
-    console.log('📤 Request body:', body);
+    console.log('📝 [ASSISTANCE INTERVENTIONS API] Request URL:', `${BASE_URL}api/assistance-interventions`);
+    console.log('🔑 [ASSISTANCE INTERVENTIONS API] Auth header present:', !!authHeader);
+    console.log('📤 [ASSISTANCE INTERVENTIONS API] Request body:', body);
 
     const headers: Record<string, string> = {
       'accept': 'application/json',
@@ -136,7 +178,7 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = JSON.stringify(body);
-    console.log('📦 Serialized payload being sent:', payload);
+    console.log('📦 [ASSISTANCE INTERVENTIONS API] Serialized payload being sent:', payload);
 
     const response = await fetch(`${BASE_URL}api/assistance-interventions`, {
       method: 'POST',
@@ -144,11 +186,14 @@ export async function POST(request: NextRequest) {
       body: payload,
     });
 
-    console.log('📡 Backend response status:', response.status);
+    console.log('📡 [ASSISTANCE INTERVENTIONS API] Backend response status:', response.status);
+    console.log('📡 [ASSISTANCE INTERVENTIONS API] Backend response headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Backend error:', errorText);
+      console.error('❌ [ASSISTANCE INTERVENTIONS API] Backend error response:', errorText);
+      console.error('❌ [ASSISTANCE INTERVENTIONS API] Status:', response.status);
+      console.error('❌ [ASSISTANCE INTERVENTIONS API] Status text:', response.statusText);
       
       return NextResponse.json(
         { error: 'Failed to create assistance intervention' },
@@ -157,11 +202,11 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    console.log('✅ Assistance intervention created successfully:', data);
+    console.log('✅ [ASSISTANCE INTERVENTIONS API] Success - intervention created:', data);
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error('💥 Proxy error:', error);
+    console.error('💥 [ASSISTANCE INTERVENTIONS API] Proxy error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -302,9 +302,15 @@ export default function MovimentiView({ onMovementClick }: MovimentiViewProps) {
                           <Package className="w-4 h-4 text-gray-400 mr-2" />
                           <div>
                             <div className="font-medium">{movement.article_description}</div>
-                            {movement.pnc_code && (
-                              <div className="text-xs text-gray-500">{movement.pnc_code}</div>
-                            )}
+                            <div className="flex items-center gap-2 text-xs text-gray-600 mt-1">
+                              {movement.pnc_code && (
+                                <>
+                                  <span>PNC: {movement.pnc_code}</span>
+                                  <span>•</span>
+                                </>
+                              )}
+                              <span>ID: {movement.article_id}</span>
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -482,8 +488,17 @@ export default function MovimentiView({ onMovementClick }: MovimentiViewProps) {
                         <p className="mt-1 text-sm text-gray-900">{selectedMovement.pnc_code || '-'}</p>
                       </div>
                       <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700">Descrizione</label>
-                        <p className="mt-1 text-sm text-gray-900">{selectedMovement.article_description}</p>
+                        <label className="block text-sm font-medium text-gray-700">Articolo</label>
+                        <p className="mt-1 text-sm font-medium text-gray-900">{selectedMovement.article_description}</p>
+                        <div className="flex items-center gap-2 text-xs text-gray-600 mt-1">
+                          {selectedMovement.pnc_code && (
+                            <>
+                              <span>PNC: {selectedMovement.pnc_code}</span>
+                              <span>•</span>
+                            </>
+                          )}
+                          <span>ID: {selectedMovement.article_id}</span>
+                        </div>
                       </div>
                       {selectedMovement.article_full_description && selectedMovement.article_full_description !== selectedMovement.article_description && (
                         <div className="col-span-2">

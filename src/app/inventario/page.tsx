@@ -599,11 +599,15 @@ export default function InventarioPage() {
                     <td className="px-6 py-4 text-sm text-gray-900">
                       <div>
                         <div className="font-medium">{article.short_description}</div>
-                        {article.description && (
-                          <div className="text-gray-500 text-xs mt-1 max-w-xs truncate">
-                            {article.description}
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2 text-xs text-gray-600 mt-1">
+                          {article.pnc_code && (
+                            <>
+                              <span>PNC: {article.pnc_code}</span>
+                              <span>•</span>
+                            </>
+                          )}
+                          <span>ID: {article.id}</span>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -808,9 +812,18 @@ export default function InventarioPage() {
                 <h3 className="text-lg font-semibold text-gray-900">
                   Inventario per Magazzini
                 </h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  {selectedArticleForInventory.id} - {selectedArticleForInventory.short_description}
-                </p>
+                <div className="mt-1">
+                  <p className="text-sm font-medium text-gray-900">{selectedArticleForInventory.short_description}</p>
+                  <div className="flex items-center gap-2 text-xs text-gray-600 mt-1">
+                    {selectedArticleForInventory.pnc_code && (
+                      <>
+                        <span>PNC: {selectedArticleForInventory.pnc_code}</span>
+                        <span>•</span>
+                      </>
+                    )}
+                    <span>ID: {selectedArticleForInventory.id}</span>
+                  </div>
+                </div>
               </div>
               <button
                 onClick={handleCloseInventoryDialog}

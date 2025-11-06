@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, MapPin, Filter, User, Package, FileText } from 'lucide-react';
+import { Search, MapPin, Filter, User, Package, FileText, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { AssistanceIntervention, AssistanceInterventionsApiResponse } from '../../types/assistance-interventions';
+import { InterventionReportDetail } from '../../types/intervention-reports';
 import { getStatusColor, statusOptions, getStatusId, toStatusKey } from '../../utils/intervention-status';
 import DateRangePicker from '../../components/DateRangePicker';
 
@@ -64,6 +65,9 @@ export default function InterventionsView({ onInterventionClick }: Interventions
   const [loading, setLoading] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Stato per i rapportini
+  const [reportsData, setReportsData] = useState<Record<number, InterventionReportDetail>>({});
   
   const [meta, setMeta] = useState({
     total: 0,
@@ -194,6 +198,9 @@ export default function InterventionsView({ onInterventionClick }: Interventions
       
       setInterventionsData(data.data);
       setMeta(data.meta);
+      
+      // Fetch rapportini per gli interventi che li hanno
+      fetchReportsForInterventions(data.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       console.error('Error fetching interventions:', err);
@@ -201,6 +208,61 @@ export default function InterventionsView({ onInterventionClick }: Interventions
       setLoading(false);
       if (initialLoading) setInitialLoading(false);
     }
+  };
+
+  // Funzione per fetchare i rapportini degli interventi
+  const fetchReportsForInterventions = async (interventions: AssistanceIntervention[]) => {
+    if (!auth.token) return;
+
+    const interventionsWithReports = interventions.filter(i => i.report_id);
+    
+    if (interventionsWithReports.length === 0) return;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${auth.token}`,
+    };
+
+    // Imposta loading per tutti i report che stiamo per fetchare
+    const loadingState: Record<number, boolean> = {};
+    interventionsWithReports.forEach(i => {
+      if (i.report_id) loadingState[i.report_id] = true;
+    });
+
+    // Fetch in parallelo
+    const reportPromises = interventionsWithReports.map(async (intervention) => {
+      if (!intervention.report_id) return null;
+      
+      try {
+        const response = await fetch(`/api/intervention-reports/${intervention.report_id}`, { headers });
+        
+        if (!response.ok) {
+          console.error(`Failed to fetch report ${intervention.report_id}`);
+          return null;
+        }
+        
+        const reportData: InterventionReportDetail = await response.json();
+        return { reportId: intervention.report_id, data: reportData };
+      } catch (error) {
+        console.error(`Error fetching report ${intervention.report_id}:`, error);
+        return null;
+      }
+    });
+
+    const results = await Promise.all(reportPromises);
+    
+    // Aggiorna lo stato con i rapportini fetchati
+    const newReportsData: Record<number, InterventionReportDetail> = {};
+    const newLoadingState: Record<number, boolean> = {};
+    
+    results.forEach(result => {
+      if (result) {
+        newReportsData[result.reportId] = result.data;
+        newLoadingState[result.reportId] = false;
+      }
+    });
+    
+    setReportsData(prev => ({ ...prev, ...newReportsData }));
   };
 
   const handleSearch = (value: string) => {
@@ -547,82 +609,345 @@ export default function InterventionsView({ onInterventionClick }: Interventions
                       </td>
                     </tr>
                     
-                    {/* Seconda riga: equipment e articoli */}
+                    {/* Seconda riga: equipment e articoli - confronto pianificato vs effettivo */}
                     <tr className="bg-gray-25">
                       <td colSpan={8} className="px-3 sm:px-6 py-3 border-t-0">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
-                          {/* Equipment */}
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <Package className="text-blue-600" size={14} />
-                              <span className="font-medium text-gray-700">
-                                Equipment ({intervention.equipment_count || 0})
-                              </span>
-                            </div>
-                            {intervention.connected_equipment && intervention.connected_equipment.length > 0 ? (
-                              <div className="space-y-2">
-                                {intervention.connected_equipment.map((equipment, index) => (
-                                  <div key={index} className="bg-blue-50 rounded p-2 border border-blue-100">
-                                    <div className="font-medium text-blue-900">
-                                      {equipment.model} (ID: {equipment.id})
-                                    </div>
-                                    <div className="text-blue-700 mt-1">
-                                      {equipment.description}
-                                    </div>
-                                    {equipment.serial_number && (
-                                      <div className="text-blue-600 mt-1 text-xs">
-                                        S/N: {equipment.serial_number}
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
+                        {intervention.report_id && reportsData[intervention.report_id] ? (
+                          // Mostra confronto se esiste rapportino
+                          <div className="space-y-6">
+                            {/* Header con legenda */}
+                            <div className="flex items-center justify-between bg-gradient-to-r from-teal-50 to-blue-50 p-3 rounded-lg border border-teal-200">
+                              <div className="flex items-center gap-2">
+                                <AlertCircle className="text-teal-600" size={16} />
+                                <span className="font-semibold text-teal-900 text-sm">Confronto: Pianificato vs Utilizzato</span>
                               </div>
-                            ) : (
-                              <div className="text-gray-500 italic">Nessun equipment collegato</div>
-                            )}
-                          </div>
-                          
-                          {/* Articoli/Pezzi di ricambio */}
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <Package className="text-green-600" size={14} />
-                              <span className="font-medium text-gray-700">
-                                Pezzi di ricambio ({intervention.articles_count || 0})
-                              </span>
-                            </div>
-                            {intervention.connected_articles && intervention.connected_articles.length > 0 ? (
-                              <div className="space-y-2">
-                                {intervention.connected_articles.map((article, index) => (
-                                  <div key={index} className="bg-green-50 rounded p-2 border border-green-100">
-                                    <div className="flex items-center justify-between">
-                                      <div className="font-medium text-green-900">
-                                        {article.id}
-                                      </div>
-                                      <div className="bg-green-600 text-white px-2 py-0.5 rounded text-xs font-medium">
-                                        Qtà: {article.quantity}
-                                      </div>
-                                    </div>
-                                    <div className="text-green-700 mt-1">
-                                      {article.short_description}
-                                    </div>
-                                    {article.description && (
-                                      <div className="text-green-600 mt-1 text-xs">
-                                        {article.description}
-                                      </div>
-                                    )}
-                                    {article.pnc_code && (
-                                      <div className="text-green-600 mt-1 text-xs">
-                                        PNC: {article.pnc_code}
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
+                              <div className="flex items-center gap-3 text-xs">
+                                <div className="flex items-center gap-1">
+                                  <CheckCircle2 size={14} className="text-green-600" />
+                                  <span className="text-gray-700">Corrispondente</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <AlertTriangle size={14} className="text-amber-600" />
+                                  <span className="text-gray-700">Differenze</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <AlertCircle size={14} className="text-red-600" />
+                                  <span className="text-gray-700">Mancante</span>
+                                </div>
                               </div>
-                            ) : (
-                              <div className="text-gray-500 italic">Nessun pezzo di ricambio utilizzato</div>
-                            )}
+                            </div>
+                            
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+                              {/* EQUIPMENT */}
+                              <div className="space-y-3">
+                                {/* Pianificato */}
+                                <div>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Package className="text-blue-600" size={14} />
+                                    <span className="font-semibold text-blue-900 uppercase tracking-wide">
+                                      Equipment Pianificato ({intervention.equipment_count || 0})
+                                    </span>
+                                  </div>
+                                  {intervention.connected_equipment && intervention.connected_equipment.length > 0 ? (
+                                    <div className="space-y-2">
+                                      {intervention.connected_equipment.map((equipment, index) => {
+                                        const usedInReport = reportsData[intervention.report_id!].items.some(
+                                          item => item.equipment_id === equipment.id
+                                        );
+                                        return (
+                                          <div key={index} className={`rounded p-2 border ${
+                                            usedInReport 
+                                              ? 'bg-green-50 border-green-300' 
+                                              : 'bg-red-50 border-red-300'
+                                          }`}>
+                                            <div className="flex items-start justify-between">
+                                              <div className="flex-1">
+                                                <div className="font-medium text-gray-900">
+                                                  {equipment.model} (ID: {equipment.id})
+                                                </div>
+                                                <div className="text-gray-700 mt-1">
+                                                  {equipment.description}
+                                                </div>
+                                                {equipment.serial_number && (
+                                                  <div className="text-gray-600 mt-1 text-xs">
+                                                    S/N: {equipment.serial_number}
+                                                  </div>
+                                                )}
+                                              </div>
+                                              {usedInReport ? (
+                                                <CheckCircle2 size={16} className="text-green-600 flex-shrink-0 ml-2" />
+                                              ) : (
+                                                <AlertCircle size={16} className="text-red-600 flex-shrink-0 ml-2" />
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <div className="text-gray-500 italic bg-gray-50 rounded p-2">Nessun equipment pianificato</div>
+                                  )}
+                                </div>
+                                
+                                {/* Utilizzato */}
+                                <div>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <FileText className="text-teal-600" size={14} />
+                                    <span className="font-semibold text-teal-900 uppercase tracking-wide">
+                                      Equipment Utilizzato ({reportsData[intervention.report_id!].items.length || 0})
+                                    </span>
+                                  </div>
+                                  {reportsData[intervention.report_id!].items.length > 0 ? (
+                                    <div className="space-y-2">
+                                      {reportsData[intervention.report_id!].items.map((item, index) => {
+                                        const wasPlanned = intervention.connected_equipment?.some(
+                                          eq => eq.id === item.equipment_id
+                                        );
+                                        return (
+                                          <div key={index} className={`rounded p-2 border ${
+                                            wasPlanned 
+                                              ? 'bg-green-50 border-green-300' 
+                                              : 'bg-amber-50 border-amber-300'
+                                          }`}>
+                                            <div className="flex items-start justify-between">
+                                              <div className="flex-1">
+                                                <div className="font-medium text-gray-900">
+                                                  Equipment ID: {item.equipment_id}
+                                                </div>
+                                                {item.note && (
+                                                  <div className="text-gray-600 mt-1 text-xs">
+                                                    Note: {item.note}
+                                                  </div>
+                                                )}
+                                              </div>
+                                              {wasPlanned ? (
+                                                <CheckCircle2 size={16} className="text-green-600 flex-shrink-0 ml-2" />
+                                              ) : (
+                                                <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 ml-2" />
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <div className="text-gray-500 italic bg-gray-50 rounded p-2">Nessun equipment nel rapportino</div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* ARTICOLI */}
+                              <div className="space-y-3">
+                                {/* Pianificato */}
+                                <div>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Package className="text-green-600" size={14} />
+                                    <span className="font-semibold text-green-900 uppercase tracking-wide">
+                                      Articoli Pianificati ({intervention.articles_count || 0})
+                                    </span>
+                                  </div>
+                                  {intervention.connected_articles && intervention.connected_articles.length > 0 ? (
+                                    <div className="space-y-2">
+                                      {intervention.connected_articles.map((article, index) => {
+                                        const usedArticles = reportsData[intervention.report_id!].items.flatMap(
+                                          item => item.articles || []
+                                        );
+                                        const usedInReport = usedArticles.find(a => a.article_id === article.id);
+                                        const qtyMatch = usedInReport && usedInReport.quantity === article.quantity;
+                                        
+                                        return (
+                                          <div key={index} className={`rounded p-2 border ${
+                                            usedInReport && qtyMatch
+                                              ? 'bg-green-50 border-green-300'
+                                              : usedInReport
+                                              ? 'bg-amber-50 border-amber-300'
+                                              : 'bg-red-50 border-red-300'
+                                          }`}>
+                                            <div className="flex items-start justify-between">
+                                              <div className="flex-1">
+                                                <div className="flex items-center justify-between">
+                                                  <div className="font-medium text-gray-900">
+                                                    {article.id}
+                                                  </div>
+                                                  <div className="bg-gray-700 text-white px-2 py-0.5 rounded text-xs font-medium">
+                                                    Qtà: {article.quantity}
+                                                    {usedInReport && !qtyMatch && (
+                                                      <span className="ml-1 text-amber-300">→ {usedInReport.quantity}</span>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                                <div className="text-gray-700 mt-1">
+                                                  {article.short_description}
+                                                </div>
+                                                {article.pnc_code && (
+                                                  <div className="text-gray-600 mt-1 text-xs">
+                                                    PNC: {article.pnc_code}
+                                                  </div>
+                                                )}
+                                              </div>
+                                              {usedInReport && qtyMatch ? (
+                                                <CheckCircle2 size={16} className="text-green-600 flex-shrink-0 ml-2" />
+                                              ) : usedInReport ? (
+                                                <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 ml-2" />
+                                              ) : (
+                                                <AlertCircle size={16} className="text-red-600 flex-shrink-0 ml-2" />
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <div className="text-gray-500 italic bg-gray-50 rounded p-2">Nessun articolo pianificato</div>
+                                  )}
+                                </div>
+                                
+                                {/* Utilizzato */}
+                                <div>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <FileText className="text-teal-600" size={14} />
+                                    <span className="font-semibold text-teal-900 uppercase tracking-wide">
+                                      Articoli Utilizzati (
+                                      {reportsData[intervention.report_id!].items.reduce(
+                                        (total, item) => total + (item.articles?.length || 0), 0
+                                      )})
+                                    </span>
+                                  </div>
+                                  {(() => {
+                                    const allUsedArticles = reportsData[intervention.report_id!].items.flatMap(
+                                      item => item.articles || []
+                                    );
+                                    return allUsedArticles.length > 0 ? (
+                                      <div className="space-y-2">
+                                        {allUsedArticles.map((article, index) => {
+                                          const wasPlanned = intervention.connected_articles?.find(
+                                            a => a.id === article.article_id
+                                          );
+                                          const qtyMatch = wasPlanned && wasPlanned.quantity === article.quantity;
+                                          
+                                          return (
+                                            <div key={index} className={`rounded p-2 border ${
+                                              wasPlanned && qtyMatch
+                                                ? 'bg-green-50 border-green-300'
+                                                : wasPlanned
+                                                ? 'bg-amber-50 border-amber-300'
+                                                : 'bg-amber-50 border-amber-300'
+                                            }`}>
+                                              <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                  <div className="flex items-center justify-between">
+                                                    <div className="font-medium text-gray-900">
+                                                      {article.article_id}
+                                                    </div>
+                                                    <div className="bg-teal-700 text-white px-2 py-0.5 rounded text-xs font-medium">
+                                                      Qtà: {article.quantity}
+                                                      {wasPlanned && !qtyMatch && (
+                                                        <span className="ml-1 text-amber-300">(era {wasPlanned.quantity})</span>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                  {article.article_name && (
+                                                    <div className="text-gray-700 mt-1">
+                                                      {article.article_name}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                {wasPlanned && qtyMatch ? (
+                                                  <CheckCircle2 size={16} className="text-green-600 flex-shrink-0 ml-2" />
+                                                ) : wasPlanned ? (
+                                                  <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 ml-2" />
+                                                ) : (
+                                                  <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 ml-2" />
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : (
+                                      <div className="text-gray-500 italic bg-gray-50 rounded p-2">Nessun articolo nel rapportino</div>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          // Vista normale senza rapportino
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+                            {/* Equipment */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <Package className="text-blue-600" size={14} />
+                                <span className="font-medium text-gray-700">
+                                  Equipment ({intervention.equipment_count || 0})
+                                </span>
+                              </div>
+                              {intervention.connected_equipment && intervention.connected_equipment.length > 0 ? (
+                                <div className="space-y-2">
+                                  {intervention.connected_equipment.map((equipment, index) => (
+                                    <div key={index} className="bg-blue-50 rounded p-2 border border-blue-100">
+                                      <div className="font-medium text-blue-900">
+                                        {equipment.model} (ID: {equipment.id})
+                                      </div>
+                                      <div className="text-blue-700 mt-1">
+                                        {equipment.description}
+                                      </div>
+                                      {equipment.serial_number && (
+                                        <div className="text-blue-600 mt-1 text-xs">
+                                          S/N: {equipment.serial_number}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-gray-500 italic">Nessun equipment collegato</div>
+                              )}
+                            </div>
+                            
+                            {/* Articoli/Pezzi di ricambio */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <Package className="text-green-600" size={14} />
+                                <span className="font-medium text-gray-700">
+                                  Pezzi di ricambio ({intervention.articles_count || 0})
+                                </span>
+                              </div>
+                              {intervention.connected_articles && intervention.connected_articles.length > 0 ? (
+                                <div className="space-y-2">
+                                  {intervention.connected_articles.map((article, index) => (
+                                    <div key={index} className="bg-green-50 rounded p-2 border border-green-100">
+                                      <div className="flex items-center justify-between">
+                                        <div className="font-medium text-green-900">
+                                          {article.id}
+                                        </div>
+                                        <div className="bg-green-600 text-white px-2 py-0.5 rounded text-xs font-medium">
+                                          Qtà: {article.quantity}
+                                        </div>
+                                      </div>
+                                      <div className="text-green-700 mt-1">
+                                        {article.short_description}
+                                      </div>
+                                      {article.description && (
+                                        <div className="text-green-600 mt-1 text-xs">
+                                          {article.description}
+                                        </div>
+                                      )}
+                                      {article.pnc_code && (
+                                        <div className="text-green-600 mt-1 text-xs">
+                                          PNC: {article.pnc_code}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-gray-500 italic">Nessun pezzo di ricambio utilizzato</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   </React.Fragment>

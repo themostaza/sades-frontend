@@ -30,6 +30,11 @@ interface ActivityGroup {
   totalActivities: number;
   pendingActivities: number;
   report_id?: number;
+  // Dati intervento per migliore leggibilità
+  customer_name?: string;
+  date?: string;
+  internal_notes?: string;
+  report_created_at?: string; // Data completamento (creazione rapportino)
 }
 
 interface Warehouse {
@@ -167,6 +172,9 @@ export default function ActivitiesView() {
         .filter(group => group.pendingActivities > 0)
         .sort((a, b) => b.assistance_intervention_id - a.assistance_intervention_id);
 
+      // Fetch dettagli interventi per ogni gruppo
+      await fetchInterventionDetails(filteredGroups);
+
       setActivityGroups(filteredGroups);
       console.log('📊 Activity groups created:', filteredGroups);
 
@@ -174,6 +182,53 @@ export default function ActivitiesView() {
       console.error('Error fetching inventory activities:', error);
       throw error;
     }
+  };
+
+  const fetchInterventionDetails = async (groups: ActivityGroup[]) => {
+    if (!auth.token || groups.length === 0) return;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${auth.token}`,
+    };
+
+    // Fetch dettagli in parallelo
+    const detailsPromises = groups.map(async (group) => {
+      try {
+        // Fetch intervento
+        const response = await fetch(`/api/assistance-interventions/${group.assistance_intervention_id}`, { headers });
+        
+        if (!response.ok) {
+          console.error(`Failed to fetch intervention ${group.assistance_intervention_id}`);
+          return;
+        }
+        
+        const interventionData = await response.json();
+        
+        // Popola i dati del gruppo
+        group.customer_name = interventionData.company_name;
+        group.date = interventionData.date;
+        group.internal_notes = interventionData.internal_notes;
+        
+        // Se esiste un rapportino, fetch anche quello per la data di completamento
+        if (group.report_id) {
+          try {
+            const reportResponse = await fetch(`/api/intervention-reports/${group.report_id}`, { headers });
+            if (reportResponse.ok) {
+              const reportData = await reportResponse.json();
+              group.report_created_at = reportData.created_at;
+            }
+          } catch (error) {
+            console.error(`Error fetching report ${group.report_id}:`, error);
+          }
+        }
+        
+      } catch (error) {
+        console.error(`Error fetching intervention ${group.assistance_intervention_id}:`, error);
+      }
+    });
+
+    await Promise.all(detailsPromises);
   };
 
   const handleOpenActivities = (group: ActivityGroup) => {
@@ -453,6 +508,7 @@ export default function ActivitiesView() {
 
   const getQuantityStatus = (activity: InventoryActivity): { 
     status: 'PARI' | 'ECCESSO' | 'USO_PARZIALE' | 'VERIFICA'; 
+    statusLabel: string;
     description: string; 
     article?: Article;
   } => {
@@ -468,19 +524,22 @@ export default function ActivitiesView() {
         if (reportQty === interventionQty) {
           return {
             status: 'PARI',
-            description: `Le quantità sono uguali tra report e intervento`,
+            statusLabel: '✓ Quantità Allineate',
+            description: `Le quantità utilizzate e pianificate coincidono`,
             article
           };
         } else if (reportQty > interventionQty) {
           return {
             status: 'ECCESSO',
-            description: `La quantità del report è superiore a quella dell'intervento`,
+            statusLabel: '↑ Eccesso Utilizzato',
+            description: `Utilizzati più pezzi di quanto pianificato`,
             article
           };
         } else {
           return {
             status: 'USO_PARZIALE',
-            description: `La quantità del report è inferiore a quella dell'intervento`,
+            statusLabel: '↓ Uso Parziale',
+            description: `Utilizzati meno pezzi di quanto pianificato`,
             article
           };
         }
@@ -490,6 +549,7 @@ export default function ActivitiesView() {
     // Default per verifiche e controlli senza dati specifici
     return {
       status: 'VERIFICA',
+      statusLabel: '⚠ Verifica Necessaria',
       description: 'Verifica da completare per determinare la situazione'
     };
   };
@@ -563,64 +623,75 @@ export default function ActivitiesView() {
               >
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex-1">
+                    {/* Header con nome cliente e badge */}
                     <div className="flex items-center gap-3 mb-2">
-                      <Activity className="text-blue-600" size={20} />
-                      <span className="font-medium text-gray-900">
-                        Intervento #{group.assistance_intervention_id}
-                      </span>
-                      <div className={`px-2 py-1 rounded text-xs font-medium border ${getStatusBadgeColor(group.pendingActivities, group.totalActivities)}`}>
-                        {group.pendingActivities} di {group.totalActivities} da completare
+                      <Activity className="text-teal-600" size={20} />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-gray-900 text-base">
+                            {group.customer_name || `INT-${group.assistance_intervention_id}`}
+                          </span>
+                          <div className={`px-2 py-1 rounded text-xs font-medium border ${getStatusBadgeColor(group.pendingActivities, group.totalActivities)}`}>
+                            {group.pendingActivities === 1 ? '1 anomalia' : `${group.pendingActivities} anomalie`}
+                          </div>
+                        </div>
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
-                      {group.report_id && (
-                        <div className="flex items-center gap-2">
-                          <FileText size={14} />
-                          <span>Report #{group.report_id}</span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(`/interventi/rapportino/${group.report_id}`, '_blank');
-                            }}
-                            className="text-blue-600 hover:text-blue-800 p-1"
-                            title="Apri rapportino in nuova tab"
-                          >
-                            <ExternalLink size={12} />
-                          </button>
+                    {/* Riga con date e rapportino */}
+                    <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap mb-1">
+                      {group.date && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-gray-500 text-xs">Intervento:</span>
+                          <span className="font-medium">
+                            {new Date(group.date).toLocaleDateString('it-IT', { 
+                              day: '2-digit', 
+                              month: '2-digit', 
+                              year: 'numeric' 
+                            })}
+                          </span>
                         </div>
                       )}
-                      <div className="flex items-center gap-2">
-                        <Package size={14} />
-                        <span>Intervento #{group.assistance_intervention_id}</span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.open(`/interventi?ai=${group.assistance_intervention_id}`, '_blank');
-                          }}
-                          className="text-blue-600 hover:text-blue-800 p-1"
-                          title="Apri intervento in nuova tab"
-                        >
-                          <ExternalLink size={12} />
-                        </button>
-                      </div>
+                      {group.report_created_at && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-gray-500 text-xs">Completato:</span>
+                          <span className="font-medium text-teal-700">
+                            {new Date(group.report_created_at).toLocaleDateString('it-IT', { 
+                              day: '2-digit', 
+                              month: '2-digit', 
+                              year: 'numeric' 
+                            })}
+                          </span>
+                        </div>
+                      )}
+                      {group.report_id && (
+                        <div className="flex items-center gap-1">
+                          <FileText size={12} className="text-teal-600" />
+                          <span className="text-teal-700 font-medium">RAP-{group.report_id}</span>
+                        </div>
+                      )}
+                      <span className="text-gray-400">•</span>
+                      <span className="text-xs text-gray-500">ID: {group.assistance_intervention_id}</span>
                     </div>
 
-                    <div className="text-xs text-gray-500">
-                      Attività di inventario in sospeso per questo intervento
-                    </div>
+                    {/* Note interne su nuova linea - complete */}
+                    {group.internal_notes && (
+                      <div className="text-sm text-gray-700 bg-gray-50 px-3 py-2 rounded border-l-2 border-teal-400">
+                        {group.internal_notes}
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col gap-2 flex-shrink-0">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenActivities(group);
-                      }}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                    >
-                      <Check size={16} />
-                      Esegui
-                    </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenActivities(group);
+                        }}
+                        className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                      >
+                        <Check size={16} />
+                        Esegui
+                      </button>
                   </div>
                 </div>
               </div>
@@ -660,40 +731,71 @@ export default function ActivitiesView() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full h-[95vh] overflow-hidden flex flex-col">
             {/* Header */}
-            <div className="bg-blue-50 border-b border-blue-200 px-6 py-4">
+            <div className="bg-teal-50 border-b border-teal-200 px-6 py-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Activity className="text-blue-600" size={24} />
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      Attività Inventario - Intervento #{selectedGroup.assistance_intervention_id}
+                <div className="flex items-center gap-3 flex-1">
+                  <Activity className="text-teal-600" size={24} />
+                  <div className="flex-1">
+                    <h2 className="text-xl font-bold text-gray-900 mb-2">
+                      {selectedGroup.customer_name || `INT-${selectedGroup.assistance_intervention_id}`}
                     </h2>
-                    <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
-                      {selectedGroup.report_id && (
+                    
+                    <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap mb-2">
+                      {selectedGroup.date && (
                         <div className="flex items-center gap-1">
-                          <FileText size={14} />
-                          <span>Report #{selectedGroup.report_id}</span>
+                          <span className="text-gray-500 text-xs">Intervento:</span>
+                          <span className="font-medium">
+                            {new Date(selectedGroup.date).toLocaleDateString('it-IT', { 
+                              day: '2-digit', 
+                              month: '2-digit', 
+                              year: 'numeric' 
+                            })}
+                          </span>
+                        </div>
+                      )}
+                      {selectedGroup.report_created_at && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-gray-500 text-xs">Completato:</span>
+                          <span className="font-medium text-teal-700">
+                            {new Date(selectedGroup.report_created_at).toLocaleDateString('it-IT', { 
+                              day: '2-digit', 
+                              month: '2-digit', 
+                              year: 'numeric' 
+                            })}
+                          </span>
+                        </div>
+                      )}
+                      {selectedGroup.report_id && (
+                        <div className="flex items-center gap-2 bg-white px-2 py-1 rounded">
+                          <FileText size={14} className="text-teal-600" />
+                          <span className="font-medium">RAP-{selectedGroup.report_id}</span>
                           <button
                             onClick={() => window.open(`/interventi/rapportino/${selectedGroup.report_id}`, '_blank')}
-                            className="text-blue-600 hover:text-blue-800 ml-1"
+                            className="text-teal-600 hover:text-teal-800"
                             title="Apri rapportino"
                           >
                             <ExternalLink size={12} />
                           </button>
                         </div>
                       )}
-                      <div className="flex items-center gap-1">
-                        <Package size={14} />
-                        <span>Intervento #{selectedGroup.assistance_intervention_id}</span>
-                        <button
-                          onClick={() => window.open(`/interventi?ai=${selectedGroup.assistance_intervention_id}`, '_blank')}
-                          className="text-blue-600 hover:text-blue-800 ml-1"
-                          title="Apri intervento"
-                        >
-                          <ExternalLink size={12} />
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => window.open(`/interventi?ai=${selectedGroup.assistance_intervention_id}`, '_blank')}
+                        className="flex items-center gap-2 bg-white px-2 py-1 rounded hover:bg-gray-50 transition-colors"
+                        title="Apri intervento"
+                      >
+                        <Package size={14} className="text-teal-600" />
+                        <span className="font-medium">Vedi Intervento</span>
+                        <ExternalLink size={12} className="text-teal-600" />
+                      </button>
+                      <span className="text-xs text-gray-500">ID: {selectedGroup.assistance_intervention_id}</span>
                     </div>
+
+                    {/* Note interne - complete */}
+                    {selectedGroup.internal_notes && (
+                      <div className="text-sm text-gray-700 bg-white px-3 py-2 rounded border-l-2 border-teal-400">
+                        {selectedGroup.internal_notes}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <button
@@ -733,7 +835,7 @@ export default function ActivitiesView() {
                                   {activity.status === 'done' ? 'Completata' : 'Da completare'}
                                 </div>
                                 <span className="font-medium text-gray-900">
-                                  {quantityStatus.status}
+                                  {quantityStatus.statusLabel}
                                 </span>
                               </div>
                               
@@ -743,12 +845,20 @@ export default function ActivitiesView() {
                                 return data && data.report_quantity !== undefined && data.intervention_quantity !== undefined && (
                                   <div className="grid grid-cols-2 gap-4 mb-3">
                                     <div className="bg-white p-3 rounded border">
-                                      <div className="text-xs text-gray-500 mb-1">Quantità Report</div>
-                                      <div className="text-2xl font-bold text-gray-900">{data.report_quantity}</div>
+                                      <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                                        <FileText size={12} />
+                                        Quantità Utilizzata
+                                      </div>
+                                      <div className="text-2xl font-bold text-teal-900">{data.report_quantity}</div>
+                                      <div className="text-xs text-gray-500 mt-1">nel rapportino</div>
                                     </div>
                                     <div className="bg-white p-3 rounded border">
-                                      <div className="text-xs text-gray-500 mb-1">Quantità Intervento</div>
-                                      <div className="text-2xl font-bold text-gray-900">{data.intervention_quantity}</div>
+                                      <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                                        <Package size={12} />
+                                        Quantità Pianificata
+                                      </div>
+                                      <div className="text-2xl font-bold text-blue-900">{data.intervention_quantity}</div>
+                                      <div className="text-xs text-gray-500 mt-1">nell&apos;intervento</div>
                                     </div>
                                   </div>
                                 );
@@ -766,7 +876,7 @@ export default function ActivitiesView() {
                                     </h4>
                                     <button
                                       onClick={() => addWarehouseAllocation(activity.id)}
-                                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
+                                      className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
                                     >
                                       + Aggiungi Magazzino
                                     </button>
@@ -892,14 +1002,16 @@ export default function ActivitiesView() {
                                 return quantityStatus.article && data?.article_id && (
                                   <div className="">
                                     <div className="text-sm text-gray-700">
-                                      <div className="font-medium mb-1">{quantityStatus.article.id}</div>
-                                      <div className="text-xs text-gray-600 mb-1">{quantityStatus.article.short_description}</div>
-                                      {quantityStatus.article.description && (
-                                        <div className="text-xs text-gray-600 mb-1">{quantityStatus.article.description}</div>
-                                      )}
-                                      {quantityStatus.article.pnc_code && (
-                                        <div className="text-xs text-gray-500">PNC: {quantityStatus.article.pnc_code}</div>
-                                      )}
+                                      <div className="font-medium text-gray-900 mb-1">{quantityStatus.article.short_description}</div>
+                                      <div className="flex items-center gap-2 text-xs text-gray-600">
+                                        {quantityStatus.article.pnc_code && (
+                                          <>
+                                            <span>PNC: {quantityStatus.article.pnc_code}</span>
+                                            <span>•</span>
+                                          </>
+                                        )}
+                                        <span>ID: {quantityStatus.article.id}</span>
+                                      </div>
                                     </div>
                                   </div>
                                 );
@@ -976,7 +1088,7 @@ export default function ActivitiesView() {
                                   {!isEditing ? (
                                     <button
                                       onClick={() => handleStartEdit(activity.id)}
-                                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                      className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                                     >
                                       
                                       Gestisci
