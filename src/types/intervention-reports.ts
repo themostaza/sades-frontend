@@ -95,4 +95,25 @@ export interface InterventionReportArticleDetail {
   quantity: number;
   article_name?: string;
   article_description?: string;
+}
+
+// Types for Report Rows (for invoicing table)
+export interface ReportRow {
+  id: number;
+  report_id: number;
+  intervention_type_id: number;
+  article_code: string;
+  article_description: string;
+  quantity: number;
+  created_at: string;
+}
+
+export interface UpdateReportRowRequest {
+  intervention_type_id: number;
+}
+
+export interface InterventionType {
+  id: number;
+  label: string;
+  description?: string;
 } 

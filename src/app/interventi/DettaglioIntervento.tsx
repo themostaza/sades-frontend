@@ -7,6 +7,7 @@ import CustomerSectionDetail from './components/detail/CustomerSectionDetail';
 import InterventionDetailsSectionDetail from './components/detail/InterventionDetailsSectionDetail';
 import CallDetailsSectionDetail from './components/detail/CallDetailsSectionDetail';
 import InterventionStatusAndActions from './components/InterventionStatusAndActions';
+import ReportRowsTable from './components/ReportRowsTable';
 import { Equipment } from '../../types/equipment';
 import { ArticleListItem } from '../../types/article';
 import { AssistanceInterventionDetail, UpdateAssistanceInterventionRequest } from '../../types/assistance-interventions';
@@ -1214,6 +1215,13 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
           onConfirmReport={confermaRapporto}
           onSendToInvoicing={mandaInFatturazione}
         />
+
+        {/* Tabella righe rapporto per fatturazione - visibile solo per admin quando è abilitato "manda in fatturazione" */}
+        {selectedStatus === 'completato' && isAdmin() && existingReport && (
+          <div className="mt-6">
+            <ReportRowsTable interventionId={interventionId} />
+          </div>
+        )}
 
         {/* Form sections */}
         <div className="space-y-8 mt-4">

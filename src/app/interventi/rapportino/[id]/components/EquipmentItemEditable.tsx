@@ -116,6 +116,7 @@ export default function EquipmentItemEditable({
                   <div className="flex-1">
                     <span className="text-gray-900 font-medium">{selectedArticle.article.short_description}</span>
                     <div className="text-sm text-gray-600">{selectedArticle.article.description}</div>
+                    <div className="text-xs text-gray-500 mt-1">PNC: {selectedArticle.article.pnc_code || 'N/A'} | ID: {selectedArticle.article.id}</div>
                   </div>
                   <div className="flex items-center gap-3 ml-3">
                     <div className="flex items-center gap-2">

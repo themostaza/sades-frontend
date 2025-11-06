@@ -1103,12 +1103,13 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                       const currentTotal = equipmentItems.reduce((sum, it) => sum + (it.selectedArticles.find(sa => sa.article.id === selectedArticle.article.id)?.quantity || 0), 0);
                       const diff = Math.max(0, currentTotal - planned);
                       return (
-                        <div key={selectedArticle.article.id} className="flex items-center justify-between bg-teal-50 border border-teal-200 p-3 rounded-lg">
-                          <div className="flex-1">
-                            <span className="text-gray-900 font-medium">{selectedArticle.article.short_description}</span>
-                            <div className="text-sm text-gray-600">{selectedArticle.article.description}</div>
-                          </div>
-                          <div className="flex items-center gap-3 ml-3">
+                <div key={selectedArticle.article.id} className="flex items-center justify-between bg-teal-50 border border-teal-200 p-3 rounded-lg">
+                  <div className="flex-1">
+                    <span className="text-gray-900 font-medium">{selectedArticle.article.short_description}</span>
+                    <div className="text-sm text-gray-600">{selectedArticle.article.description}</div>
+                    <div className="text-xs text-gray-500 mt-1">PNC: {selectedArticle.article.pnc_code || 'N/A'} | ID: {selectedArticle.article.id}</div>
+                  </div>
+                  <div className="flex items-center gap-3 ml-3">
                             <div className="flex items-center gap-2">
                               <label className="text-sm text-gray-600">Qt:</label>
                               <input
