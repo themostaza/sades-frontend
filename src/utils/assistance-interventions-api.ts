@@ -38,6 +38,9 @@ const buildQueryString = (params: AssistanceInterventionsQueryParams): string =>
   return searchParams.toString();
 };
 
+// Re-export della funzione helper per compatibilità
+export { getHomeServiceByType } from './intervention-helpers';
+
 // API Functions
 
 /**

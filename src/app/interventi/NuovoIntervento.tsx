@@ -5,6 +5,7 @@ import { ArrowLeft, Check, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import CustomerSectionDetail from './components/detail/CustomerSectionDetail';
 import { CreateAssistanceInterventionRequest } from '../../types/assistance-interventions';
+import { getHomeServiceByType } from '../../utils/assistance-interventions-api';
 import { useRouter } from 'next/navigation';
 
 interface NuovoInterventoProps {
@@ -36,6 +37,8 @@ export default function NuovoIntervento({ isOpen, onClose }: NuovoInterventoProp
   // Stati per servizio domicilio e sconto
   const [servizioDomicilio, setServizioDomicilio] = useState('No');
   const [scontoServizioDomicilio, setScontoServizioDomicilio] = useState(false);
+  // Flag per tracciare se l'utente ha modificato manualmente il servizio domicilio
+  const [isHomeServiceManuallyModified, setIsHomeServiceManuallyModified] = useState(false);
   
   // Stati per la validazione e il caricamento
   const [customerLocationsLoaded, setCustomerLocationsLoaded] = useState(false);
@@ -52,17 +55,22 @@ export default function NuovoIntervento({ isOpen, onClose }: NuovoInterventoProp
   
   const getStatusId = () => 1; // Sempre 'da_assegnare' per nuovi interventi
 
+  // Funzione wrapper per modifiche manuali del servizio domicilio
+  const handleServizioDomicilioChange = (value: string) => {
+    setServizioDomicilio(value);
+    setIsHomeServiceManuallyModified(true);
+  };
+
   // Logica automatica per servizio domicilio in base a tipologia intervento
+  // Si applica SOLO se l'utente non ha modificato manualmente il servizio domicilio
   useEffect(() => {
-    if (tipologiaIntervento === '12' || tipologiaIntervento === '4') {
-      setServizioDomicilio('Si');
-      setScontoServizioDomicilio(false);
-    } else if (tipologiaIntervento) {
-      setServizioDomicilio('No');
+    if (tipologiaIntervento && !isHomeServiceManuallyModified) {
+      const shouldHaveHomeService = getHomeServiceByType(tipologiaIntervento);
+      setServizioDomicilio(shouldHaveHomeService ? 'Si' : 'No');
       setScontoServizioDomicilio(false);
     }
     // Se tipologiaIntervento è vuoto, non forzare nulla
-  }, [tipologiaIntervento]);
+  }, [tipologiaIntervento, isHomeServiceManuallyModified]);
 
   const createInterventionAndRedirect = async () => {
     if (!isFormValid()) {
@@ -140,6 +148,9 @@ export default function NuovoIntervento({ isOpen, onClose }: NuovoInterventoProp
     setNumeroCellulare('');
     setCustomerLocationsLoaded(false);
     setHasCustomerLocations(false);
+    setServizioDomicilio('No');
+    setScontoServizioDomicilio(false);
+    setIsHomeServiceManuallyModified(false);
   };
 
   const closeDialog = () => setDialog({ ...dialog, isOpen: false });

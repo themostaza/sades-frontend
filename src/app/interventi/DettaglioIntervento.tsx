@@ -11,7 +11,7 @@ import ReportRowsTable from './components/ReportRowsTable';
 import { Equipment } from '../../types/equipment';
 import { ArticleListItem } from '../../types/article';
 import { AssistanceInterventionDetail, UpdateAssistanceInterventionRequest } from '../../types/assistance-interventions';
-import { fetchAssistanceInterventionDetail, updateAssistanceIntervention, downloadAssistanceInterventionPDF, downloadPDFFile } from '../../utils/assistance-interventions-api';
+import { fetchAssistanceInterventionDetail, updateAssistanceIntervention, downloadAssistanceInterventionPDF, downloadPDFFile, getHomeServiceByType } from '../../utils/assistance-interventions-api';
 import CreaRapportino from './CreaRapportino';
 import CancelInterventionButton from './components/small_components/CancelInterventionButton';
 import { getStatusId, toStatusKey } from '../../utils/intervention-status';
@@ -94,6 +94,8 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   // Stato per servizio domicilio
   const [servizioDomicilio, setServizioDomicilio] = useState('Si');
   const [scontoServizioDomicilio, setScontoServizioDomicilio] = useState(false);
+  // Flag per tracciare se l'utente ha modificato manualmente il servizio domicilio
+  const [isHomeServiceManuallyModified, setIsHomeServiceManuallyModified] = useState(false);
   // Stato per preventivo
   const [preventivo, setPreventivo] = useState(0);
   // Campi auto-compilati dal cliente selezionato
@@ -302,6 +304,8 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       setDestinazione(data.customer_location_id || '');
       setServizioDomicilio(data.flg_home_service ? 'Si' : 'No');
       setScontoServizioDomicilio(data.flg_discount_home_service);
+      // Reset del flag quando carichiamo i dati iniziali (non è una modifica manuale)
+      setIsHomeServiceManuallyModified(false);
       setPreventivo(parseFloat(String(data.quotation_price)) || 0);
       setOrarioApertura(data.opening_hours || '');
       setNoteInterne(data.internal_notes || '');
@@ -847,17 +851,22 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     }
   };
 
+  // Funzione wrapper per modifiche manuali del servizio domicilio
+  const handleServizioDomicilioChange = (value: string) => {
+    setServizioDomicilio(value);
+    setIsHomeServiceManuallyModified(true);
+  };
+
   // Logica automatica per servizio domicilio in base a tipologia intervento
+  // Si applica SOLO se l'utente non ha modificato manualmente il servizio domicilio
   useEffect(() => {
-    if (tipologiaIntervento === '12' || tipologiaIntervento === '4') {
-      setServizioDomicilio('No');
-      setScontoServizioDomicilio(false);
-    } else if (tipologiaIntervento) {
-      setServizioDomicilio('Si');
+    if (tipologiaIntervento && !isHomeServiceManuallyModified) {
+      const shouldHaveHomeService = getHomeServiceByType(tipologiaIntervento);
+      setServizioDomicilio(shouldHaveHomeService ? 'Si' : 'No');
       setScontoServizioDomicilio(false);
     }
     // Se tipologiaIntervento è vuoto, non forzare nulla
-  }, [tipologiaIntervento]);
+  }, [tipologiaIntervento, isHomeServiceManuallyModified]);
 
   // Effect per impostare existingReport basandosi sui dati dal payload
   useEffect(() => {
@@ -1261,7 +1270,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
             oraFine={oraFine}
             setOraFine={setOraFine}
             servizioDomicilio={servizioDomicilio}
-            setServizioDomicilio={setServizioDomicilio}
+            setServizioDomicilio={handleServizioDomicilioChange}
             scontoServizioDomicilio={scontoServizioDomicilio}
             setScontoServizioDomicilio={setScontoServizioDomicilio}
             preventivo={preventivo}
