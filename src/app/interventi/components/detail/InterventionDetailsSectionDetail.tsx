@@ -233,9 +233,7 @@ export default function InterventionDetailsSectionDetail({
       for (const invRow of inv) {
         const warehouseId = String(invRow.warehouse_id ?? invRow.warehouse ?? '');
         if (warehouseId === 'CL') continue; // Escludi CL
-        const stock = typeof invRow.quantity_stock === 'number'
-          ? invRow.quantity_stock
-          : (typeof (invRow ).in_stock === 'number' ? (invRow ).in_stock : 0);
+        const stock = getStockValue(invRow as ArticleInventory);
         const description = String(invRow.warehouse_description ?? invRow.warehouse ?? '');
         invMap.set(warehouseId, { stock: Math.max(0, stock || 0), description });
       }
