@@ -6,9 +6,10 @@ import { ReportRow, InterventionType, UpdateReportRowRequest } from '../../../ty
 
 interface ReportRowsTableProps {
   interventionId: number;
+  status: string;
 }
 
-export default function ReportRowsTable({ interventionId }: ReportRowsTableProps) {
+export default function ReportRowsTable({ interventionId, status }: ReportRowsTableProps) {
   const { token } = useAuth();
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [interventionTypes, setInterventionTypes] = useState<InterventionType[]>([]);
@@ -161,7 +162,9 @@ export default function ReportRowsTable({ interventionId }: ReportRowsTableProps
           Righe Rapporto per Fatturazione
         </h3>
         <p className="text-sm text-gray-600 mt-1">
-          Modifica la tipologia intervento per ogni riga prima di inviare in fatturazione
+          {status === 'fatturato' 
+            ? 'Intervento già fatturato. Le tipologie intervento non possono essere modificate.'
+            : 'Modifica la tipologia intervento per ogni riga prima di inviare in fatturazione'}
         </p>
       </div>
       
@@ -206,8 +209,8 @@ export default function ReportRowsTable({ interventionId }: ReportRowsTableProps
                     <select
                       value={row.intervention_type_id}
                       onChange={(e) => handleInterventionTypeChange(row.id, parseInt(e.target.value))}
-                      disabled={updatingRowId === row.id}
-                      className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      disabled={updatingRowId === row.id || status === 'fatturato'}
+                      className="block w-full px-3 py-2 text-sm text-gray-700 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     >
                       {interventionTypes.map((type) => (
                         <option key={type.id} value={type.id}>
@@ -226,12 +229,6 @@ export default function ReportRowsTable({ interventionId }: ReportRowsTableProps
             ))}
           </tbody>
         </table>
-      </div>
-      
-      <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
-        <p className="text-xs text-gray-500">
-          Totale righe: {rows.length}
-        </p>
       </div>
     </div>
   );

@@ -1217,9 +1217,9 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         />
 
         {/* Tabella righe rapporto per fatturazione - visibile solo per admin quando è abilitato "manda in fatturazione" */}
-        {selectedStatus === 'completato' && isAdmin() && existingReport && (
+        {(selectedStatus === 'completato' || selectedStatus === 'fatturato') && isAdmin() && existingReport && (
           <div className="mt-6">
-            <ReportRowsTable interventionId={interventionId} />
+            <ReportRowsTable interventionId={interventionId} status={selectedStatus} />
           </div>
         )}
 

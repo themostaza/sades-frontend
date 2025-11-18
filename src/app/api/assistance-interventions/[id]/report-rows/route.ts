@@ -15,7 +15,6 @@ export async function GET(
 
     const headers: Record<string, string> = {
       'accept': 'application/json',
-      'Content-Type': 'application/json',
     };
 
     if (authHeader) {
@@ -40,7 +39,7 @@ export async function GET(
     }
 
     const data = await response.json();
-    console.log('✅ Report rows fetched:', data?.length || 0, 'rows');
+    console.log('✅ Report rows fetched successfully:', data);
 
     return NextResponse.json(data);
   } catch (error) {
