@@ -115,6 +115,7 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   interface RechargeableGasType { id: number; name: string }
   const [gasCompressorTypes, setGasCompressorTypes] = useState<GasCompressorType[]>([]);
   const [rechargeableGasTypes, setRechargeableGasTypes] = useState<RechargeableGasType[]>([]);
+  const [isLoadingTypes, setIsLoadingTypes] = useState(true); // Stato per tracciare caricamento tipi
 
   // Lookup cache per dettagli apparecchiature e articoli
   const [equipmentById, setEquipmentById] = useState<Record<number, EquipmentDetail>>({});
@@ -256,8 +257,12 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   // Carica mapping tipi gas/compressori per visualizzare i nomi
   useEffect(() => {
     const loadTypes = async () => {
-      if (!token) return;
+      if (!token) {
+        setIsLoadingTypes(false);
+        return;
+      }
       
+      setIsLoadingTypes(true);
       try {
         const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
         const [gcRes, rgRes] = await Promise.all([
@@ -275,7 +280,7 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       } catch {
         // best effort: mantieni ID se fallisce
       } finally {
-        
+        setIsLoadingTypes(false);
       }
     };
     loadTypes();
@@ -301,12 +306,13 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
 
   // Inizializza editableItems quando i dati del report sono pronti
   useEffect(() => {
-    // Aspetta che il fetch dei dettagli sia completato prima di convertire
-    if (!isFetchingDetails && updatedReportData.items && gasCompressorTypes.length > 0 && rechargeableGasTypes.length > 0) {
+    // Aspetta che tutti i fetch siano completati prima di convertire
+    // Non richiediamo più che i tipi abbiano length > 0, basta che il caricamento sia finito
+    if (!isFetchingDetails && !isLoadingTypes && updatedReportData.items) {
       const converted = convertReportItemsToEditable(updatedReportData.items);
       setEditableItems(converted);
     }
-  }, [updatedReportData.items, equipmentById, articleById, gasCompressorTypes, rechargeableGasTypes, isFetchingDetails]);
+  }, [updatedReportData.items, equipmentById, articleById, gasCompressorTypes, rechargeableGasTypes, isFetchingDetails, isLoadingTypes]);
 
   // Detecta modifiche non salvate
   useEffect(() => {
@@ -1075,8 +1081,8 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-6">Apparecchiature e Ricambi</h2>
           
-          {/* Mostra spinner durante il caricamento dei dettagli */}
-          {isFetchingDetails ? (
+          {/* Mostra spinner durante il caricamento dei dettagli o dei tipi */}
+          {isFetchingDetails || isLoadingTypes ? (
             <div className="flex flex-col items-center justify-center py-12">
               <div className="w-12 h-12 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mb-4"></div>
               <p className="text-gray-600 text-sm">Caricamento dati apparecchiature e ricambi...</p>
@@ -1084,7 +1090,7 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
           ) : (
             <>
               {/* Rendering condizionale: editabile se canDeleteReport() è true */}
-              {canDeleteReport() && editableItems.length >= 0 ? (
+              {canDeleteReport() ? (
             /* VERSIONE EDITABILE */
             <div className="space-y-6">
               {editableItems.map((item, index) => (
