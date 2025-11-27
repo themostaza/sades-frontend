@@ -40,6 +40,21 @@ export interface EditableEquipmentItem {
   images: AttachedFile[];
 }
 
+// Tipi per gas e compressori (dalla API)
+export interface GasCompressorType {
+  id: number;
+  label: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface RechargeableGasType {
+  id: number;
+  label: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // Re-export dei tipi necessari per comodità
 export type { ConnectedEquipment, ConnectedArticle };
 

@@ -19,7 +19,7 @@ import {
   ResultDialog,
   Lightbox
 } from './components';
-import type { EditableEquipmentItem, SelectedArticle, AttachedFile } from './components/types';
+import type { EditableEquipmentItem, SelectedArticle, AttachedFile, GasCompressorType, RechargeableGasType } from './components/types';
 
 // Interfaccia per il tipo SignatureCanvas (per gestione stato locale)
 interface SignatureCanvasRef {
@@ -110,9 +110,7 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   const [isSearchingArticles, setIsSearchingArticles] = useState<{ [itemId: string]: boolean }>({});
   const [showArticleSelectorDialogs, setShowArticleSelectorDialogs] = useState<{ [itemId: string]: boolean }>({});
 
-  // Tipi per mapping id -> name
-  interface GasCompressorType { id: number; name: string }
-  interface RechargeableGasType { id: number; name: string }
+  // Stati per tipi gas/compressori
   const [gasCompressorTypes, setGasCompressorTypes] = useState<GasCompressorType[]>([]);
   const [rechargeableGasTypes, setRechargeableGasTypes] = useState<RechargeableGasType[]>([]);
   const [isLoadingTypes, setIsLoadingTypes] = useState(true); // Stato per tracciare caricamento tipi
@@ -227,16 +225,16 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
     });
   };
 
-  // Helper per mappare nome compressore/gas al suo ID
-  const getGasCompressorTypeId = (typeName: string): number => {
-    if (!gasCompressorTypes || gasCompressorTypes.length === 0 || !typeName) return 0;
-    const type = gasCompressorTypes.find(t => t && t.name && t.name.toLowerCase() === typeName.toLowerCase());
+  // Helper per mappare label compressore/gas al suo ID
+  const getGasCompressorTypeId = (typeLabel: string): number => {
+    if (!gasCompressorTypes || gasCompressorTypes.length === 0 || !typeLabel) return 0;
+    const type = gasCompressorTypes.find(t => t && t.label && t.label.toLowerCase() === typeLabel.toLowerCase());
     return type ? type.id : 0;
   };
 
-  const getRechargeableGasTypeId = (gasName: string): number => {
-    if (!rechargeableGasTypes || rechargeableGasTypes.length === 0 || !gasName) return 0;
-    const type = rechargeableGasTypes.find(t => t && t.name && t.name.toLowerCase() === gasName.toLowerCase());
+  const getRechargeableGasTypeId = (gasLabel: string): number => {
+    if (!rechargeableGasTypes || rechargeableGasTypes.length === 0 || !gasLabel) return 0;
+    const type = rechargeableGasTypes.find(t => t && t.label && t.label.toLowerCase() === gasLabel.toLowerCase());
     return type ? type.id : 0;
   };
 
@@ -288,12 +286,12 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
 
   const getCompressorTypeName = (id?: number) => {
     if (!id) return '';
-    return gasCompressorTypes.find(t => t.id === id)?.name || `ID: ${id}`;
+    return gasCompressorTypes.find(t => t.id === id)?.label || `ID: ${id}`;
   };
 
   const getRechargeableGasTypeName = (id?: number) => {
     if (!id) return '';
-    return rechargeableGasTypes.find(t => t.id === id)?.name || `ID: ${id}`;
+    return rechargeableGasTypes.find(t => t.id === id)?.label || `ID: ${id}`;
   };
 
   // Sincronizza gli stati editabili quando updatedReportData cambia
@@ -1121,6 +1119,8 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
                   lightboxUrl={lightboxUrl}
                   setLightboxUrl={setLightboxUrl}
                   allItems={editableItems}
+                  gasCompressorTypes={gasCompressorTypes}
+                  rechargeableGasTypes={rechargeableGasTypes}
                 />
               ))}
               

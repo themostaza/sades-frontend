@@ -4,7 +4,7 @@ import React from 'react';
 import { X, Search, Eye, Download, Trash2 } from 'lucide-react';
 import Image from 'next/image';
 import S3ImageUploader from '@/components/S3ImageUploader';
-import type { EditableEquipmentItem } from './types';
+import type { EditableEquipmentItem, GasCompressorType, RechargeableGasType } from './types';
 
 interface EquipmentItemEditableProps {
   item: EditableEquipmentItem;
@@ -26,6 +26,8 @@ interface EquipmentItemEditableProps {
   lightboxUrl: string | null;
   setLightboxUrl: (url: string | null) => void;
   allItems: EditableEquipmentItem[];
+  gasCompressorTypes: GasCompressorType[];
+  rechargeableGasTypes: RechargeableGasType[];
 }
 
 export default function EquipmentItemEditable({
@@ -46,7 +48,9 @@ export default function EquipmentItemEditable({
   shouldShowRecuperoGasFields,
   getTextColorClass,
   setLightboxUrl,
-  allItems
+  allItems,
+  gasCompressorTypes,
+  rechargeableGasTypes
 }: EquipmentItemEditableProps) {
   return (
     <div className="border border-gray-200 rounded-lg p-6 bg-gray-50">
@@ -201,8 +205,9 @@ export default function EquipmentItemEditable({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
                 >
                   <option value="">Seleziona tipologia</option>
-                  <option value="ermetico">Ermetico</option>
-                  <option value="semiermetico">Semiermetico</option>
+                  {gasCompressorTypes.map(type => (
+                    <option key={type.id} value={type.label} className="text-gray-700">{type.label}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -232,14 +237,9 @@ export default function EquipmentItemEditable({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
                 >
                   <option value="">Seleziona gas</option>
-                  <option value="R404A">R404A</option>
-                  <option value="R134A">R134A</option>
-                  <option value="R422A">R422A (BASSA) vedi R427A</option>
-                  <option value="R422D">R422D (ALTA)</option>
-                  <option value="R452A">R452A</option>
-                  <option value="R437A">R437A</option>
-                  <option value="R290">R290</option>
-                  <option value="R427A">R427A</option>
+                  {rechargeableGasTypes.map(type => (
+                    <option key={type.id} value={type.label} className="text-gray-700">{type.label}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -349,14 +349,9 @@ export default function EquipmentItemEditable({
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
                   >
                     <option value="">Seleziona gas</option>
-                    <option value="R404A">R404A</option>
-                    <option value="R134A">R134A</option>
-                    <option value="R422A">R422A (BASSA) vedi R427A</option>
-                    <option value="R422D">R422D (ALTA)</option>
-                    <option value="R452A">R452A</option>
-                    <option value="R437A">R437A</option>
-                    <option value="R290">R290</option>
-                    <option value="R427A">R427A</option>
+                    {rechargeableGasTypes.map(type => (
+                      <option key={type.id} value={type.label} className="text-gray-700">{type.label}</option>
+                    ))}
                   </select>
                 </div>
                 <div>

@@ -54,14 +54,16 @@ interface AttachedFile {
 
 interface GasCompressorType {
   id: number;
-  name: string;
-  description?: string;
+  label: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface RechargeableGasType {
   id: number;
-  name: string;
-  description?: string;
+  label: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export default function CreaRapportino({ isOpen, onClose, interventionData }: CreaRapportinoProps) {
@@ -179,16 +181,20 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
 
       if (gasCompressorResponse.ok) {
         const gasCompressorData = await gasCompressorResponse.json();
-        setGasCompressorTypes(gasCompressorData);
+        console.log('✅ Tipi compressore caricati:', gasCompressorData);
+        setGasCompressorTypes(Array.isArray(gasCompressorData) ? gasCompressorData : []);
       } else {
-        console.error('Errore nel caricamento dei tipi di compressore');
+        const errorText = await gasCompressorResponse.text().catch(() => '');
+        console.error('❌ Errore nel caricamento dei tipi di compressore:', gasCompressorResponse.status, errorText);
       }
 
       if (rechargeableGasResponse.ok) {
         const rechargeableGasData = await rechargeableGasResponse.json();
-        setRechargeableGasTypes(rechargeableGasData);
+        console.log('✅ Tipi gas ricaricabile caricati:', rechargeableGasData);
+        setRechargeableGasTypes(Array.isArray(rechargeableGasData) ? rechargeableGasData : []);
       } else {
-        console.error('Errore nel caricamento dei tipi di gas ricaricabile');
+        const errorText = await rechargeableGasResponse.text().catch(() => '');
+        console.error('❌ Errore nel caricamento dei tipi di gas ricaricabile:', rechargeableGasResponse.status, errorText);
       }
     } catch (error) {
       console.error('Errore nel caricamento dei dati:', error);
@@ -225,28 +231,28 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
     }
   };
 
-  // Helper function per mappare il nome del compressore al suo ID
-  const getGasCompressorTypeId = (typeName: string): number => {
+  // Helper function per mappare il label del compressore al suo ID
+  const getGasCompressorTypeId = (typeLabel: string): number => {
     // Controlli di sicurezza
-    if (!gasCompressorTypes || gasCompressorTypes.length === 0 || !typeName) {
+    if (!gasCompressorTypes || gasCompressorTypes.length === 0 || !typeLabel) {
       return 0;
     }
     
     const type = gasCompressorTypes.find(t => 
-      t && t.name && t.name.toLowerCase() === typeName.toLowerCase()
+      t && t.label && t.label.toLowerCase() === typeLabel.toLowerCase()
     );
     return type ? type.id : 0;
   };
 
-  // Helper function per mappare il nome del gas al suo ID
-  const getRechargeableGasTypeId = (gasName: string): number => {
+  // Helper function per mappare il label del gas al suo ID
+  const getRechargeableGasTypeId = (gasLabel: string): number => {
     // Controlli di sicurezza
-    if (!rechargeableGasTypes || rechargeableGasTypes.length === 0 || !gasName) {
+    if (!rechargeableGasTypes || rechargeableGasTypes.length === 0 || !gasLabel) {
       return 0;
     }
     
     const type = rechargeableGasTypes.find(t => 
-      t && t.name && t.name.toLowerCase() === gasName.toLowerCase()
+      t && t.label && t.label.toLowerCase() === gasLabel.toLowerCase()
     );
     return type ? type.id : 0;
   };
@@ -1192,8 +1198,9 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
                         >
                           <option value="">Seleziona tipologia</option>
-                          <option value="ermetico">Ermetico</option>
-                          <option value="semiermetico">Semiermetico</option>
+                          {gasCompressorTypes.map(type => (
+                            <option key={type.id} value={type.label} className="text-gray-700">{type.label}</option>
+                          ))}
                         </select>
                       </div>
                       <div>
@@ -1223,14 +1230,9 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
                         >
                           <option value="">Seleziona gas</option>
-                          <option value="R404A">R404A</option>
-                          <option value="R134A">R134A</option>
-                          <option value="R422A">R422A (BASSA) vedi R427A</option>
-                          <option value="R422D">R422D (ALTA)</option>
-                          <option value="R452A">R452A</option>
-                          <option value="R437A">R437A</option>
-                          <option value="R290">R290</option>
-                          <option value="R427A">R427A</option>
+                          {rechargeableGasTypes.map(type => (
+                            <option key={type.id} value={type.label} className="text-gray-700">{type.label}</option>
+                          ))}
                         </select>
                       </div>
                       <div>
@@ -1343,14 +1345,9 @@ export default function CreaRapportino({ isOpen, onClose, interventionData }: Cr
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
                           >
                             <option value="">Seleziona gas</option>
-                            <option value="R404A">R404A</option>
-                            <option value="R134A">R134A</option>
-                            <option value="R422A">R422A (BASSA) vedi R427A</option>
-                            <option value="R422D">R422D (ALTA)</option>
-                            <option value="R452A">R452A</option>
-                            <option value="R437A">R437A</option>
-                            <option value="R290">R290</option>
-                            <option value="R427A">R427A</option>
+                            {rechargeableGasTypes.map(type => (
+                              <option key={type.id} value={type.label} className="text-gray-700">{type.label}</option>
+                            ))}
                           </select>
                         </div>
                         <div>
