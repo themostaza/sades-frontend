@@ -581,7 +581,10 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                       )}
                       <td className="px-3 sm:px-6 py-4 text-sm text-gray-900 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
                         <div>
-                          <div className="font-medium break-words">{intervention.company_name}</div>
+                          <div className="font-medium break-words">
+                            {intervention.company_name}
+                            <span className="text-gray-600 font-normal"> ({intervention.customer_client_code || 'N/A'})</span>
+                          </div>
                           <div className="text-xs text-gray-500">#{intervention.call_code} ({intervention.id})</div>
                           <div className="text-xs text-gray-600 mt-1 break-words">{intervention.location_label}</div>
                         </div>

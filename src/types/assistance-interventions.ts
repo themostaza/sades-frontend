@@ -47,6 +47,7 @@ export interface AssistanceIntervention {
   invoiced_by: string | null;
   invoiced_at: string | null;
   company_name: string;
+  customer_client_code: string;
   assigned_to_name: string;
   assigned_to_surname: string | null;
   approved_by_name: string | null;
