@@ -187,7 +187,7 @@ export default function ReportRowsTable({ interventionId, status }: ReportRowsTa
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {rows.map((row) => (
+            {[...rows].sort((a, b) => a.id - b.id).map((row) => (
               <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">

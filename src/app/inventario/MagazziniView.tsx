@@ -59,6 +59,7 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showExWarehouses, setShowExWarehouses] = useState(false);
   // Gamma sync lock: disable carico/scarico from minute 59 to minute 5 of each hour
   const [isGammaSyncLock, setIsGammaSyncLock] = useState(false);
   
@@ -991,10 +992,21 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
 
 
 
-  // Filtra i magazzini in base al termine di ricerca
-  const filteredWarehouses = warehouses.filter(warehouse =>
-    warehouse.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filtra i magazzini in base al termine di ricerca e alla visibilità dei magazzini EX
+  const filteredWarehouses = warehouses.filter(warehouse => {
+    const matchesSearch = warehouse.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const isExWarehouse = warehouse.description.includes('**EX**') || warehouse.description.startsWith('**');
+    
+    // Se showExWarehouses è false, escludi i magazzini con **EX** o che iniziano con **
+    if (!showExWarehouses && isExWarehouse) {
+      return false;
+    }
+    
+    return matchesSearch;
+  });
+
+  // Conta i magazzini EX per mostrare quanti sono nascosti
+  const exWarehousesCount = warehouses.filter(w => w.description.includes('**EX**') || w.description.startsWith('**')).length;
 
   if (loading) {
     return (
@@ -1033,14 +1045,34 @@ export default function MagazziniView({ onWarehouseSelect, selectedWarehouse, on
           </div>
         )}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-          <p className="text-gray-600 text-sm">
-            Panoramica dei {warehouses.length} magazzini disponibili
-            {searchTerm && filteredWarehouses.length !== warehouses.length && (
-              <span className="ml-2">
-                ({filteredWarehouses.length} {filteredWarehouses.length === 1 ? 'risultato' : 'risultati'})
-              </span>
+          <div className="flex flex-col gap-2">
+            <p className="text-gray-600 text-sm">
+              Panoramica dei {filteredWarehouses.length} magazzini disponibili
+              {searchTerm && (
+                <span className="ml-2">
+                  ({filteredWarehouses.length} {filteredWarehouses.length === 1 ? 'risultato' : 'risultati'})
+                </span>
+              )}
+            </p>
+            
+            {/* Pulsante per mostrare/nascondere magazzini EX */}
+            {exWarehousesCount > 0 && (
+              <button
+                onClick={() => setShowExWarehouses(!showExWarehouses)}
+                className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors w-fit"
+              >
+                {showExWarehouses ? (
+                  <>
+                    <span>Nascondi magazzini EX ({exWarehousesCount})</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Mostra magazzini EX ({exWarehousesCount})</span>
+                  </>
+                )}
+              </button>
             )}
-          </p>
+          </div>
           
           {/* Search bar */}
           <div className="relative w-full sm:w-80">

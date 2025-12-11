@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Calendar, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Article } from '../../types/article';
 
@@ -9,15 +9,6 @@ interface DettaglioArticoloProps {
   articleId: string;
   onBack: () => void;
   onArticleUpdated?: () => void;
-}
-
-interface ArticleInventory {
-  warehouse: string;
-  disponible: number;
-  riservata_cliente: number;
-  in_stock: number;
-  ordinata: number;
-  data_primo_ordine: string | null;
 }
 
 export default function DettaglioArticolo({ articleId, onBack }: DettaglioArticoloProps) {
@@ -71,50 +62,13 @@ export default function DettaglioArticolo({ articleId, onBack }: DettaglioArtico
     }
   }, [articleId]);
 
-  // Format date for display
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '';
-    return new Date(dateString).toLocaleDateString('it-IT');
+  // Helper function to get stock value (preferring in_stock over quantity_stock)
+  const getStockValue = (inv: any): number => {
+    const stockVal = typeof inv.in_stock === 'number' && inv.in_stock != null
+      ? inv.in_stock
+      : (inv.quantity_stock || 0);
+    return stockVal || 0;
   };
-
-  // Format date for input
-  const formatDateForInput = (dateString: string | null) => {
-    if (!dateString) return '';
-    return dateString.split('T')[0];
-  };
-
-  // Check if date has value for styling
-  const hasDateValue = (dateString: string | null) => {
-    return dateString && dateString.trim() !== '';
-  };
-
-  // Mock inventory data for now - replace with real data when API is available
-  const mockInventoryData: ArticleInventory[] = [
-    {
-      warehouse: 'Magazzino',
-      disponible: 0,
-      riservata_cliente: 0,
-      in_stock: 0,
-      ordinata: 0,
-      data_primo_ordine: null
-    },
-    {
-      warehouse: 'Kit 1',
-      disponible: 0,
-      riservata_cliente: 0,
-      in_stock: 0,
-      ordinata: 0,
-      data_primo_ordine: null
-    },
-    {
-      warehouse: 'Furgone',
-      disponible: 0,
-      riservata_cliente: 0,
-      in_stock: 0,
-      ordinata: 0,
-      data_primo_ordine: null
-    }
-  ];
 
   if (loading && !article) {
     return (
@@ -190,26 +144,6 @@ export default function DettaglioArticolo({ articleId, onBack }: DettaglioArtico
 
                   <div>
                     <label className="block text-sm font-medium text-gray-500 mb-1">
-                      Data ordine
-                    </label>
-                    <div className="relative">
-                      <Calendar className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${
-                        hasDateValue(article.order_date) ? 'text-gray-400' : 'text-gray-300'
-                      }`} size={16} />
-                      <input
-                        type="date"
-                        value={formatDateForInput(article.order_date)}
-                        readOnly
-                        className={`w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg bg-gray-50 ${
-                          hasDateValue(article.order_date) ? 'text-gray-700' : 'text-gray-400'
-                        }`}
-                        placeholder={!hasDateValue(article.order_date) ? 'Data non disponibile' : ''}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">
                       Famiglia
                     </label>
                     <input
@@ -259,29 +193,6 @@ export default function DettaglioArticolo({ articleId, onBack }: DettaglioArtico
 
                 {/* Colonna Destra */}
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 h-16">
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">
-                      Data stimata arrivo
-                    </label>
-                    <div className="relative">
-                      <Calendar className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${
-                        hasDateValue(article.estimate_arrival_date) ? 'text-gray-400' : 'text-gray-300'
-                      }`} size={16} />
-                      <input
-                        type="date"
-                        value={formatDateForInput(article.estimate_arrival_date)}
-                        readOnly
-                        className={`w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg bg-gray-50 ${
-                          hasDateValue(article.estimate_arrival_date) ? 'text-gray-700' : 'text-gray-400'
-                        }`}
-                        placeholder={!hasDateValue(article.estimate_arrival_date) ? 'Data non disponibile' : ''}
-                      />
-                    </div>
-                  </div>
-
                   <div>
                     <label className="block text-sm font-medium text-gray-500 mb-1">
                       Sottofamiglia
@@ -341,81 +252,73 @@ export default function DettaglioArticolo({ articleId, onBack }: DettaglioArtico
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {/* Empty header for warehouse names */}
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Disponibile
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Riservata cliente
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      In stock
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Ordinata
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Data primo ordine
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {mockInventoryData.map((inventory, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {inventory.warehouse}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <input
-                          type="number"
-                          value={inventory.disponible}
-                          readOnly
-                          className="w-20 px-2 py-1 text-center border border-gray-300 rounded bg-gray-50 text-gray-700"
-                        />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <input
-                          type="number"
-                          value={inventory.riservata_cliente}
-                          readOnly
-                          className="w-20 px-2 py-1 text-center border border-gray-300 rounded bg-gray-50 text-gray-700"
-                        />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <input
-                          type="number"
-                          value={inventory.in_stock}
-                          readOnly
-                          className="w-20 px-2 py-1 text-center border border-gray-300 rounded bg-gray-50 text-gray-700"
-                        />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <input
-                          type="number"
-                          value={inventory.ordinata}
-                          readOnly
-                          className="w-20 px-2 py-1 text-center border border-gray-300 rounded bg-gray-50 text-gray-700"
-                        />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <input
-                          type="text"
-                          value={inventory.data_primo_ordine ? formatDate(inventory.data_primo_ordine) : 'gg/mm/aaaa'}
-                          readOnly
-                          className={`w-24 px-2 py-1 text-center border border-gray-300 rounded bg-gray-50 text-xs ${
-                            inventory.data_primo_ordine ? 'text-gray-700' : 'text-gray-400'
-                          }`}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {(() => {
+                // Calcola i totali prima di renderizzare la tabella
+                const clInventory = article.inventory?.find(inv => {
+                  const warehouseId = String(inv.warehouse_id ?? inv.warehouse ?? '');
+                  return warehouseId === 'CL';
+                });
+                const clStock = clInventory ? getStockValue(clInventory) : 0;
+
+                const filteredInventory = article.inventory?.filter(inv => {
+                  const warehouseId = String(inv.warehouse_id ?? inv.warehouse ?? '');
+                  return warehouseId !== 'CL';
+                }) || [];
+
+                const totalStock = filteredInventory.reduce((sum, inv) => sum + getStockValue(inv), 0);
+
+                return (
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Magazzino
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          In stock <span className="text-gray-900 font-bold">({totalStock})</span>
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Riservata cliente (CL) <span className="text-gray-900 font-bold">({clStock})</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {article.inventory && article.inventory.length > 0 ? (
+                        filteredInventory.map((inventory, index) => {
+                          const stockValue = getStockValue(inventory);
+                          return (
+                            <tr key={index} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {inventory.warehouse_description || inventory.warehouse || 'N/A'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-center">
+                                <span className={`inline-flex items-center justify-center w-20 px-2 py-1 text-center border border-gray-300 rounded bg-gray-50 ${
+                                  stockValue > 0 ? 'text-green-600 font-semibold' : 'text-gray-500'
+                                }`}>
+                                  {stockValue}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-center">
+                                <span className={`inline-flex items-center justify-center w-20 px-2 py-1 text-center border border-gray-300 rounded bg-gray-50 ${
+                                  clStock > 0 ? 'text-blue-600 font-semibold' : 'text-gray-500'
+                                }`}>
+                                  {clStock}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={3} className="px-6 py-8 text-center text-gray-500">
+                            Nessun dato di inventario disponibile per questo articolo
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                );
+              })()}
             </div>
           </div>
 
@@ -426,31 +329,46 @@ export default function DettaglioArticolo({ articleId, onBack }: DettaglioArtico
             </div>
             
             <div className="p-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">
-                    Codice del fornitore
-                  </label>
-                  <input
-                    type="text"
-                    value="000000"
-                    readOnly
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
-                  />
-                </div>
+              {article.suppliers && article.suppliers.length > 0 ? (
+                <div className="space-y-6">
+                  {article.suppliers.map((supplier, index) => (
+                    <div key={index} className="pb-6 border-b border-gray-200 last:border-b-0 last:pb-0">
+                      <div className="mb-3 text-sm font-semibold text-gray-900">
+                        Fornitore {index + 1}
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-500 mb-1">
+                            Codice fornitore
+                          </label>
+                          <input
+                            type="text"
+                            value={supplier.supplier_code || 'N/A'}
+                            readOnly
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
+                          />
+                        </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">
-                    Codice articolo del fornitore
-                  </label>
-                  <input
-                    type="text"
-                    value="0000"
-                    readOnly
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
-                  />
+                        <div>
+                          <label className="block text-sm font-medium text-gray-500 mb-1">
+                            Codice articolo del fornitore
+                          </label>
+                          <input
+                            type="text"
+                            value={supplier.supplier_article_code || 'N/A'}
+                            readOnly
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  Nessun fornitore disponibile per questo articolo
+                </div>
+              )}
             </div>
           </div>
         </div>

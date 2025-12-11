@@ -3,16 +3,20 @@
 // Tipo per l'inventory di un articolo (nuovo formato dal backend)
 export interface ArticleInventory {
   warehouse_id: string | number;
-  warehouse_description: string;
+  warehouse?: string | number;  // Alias per compatibilità
+  warehouse_description: string | null;
   quantity_stock: number | null;
   quantity_reserved_client: number | null;
   quantity_ordered: number | null;
+  in_stock?: number | null;  // Stock effettivo (preferito se disponibile)
+  first_order_date?: string | null;  // Data del primo ordine
 }
 
 // Tipo per i fornitori di un articolo (nuovo formato dal backend)
 export interface ArticleSupplier {
-  supplier_id: number;
-  supplier_article_code: string;
+  supplier_id: number | string;
+  supplier_code: string | null;  // Codice del fornitore
+  supplier_article_code: string | null;  // Codice articolo del fornitore
 }
 
 export interface Article {
@@ -35,6 +39,7 @@ export interface Article {
   subfamily_label: string | null;
   brand_label: string;
   inventory: ArticleInventory[];
+  suppliers?: ArticleSupplier[] | null;  // Informazioni fornitori
 }
 
 // Tipi per gli articoli nella lista (con informazioni aggiuntive di stock)

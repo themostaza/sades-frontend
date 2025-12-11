@@ -74,6 +74,13 @@ export default function InventarioPage() {
     if (tabFromUrl && ['inventario', 'magazzini', 'interventi', 'attivita', 'movimenti'].includes(tabFromUrl)) {
       setViewMode(tabFromUrl as 'inventario' | 'magazzini' | 'interventi' | 'attivita' | 'movimenti');
     }
+
+    // Controlla se c'è un parametro 'article' nell'URL
+    const articleFromUrl = searchParams.get('article');
+    if (articleFromUrl) {
+      setSelectedArticleId(articleFromUrl);
+      setShowArticleDetail(true);
+    }
   }, [searchParams]);
 
   // Fetch dati iniziali
@@ -247,11 +254,21 @@ export default function InventarioPage() {
   const handleArticleClick = (articleId: string) => {
     setSelectedArticleId(articleId);
     setShowArticleDetail(true);
+    
+    // Aggiorna l'URL con il parametro article
+    const newSearchParams = new URLSearchParams(searchParams.toString());
+    newSearchParams.set('article', articleId);
+    router.push(`/inventario?${newSearchParams.toString()}`, { scroll: false });
   };
 
   const handleBackToList = () => {
     setShowArticleDetail(false);
     setSelectedArticleId(null);
+    
+    // Rimuovi il parametro article dall'URL
+    const newSearchParams = new URLSearchParams(searchParams.toString());
+    newSearchParams.delete('article');
+    router.push(`/inventario?${newSearchParams.toString()}`, { scroll: false });
   };
 
   const handleArticleUpdated = () => {
@@ -303,15 +320,35 @@ export default function InventarioPage() {
     return dateString && dateString.trim() !== '';
   };
 
+  // Helper function to get stock value (preferring in_stock over quantity_stock)
+  const getStockValue = (inv: any): number => {
+    const stockVal = typeof inv.in_stock === 'number' && inv.in_stock != null
+      ? inv.in_stock
+      : (inv.quantity_stock || 0);
+    return stockVal || 0;
+  };
+
   // Helper functions per calcolare i totali dall'inventory
   const getTotalStock = (article: ArticleListItem): number => {
     if (!article.inventory || !Array.isArray(article.inventory)) return 0;
-    return article.inventory.reduce((total, inv) => total + (inv.quantity_stock || 0), 0);
+    // Escludi il magazzino 'CL' e usa in_stock se disponibile
+    return article.inventory
+      .filter(inv => {
+        const warehouseId = String(inv.warehouse_id ?? '');
+        return warehouseId !== 'CL';
+      })
+      .reduce((total, inv) => total + getStockValue(inv), 0);
   };
 
   const getTotalReserved = (article: ArticleListItem): number => {
     if (!article.inventory || !Array.isArray(article.inventory)) return 0;
-    return article.inventory.reduce((total, inv) => total + (inv.quantity_reserved_client || 0), 0);
+    // Escludi il magazzino 'CL'
+    return article.inventory
+      .filter(inv => {
+        const warehouseId = String(inv.warehouse_id ?? '');
+        return warehouseId !== 'CL';
+      })
+      .reduce((total, inv) => total + (inv.quantity_reserved_client || 0), 0);
   };
 
 
@@ -836,82 +873,99 @@ export default function InventarioPage() {
             {/* Content */}
             <div className="p-6 overflow-y-auto max-h-[60vh]">
               {selectedArticleForInventory.inventory && selectedArticleForInventory.inventory.length > 0 ? (
-                <div className="space-y-4">
-                  {selectedArticleForInventory.inventory.map((inv, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-medium text-gray-900">
-                          {inv.warehouse_description || `Magazzino ${inv.warehouse_id}`}
-                        </h4>
-                        <span className="text-xs text-gray-500">
-                          ID: {inv.warehouse_id}
-                        </span>
-                      </div>
+                (() => {
+                  // Trova lo stock del magazzino CL
+                  const clInventory = selectedArticleForInventory.inventory.find(inv => {
+                    const warehouseId = String(inv.warehouse_id ?? '');
+                    return warehouseId === 'CL';
+                  });
+                  const clStock = clInventory ? getStockValue(clInventory) : 0;
+
+                  return (
+                    <div className="space-y-4">
+                      {selectedArticleForInventory.inventory
+                        .filter(inv => {
+                          // Escludi il magazzino 'CL' come negli altri componenti
+                          const warehouseId = String(inv.warehouse_id ?? '');
+                          return warehouseId !== 'CL';
+                        })
+                        .map((inv, index) => {
+                          const stockValue = getStockValue(inv);
+                          return (
+                            <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className="font-medium text-gray-900">
+                                  {inv.warehouse_description || `Magazzino ${inv.warehouse_id}`}
+                                </h4>
+                                <span className="text-xs text-gray-500">
+                                  ID: {inv.warehouse_id}
+                                </span>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                  <span className="text-gray-600 block">Stock Disponibile</span>
+                                  <span className={`font-semibold ${
+                                    stockValue === 0 
+                                      ? 'text-red-600' 
+                                      : stockValue < 10 
+                                        ? 'text-orange-600' 
+                                        : 'text-green-600'
+                                  }`}>
+                                    {stockValue}
+                                  </span>
+                                </div>
+                                
+                                <div>
+                                  <span className="text-gray-600 block">Riservato Cliente (CL)</span>
+                                  <span className={`font-semibold ${
+                                    clStock > 0 ? 'text-blue-600' : 'text-gray-500'
+                                  }`}>
+                                    {clStock}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-600 block">Stock Disponibile</span>
-                          <span className={`font-semibold ${
-                            (inv.quantity_stock || 0) === 0 
-                              ? 'text-red-600' 
-                              : (inv.quantity_stock || 0) < 10 
-                                ? 'text-orange-600' 
-                                : 'text-green-600'
-                          }`}>
-                            {inv.quantity_stock || 0}
-                          </span>
-                        </div>
-                        
-                        <div>
-                          <span className="text-gray-600 block">Riservato Cliente</span>
-                          <span className="font-semibold text-blue-600">
-                            {inv.quantity_reserved_client || 0}
-                          </span>
-                        </div>
-                        
-                        <div>
-                          <span className="text-gray-600 block">Ordinato</span>
-                          <span className="font-semibold text-purple-600">
-                            {inv.quantity_ordered || 0}
-                          </span>
+                      {/* Totali */}
+                      <div className="border-t border-gray-300 pt-4 mt-6">
+                        <h4 className="font-semibold text-gray-900 mb-3">Totali</h4>
+                        <div className="grid grid-cols-3 gap-4 text-sm bg-blue-50 p-4 rounded-lg">
+                          <div>
+                            <span className="text-gray-600 block">Stock Totale</span>
+                            <span className={`font-bold text-lg ${
+                              getTotalStock(selectedArticleForInventory) === 0 
+                                ? 'text-red-600' 
+                                : getTotalStock(selectedArticleForInventory) < 10 
+                                  ? 'text-orange-600' 
+                                  : 'text-green-600'
+                            }`}>
+                              {getTotalStock(selectedArticleForInventory)}
+                            </span>
+                          </div>
+                          
+                          <div>
+                            <span className="text-gray-600 block">CL Stock</span>
+                            <span className={`font-bold text-lg ${
+                              clStock > 0 ? 'text-blue-600' : 'text-gray-500'
+                            }`}>
+                              {clStock}
+                            </span>
+                          </div>
+                          
+                          <div>
+                            <span className="text-gray-600 block">Magazzini</span>
+                            <span className="font-bold text-lg text-gray-900">
+                              {getWarehouseCount(selectedArticleForInventory)}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  ))}
-                  
-                  {/* Totali */}
-                  <div className="border-t border-gray-300 pt-4 mt-6">
-                    <h4 className="font-semibold text-gray-900 mb-3">Totali</h4>
-                    <div className="grid grid-cols-3 gap-4 text-sm bg-blue-50 p-4 rounded-lg">
-                      <div>
-                        <span className="text-gray-600 block">Stock Totale</span>
-                        <span className={`font-bold text-lg ${
-                          getTotalStock(selectedArticleForInventory) === 0 
-                            ? 'text-red-600' 
-                            : getTotalStock(selectedArticleForInventory) < 10 
-                              ? 'text-orange-600' 
-                              : 'text-green-600'
-                        }`}>
-                          {getTotalStock(selectedArticleForInventory)}
-                        </span>
-                      </div>
-                      
-                      <div>
-                        <span className="text-gray-600 block">Riservato Totale</span>
-                        <span className="font-bold text-lg text-blue-600">
-                          {getTotalReserved(selectedArticleForInventory)}
-                        </span>
-                      </div>
-                      
-                      <div>
-                        <span className="text-gray-600 block">Magazzini</span>
-                        <span className="font-bold text-lg text-gray-900">
-                          {getWarehouseCount(selectedArticleForInventory)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <Package className="mx-auto mb-3" size={48} />

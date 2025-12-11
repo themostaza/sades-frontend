@@ -233,7 +233,7 @@ export default function DocumentiEquipment({
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
-                {documents.map((document) => (
+                {[...documents].sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })).map((document) => (
                   <div 
                     key={document.id}
                     className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
@@ -311,9 +311,12 @@ export default function DocumentiEquipment({
                 disabled={uploadingDocument}
               >
                 <option value="">Seleziona un tipo...</option>
+                <option value="BOLLETTINO TECNICO">BOLLETTINO TECNICO</option>
                 <option value="CATALOGO RICAMBI">CATALOGO RICAMBI</option>
-                <option value="MANUALE USO">MANUALE USO</option>
                 <option value="MANUALE SERVICE">MANUALE SERVICE</option>
+                <option value="MANUALE USO">MANUALE USO</option>
+                <option value="PARAMETRI">PARAMETRI</option>
+                <option value="SCHEMA ELETTRICO">SCHEMA ELETTRICO</option>
                 <option value="ALTRO">ALTRO</option>
               </select>
 
