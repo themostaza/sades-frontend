@@ -69,6 +69,9 @@ export interface InterventionReportItemDetail {
   id: number;
   // Equipment reference for this report item
   equipment_id: number;
+  equipment_model?: string;
+  equipment_description?: string;
+  equipment_serial_number?: string;
   note: string;
   fl_gas: boolean;
   gas_compressor_types_id: number;
@@ -93,6 +96,9 @@ export interface InterventionReportArticleDetail {
   id: string;
   article_id: string;
   quantity: number;
+  pnc_code?: string;
+  short_description?: string;
+  description?: string;
   article_name?: string;
   article_description?: string;
 }
