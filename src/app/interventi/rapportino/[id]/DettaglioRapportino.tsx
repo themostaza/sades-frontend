@@ -348,6 +348,14 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
     // Se non abbiamo info, lascia abilitato per retrocompatibilità
     if (!interventionDetail) return true;
     const label = (interventionDetail.status_label || '').toLowerCase();
+    
+    // Se admin e stato è "completato" o "fatturato", permetti
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'amministrazione';
+    if (isAdmin && (label.includes('completato') || label.includes('fatturato'))) {
+      return true;
+    }
+    
     // Blocca per stati non cancellabili
     const blocked = [
       'completato',
@@ -360,12 +368,21 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   };
 
   // Determina se i campi base (ore e note) sono modificabili
-  // ECCEZIONE: questi campi sono modificabili anche con stato "completato"
+  // Solo amministrazione può modificare in stato "completato" o "fatturato"
   const canEditBasicFields = (): boolean => {
     if (!interventionDetail) return true;
     const label = (interventionDetail.status_label || '').toLowerCase();
-    // Blocca solo per stati definitivi (escluso "completato" che è permesso)
+    
+    // Se admin e stato è "completato" o "fatturato", permetti
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'amministrazione';
+    if (isAdmin && (label.includes('completato') || label.includes('fatturato'))) {
+      return true;
+    }
+    
+    // Blocca per stati definitivi (incluso "completato" e "fatturato" per non-admin)
     const blocked = [
+      'completato',
       'non completato',
       'annullato',
       'fatturato',
