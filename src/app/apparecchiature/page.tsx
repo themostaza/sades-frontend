@@ -56,8 +56,8 @@ export default function ApparecchiaturePage() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Filter states
-  const [selectedDeviceGroup, setSelectedDeviceGroup] = useState<string>('');
-  const [selectedBrand, setSelectedBrand] = useState<string>('');
+  const [selectedDeviceGroup, setSelectedDeviceGroup] = useState<number | null>(null);
+  const [selectedBrand, setSelectedBrand] = useState<number | null>(null);
   const [selectedFamily, setSelectedFamily] = useState<string>('');
   const [selectedSubfamily, setSelectedSubfamily] = useState<string>('');
 
@@ -68,6 +68,10 @@ export default function ApparecchiaturePage() {
     modello: false,
     sottofamiglia: false,
   });
+
+  // Search terms for dropdown filters
+  const [brandSearchTerm, setBrandSearchTerm] = useState('');
+  const [deviceGroupSearchTerm, setDeviceGroupSearchTerm] = useState('');
 
   // Check URL parameters on mount to restore equipment detail view
   useEffect(() => {
@@ -88,6 +92,27 @@ export default function ApparecchiaturePage() {
     }
   }, [isAuthenticated, authLoading, fetchEquipments]);
 
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      // Check if click is outside any dropdown
+      if (!target.closest('.dropdown-container')) {
+        setDropdownOpen({
+          apparecchiatura: false,
+          marchio: false,
+          modello: false,
+          sottofamiglia: false,
+        });
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   // Handle search with debouncing
   const handleSearch = (value: string) => {
     setSearchTerm(value);
@@ -103,8 +128,8 @@ export default function ApparecchiaturePage() {
         page: '1',
         skip: itemsPerPage.toString(),
         query: value.trim() || undefined,
-        group_id: selectedDeviceGroup || undefined,
-        brand_id: selectedBrand || undefined,
+        group_id: selectedDeviceGroup?.toString() || undefined,
+        brand_id: selectedBrand?.toString() || undefined,
         family_id: selectedFamily || undefined,
         subfamily_id: selectedSubfamily || undefined,
       });
@@ -120,8 +145,8 @@ export default function ApparecchiaturePage() {
         page: newPage.toString(),
         skip: itemsPerPage.toString(),
         query: searchTerm.trim() || undefined,
-        group_id: selectedDeviceGroup || undefined,
-        brand_id: selectedBrand || undefined,
+        group_id: selectedDeviceGroup?.toString() || undefined,
+        brand_id: selectedBrand?.toString() || undefined,
         family_id: selectedFamily || undefined,
         subfamily_id: selectedSubfamily || undefined,
       });
@@ -149,8 +174,8 @@ export default function ApparecchiaturePage() {
       page: currentPage.toString(),
       skip: itemsPerPage.toString(),
       query: searchTerm.trim() || undefined,
-      group_id: selectedDeviceGroup || undefined,
-      brand_id: selectedBrand || undefined,
+      group_id: selectedDeviceGroup?.toString() || undefined,
+      brand_id: selectedBrand?.toString() || undefined,
       family_id: selectedFamily || undefined,
       subfamily_id: selectedSubfamily || undefined,
     });
@@ -163,7 +188,7 @@ export default function ApparecchiaturePage() {
   };
 
   // Handle filter changes
-  const handleDeviceGroupChange = (groupId: string) => {
+  const handleDeviceGroupChange = (groupId: number | null) => {
     setSelectedDeviceGroup(groupId);
     setDropdownOpen((prev) => ({ ...prev, apparecchiatura: false }));
 
@@ -172,14 +197,14 @@ export default function ApparecchiaturePage() {
       page: '1',
       skip: itemsPerPage.toString(),
       query: searchTerm.trim() || undefined,
-      group_id: groupId || undefined,
-      brand_id: selectedBrand || undefined,
+      group_id: groupId?.toString() || undefined,
+      brand_id: selectedBrand?.toString() || undefined,
       family_id: selectedFamily || undefined,
       subfamily_id: selectedSubfamily || undefined,
     });
   };
 
-  const handleBrandChange = (brandId: string) => {
+  const handleBrandChange = (brandId: number | null) => {
     setSelectedBrand(brandId);
     setDropdownOpen((prev) => ({ ...prev, marchio: false }));
 
@@ -188,8 +213,8 @@ export default function ApparecchiaturePage() {
       page: '1',
       skip: itemsPerPage.toString(),
       query: searchTerm.trim() || undefined,
-      group_id: selectedDeviceGroup || undefined,
-      brand_id: brandId || undefined,
+      group_id: selectedDeviceGroup?.toString() || undefined,
+      brand_id: brandId?.toString() || undefined,
       family_id: selectedFamily || undefined,
       subfamily_id: selectedSubfamily || undefined,
     });
@@ -210,8 +235,8 @@ export default function ApparecchiaturePage() {
       page: '1',
       skip: itemsPerPage.toString(),
       query: searchTerm.trim() || undefined,
-      group_id: selectedDeviceGroup || undefined,
-      brand_id: selectedBrand || undefined,
+      group_id: selectedDeviceGroup?.toString() || undefined,
+      brand_id: selectedBrand?.toString() || undefined,
       family_id: familyId || undefined,
       subfamily_id: undefined, // Reset subfamily
     });
@@ -226,8 +251,8 @@ export default function ApparecchiaturePage() {
       page: '1',
       skip: itemsPerPage.toString(),
       query: searchTerm.trim() || undefined,
-      group_id: selectedDeviceGroup || undefined,
-      brand_id: selectedBrand || undefined,
+      group_id: selectedDeviceGroup?.toString() || undefined,
+      brand_id: selectedBrand?.toString() || undefined,
       family_id: selectedFamily || undefined,
       subfamily_id: subfamilyId || undefined,
     });
@@ -235,11 +260,38 @@ export default function ApparecchiaturePage() {
 
   // Toggle dropdown
   const toggleDropdown = (dropdownName: keyof typeof dropdownOpen) => {
-    setDropdownOpen((prev) => ({
-      ...prev,
-      [dropdownName]: !prev[dropdownName],
-    }));
+    const newState = !dropdownOpen[dropdownName];
+    
+    // Close all dropdowns first
+    setDropdownOpen({
+      apparecchiatura: false,
+      marchio: false,
+      modello: false,
+      sottofamiglia: false,
+    });
+    
+    // Reset all search terms when closing any dropdown
+    setBrandSearchTerm('');
+    setDeviceGroupSearchTerm('');
+    
+    // Then open the requested one if it was closed
+    if (newState) {
+      setDropdownOpen((prev) => ({
+        ...prev,
+        [dropdownName]: true,
+      }));
+    }
   };
+
+  // Filter brands based on search term
+  const filteredBrands = deviceBrands.filter((brand) =>
+    brand.label.toLowerCase().includes(brandSearchTerm.toLowerCase())
+  );
+
+  // Filter device groups based on search term
+  const filteredDeviceGroups = deviceGroups.filter((group) =>
+    group.label.toLowerCase().includes(deviceGroupSearchTerm.toLowerCase())
+  );
 
   // Format serial numbers display
   const formatSerialNumbers = (
@@ -324,7 +376,7 @@ export default function ApparecchiaturePage() {
           </div>
 
           {/* Apparecchiatura Filter */}
-          <div className="relative">
+          <div className="relative dropdown-container">
             <button
               onClick={() => toggleDropdown('apparecchiatura')}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
@@ -332,78 +384,112 @@ export default function ApparecchiaturePage() {
               <span>
                 {selectedDeviceGroup
                   ? deviceGroups.find(
-                      (g) => g.id.toString() === selectedDeviceGroup
+                      (g) => g.id === selectedDeviceGroup
                     )?.label || 'Apparecchiatura'
                   : 'Apparecchiatura'}
               </span>
               <ChevronDown size={16} />
             </button>
             {dropdownOpen.apparecchiatura && (
-              <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
-                <div
-                  className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
-                  onClick={() => handleDeviceGroupChange('')}
-                >
-                  Tutti
+              <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-300 rounded-lg shadow-lg z-10">
+                {/* Search input */}
+                <div className="p-2 border-b border-gray-200 sticky top-0 bg-white">
+                  <input
+                    type="text"
+                    placeholder="Cerca apparecchiatura..."
+                    value={deviceGroupSearchTerm}
+                    onChange={(e) => setDeviceGroupSearchTerm(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
+                    autoFocus
+                  />
                 </div>
-                {deviceGroups.map((group) => (
+                {/* Dropdown options */}
+                <div className="max-h-60 overflow-y-auto">
                   <div
-                    key={group.id}
                     className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
-                    onClick={() => handleDeviceGroupChange(group.id.toString())}
+                    onClick={() => handleDeviceGroupChange(null)}
                   >
-                    {group.label}
+                    Tutti
                   </div>
-                ))}
+                  {filteredDeviceGroups.length > 0 ? (
+                    filteredDeviceGroups.map((group) => (
+                      <div
+                        key={group.id}
+                        className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
+                        onClick={() => handleDeviceGroupChange(group.id)}
+                      >
+                        {group.label}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="px-4 py-2 text-gray-500 text-sm italic">
+                      Nessuna apparecchiatura trovata
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
 
-          {/* Proprietà Filter - Placeholder */}
-          <div className="relative">
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700">
-              <span>Proprietà</span>
-              <ChevronDown size={16} />
-            </button>
-          </div>
-
           {/* Marchio Filter */}
-          <div className="relative">
+          <div className="relative dropdown-container">
             <button
               onClick={() => toggleDropdown('marchio')}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
             >
               <span>
                 {selectedBrand
-                  ? deviceBrands.find((b) => b.id.toString() === selectedBrand)
+                  ? deviceBrands.find((b) => b.id === selectedBrand)
                       ?.label || 'Marchio'
                   : 'Marchio'}
               </span>
               <ChevronDown size={16} />
             </button>
             {dropdownOpen.marchio && (
-              <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
-                <div
-                  className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
-                  onClick={() => handleBrandChange('')}
-                >
-                  Tutti
+              <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-300 rounded-lg shadow-lg z-10">
+                {/* Search input */}
+                <div className="p-2 border-b border-gray-200 sticky top-0 bg-white">
+                  <input
+                    type="text"
+                    placeholder="Cerca marchio..."
+                    value={brandSearchTerm}
+                    onChange={(e) => setBrandSearchTerm(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
+                    autoFocus
+                  />
                 </div>
-                {deviceBrands.map((brand) => (
+                {/* Dropdown options */}
+                <div className="max-h-60 overflow-y-auto">
                   <div
-                    key={brand.id}
                     className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
-                    onClick={() => handleBrandChange(brand.id.toString())}
+                    onClick={() => handleBrandChange(null)}
                   >
-                    {brand.label}
+                    Tutti
                   </div>
-                ))}
+                  {filteredBrands.length > 0 ? (
+                    filteredBrands.map((brand) => (
+                      <div
+                        key={brand.id}
+                        className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-gray-700"
+                        onClick={() => handleBrandChange(brand.id)}
+                      >
+                        {brand.label}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="px-4 py-2 text-gray-500 text-sm italic">
+                      Nessun marchio trovato
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
 
           {/* Modello Filter */}
-          <div className="relative">
+          <div className="relative dropdown-container">
             <button
               onClick={() => toggleDropdown('modello')}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
@@ -438,7 +524,7 @@ export default function ApparecchiaturePage() {
           </div>
 
           {/* Sottofamiglia Filter */}
-          <div className="relative">
+          <div className="relative dropdown-container">
             <button
               onClick={() => toggleDropdown('sottofamiglia')}
               disabled={!selectedFamily}
