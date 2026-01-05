@@ -126,6 +126,12 @@ export default function CalendarGrid({
         .filter(t => t && t !== '-')
     )).sort();
     
+    // Se c'è un filtro attivo, restituisci solo i tecnici filtrati
+    if (technicianFilter.length > 0) {
+      const filtered = technicians.filter(t => technicianFilter.includes(t));
+      return filtered.length > 0 ? filtered : ['Nessun tecnico'];
+    }
+    
     // Se non ci sono tecnici, mostra almeno una colonna placeholder
     return technicians.length > 0 ? technicians : ['Nessun tecnico'];
   };
