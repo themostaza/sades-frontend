@@ -62,6 +62,7 @@ interface DialogState {
   type: 'success' | 'error';
   title: string;
   message: string;
+  errorDetail?: string; // Dettaglio tecnico dell'errore dal backend
 }
 
 // Tipo semplificato per il report esistente basato sui dati dal payload
@@ -962,11 +963,13 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       
     } catch (error) {
       console.error('❌ Error confirming report:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Si è verificato un errore durante la conferma del rapporto. Riprova.';
       setDialog({
         isOpen: true,
         type: 'error',
         title: 'Errore conferma rapporto',
-        message: 'Si è verificato un errore durante la conferma del rapporto. Riprova.'
+        message: 'Si è verificato un errore durante la conferma del rapporto. Riprova.',
+        errorDetail: errorMessage
       });
     }
   };
@@ -1044,11 +1047,13 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       
     } catch (error) {
       console.error('❌ Error sending to invoicing:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Si è verificato un errore durante l\'invio in fatturazione. Riprova.';
       setDialog({
         isOpen: true,
         type: 'error',
         title: 'Errore fatturazione',
-        message: 'Si è verificato un errore durante l\'invio in fatturazione. Riprova.'
+        message: 'Si è verificato un errore durante l\'invio in fatturazione. Riprova.',
+        errorDetail: errorMessage
       });
     }
   };
@@ -1335,6 +1340,12 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
               <p className="text-sm text-gray-500">
                 {dialog.message}
               </p>
+              {/* Dettaglio errore dal backend */}
+              {dialog.errorDetail && (
+                <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700 max-h-24 overflow-y-auto">
+                  <span className="font-medium">Dettaglio:</span> {dialog.errorDetail}
+                </div>
+              )}
             </div>
             <div className="flex justify-end">
               <button

@@ -140,7 +140,19 @@ export const updateAssistanceIntervention = async (
   });
   
   if (!response.ok) {
-    throw new Error(`Failed to update assistance intervention: ${response.status}`);
+    // Prova a estrarre il messaggio di errore dal body della risposta
+    let errorMessage = `Failed to update assistance intervention: ${response.status}`;
+    try {
+      const errorData = await response.json();
+      if (errorData.error) {
+        errorMessage = errorData.error;
+      } else if (errorData.message) {
+        errorMessage = errorData.message;
+      }
+    } catch {
+      // Se non riesce a parsare il JSON, usa il messaggio generico
+    }
+    throw new Error(errorMessage);
   }
   
   return response.json();
