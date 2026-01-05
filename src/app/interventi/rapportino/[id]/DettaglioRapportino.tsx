@@ -85,7 +85,7 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   const [shouldRedirectOnClose, setShouldRedirectOnClose] = useState(false);
   const [isSavingSignature, setIsSavingSignature] = useState(false);
   const [updatedReportData, setUpdatedReportData] = useState<InterventionReportDetail>(reportData);
-  const { token } = useAuth();
+  const { token, user } = useAuth();
 
   // Stati per la modifica del rapportino - ore gestite come string per supporto punto/virgola
   const [editableWorkHours, setEditableWorkHours] = useState<string>(reportData.work_hours.toString().replace('.', ','));
@@ -350,7 +350,6 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
     const label = (interventionDetail.status_label || '').toLowerCase();
     
     // Se admin e stato è "completato" o "fatturato", permetti
-    const { user } = useAuth();
     const isAdmin = user?.role === 'amministrazione';
     if (isAdmin && (label.includes('completato') || label.includes('fatturato'))) {
       return true;
@@ -374,7 +373,6 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
     const label = (interventionDetail.status_label || '').toLowerCase();
     
     // Se admin e stato è "completato" o "fatturato", permetti
-    const { user } = useAuth();
     const isAdmin = user?.role === 'amministrazione';
     if (isAdmin && (label.includes('completato') || label.includes('fatturato'))) {
       return true;
