@@ -18,7 +18,7 @@ import ImportEquipmentModal from './ImportEquipmentModal';
 export default function ApparecchiaturePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user, token } = useAuth();
   const {
     equipments,
     loading,
@@ -55,8 +55,16 @@ export default function ApparecchiaturePage() {
   // Stato per la modale di importazione
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
+  // Stato per le informazioni utente (ruolo)
+  const [userInfo, setUserInfo] = useState<{ id: string; role: string } | null>(
+    null
+  );
+  const [userLoading, setUserLoading] = useState(true);
+
   // Filter states
-  const [selectedDeviceGroup, setSelectedDeviceGroup] = useState<number | null>(null);
+  const [selectedDeviceGroup, setSelectedDeviceGroup] = useState<number | null>(
+    null
+  );
   const [selectedBrand, setSelectedBrand] = useState<number | null>(null);
   const [selectedFamily, setSelectedFamily] = useState<string>('');
   const [selectedSubfamily, setSelectedSubfamily] = useState<string>('');
@@ -84,6 +92,32 @@ export default function ApparecchiaturePage() {
       }
     }
   }, [searchParams]);
+
+  // Fetch user info to get role
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        setUserLoading(true);
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const response = await fetch('/api/auth/me', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({}),
+        });
+        if (!response.ok) throw new Error('Failed to fetch user info');
+        const data = await response.json();
+        setUserInfo(data);
+      } catch {
+        setUserInfo(null);
+      } finally {
+        setUserLoading(false);
+      }
+    };
+    if (token) fetchUserInfo();
+  }, [token]);
 
   // Initial load
   useEffect(() => {
@@ -261,7 +295,7 @@ export default function ApparecchiaturePage() {
   // Toggle dropdown
   const toggleDropdown = (dropdownName: keyof typeof dropdownOpen) => {
     const newState = !dropdownOpen[dropdownName];
-    
+
     // Close all dropdowns first
     setDropdownOpen({
       apparecchiatura: false,
@@ -269,11 +303,11 @@ export default function ApparecchiaturePage() {
       modello: false,
       sottofamiglia: false,
     });
-    
+
     // Reset all search terms when closing any dropdown
     setBrandSearchTerm('');
     setDeviceGroupSearchTerm('');
-    
+
     // Then open the requested one if it was closed
     if (newState) {
       setDropdownOpen((prev) => ({
@@ -349,13 +383,16 @@ export default function ApparecchiaturePage() {
         <h1 className="text-2xl font-semibold text-gray-900">
           Apparecchiature
         </h1>
-        <button
-          onClick={() => setIsImportModalOpen(true)}
-          className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-        >
-          <Upload size={20} />
-          Importa da Excel
-        </button>
+        {userInfo?.role !== 'tecnico' &&
+          userInfo?.role !== 'ufficio_tecnico' && (
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+            >
+              <Upload size={20} />
+              Importa da Excel
+            </button>
+          )}
       </div>
 
       {/* Search and filters */}
@@ -383,9 +420,8 @@ export default function ApparecchiaturePage() {
             >
               <span>
                 {selectedDeviceGroup
-                  ? deviceGroups.find(
-                      (g) => g.id === selectedDeviceGroup
-                    )?.label || 'Apparecchiatura'
+                  ? deviceGroups.find((g) => g.id === selectedDeviceGroup)
+                      ?.label || 'Apparecchiatura'
                   : 'Apparecchiatura'}
               </span>
               <ChevronDown size={16} />
@@ -440,8 +476,8 @@ export default function ApparecchiaturePage() {
             >
               <span>
                 {selectedBrand
-                  ? deviceBrands.find((b) => b.id === selectedBrand)
-                      ?.label || 'Marchio'
+                  ? deviceBrands.find((b) => b.id === selectedBrand)?.label ||
+                    'Marchio'
                   : 'Marchio'}
               </span>
               <ChevronDown size={16} />

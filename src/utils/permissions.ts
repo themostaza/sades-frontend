@@ -4,14 +4,19 @@
  */
 
 // Tipi per il sistema di permessi
-export type UserRole = 'amministrazione' | 'tecnico' | 'ufficio' | 'ufficio_tecnico' | 'magazziniere';
+export type UserRole =
+  | 'amministrazione'
+  | 'tecnico'
+  | 'ufficio'
+  | 'ufficio_tecnico'
+  | 'magazziniere';
 
 export interface RolePermissions {
-  sections: string[];      // Sezioni principali per la sidebar
-  patterns: string[];      // Pattern per le sottopagine (middleware)
+  sections: string[]; // Sezioni principali per la sidebar
+  patterns: string[]; // Pattern per le sottopagine (middleware)
   exceptions: {
-    deny: string[];       // Pagine specifiche da bloccare
-    allow: string[];      // Pagine specifiche da permettere
+    deny: string[]; // Pagine specifiche da bloccare
+    allow: string[]; // Pagine specifiche da permettere
   };
 }
 
@@ -22,79 +27,117 @@ export interface PermissionSystem {
 // Configurazione dei permessi per ruolo
 const ROLE_PERMISSIONS: PermissionSystem = {
   amministrazione: {
-    sections: ['/dashboard', '/interventi', '/team', '/clienti', '/apparecchiature', '/inventario', '/notifiche'],
+    sections: [
+      '/dashboard',
+      '/interventi',
+      '/team',
+      '/clienti',
+      '/apparecchiature',
+      '/inventario',
+      '/notifiche',
+    ],
     patterns: [
       '/dashboard/**',
-      '/interventi/**', 
+      '/interventi/**',
       '/team/**',
       '/clienti/**',
       '/apparecchiature/**',
       '/inventario/**',
-      '/notifiche/**'
+      '/notifiche/**',
     ],
     exceptions: {
       deny: [],
-      allow: []
-    }
+      allow: [],
+    },
   },
   tecnico: {
-    sections: ['/interventi', '/team', '/inventario', '/notifiche'],
+    sections: [
+      '/interventi',
+      '/team',
+      '/apparecchiature',
+      '/inventario',
+      '/notifiche',
+    ],
     patterns: [
-      '/interventi/**', 
+      '/interventi/**',
       '/team/**',
-      '/inventario/**', 
-      '/notifiche/**'
+      '/apparecchiature/**',
+      '/inventario/**',
+      '/notifiche/**',
     ],
     exceptions: {
       deny: [],
-      allow: []
-    }
+      allow: [],
+    },
   },
   ufficio: {
-    sections: ['/dashboard', '/interventi', '/team', '/clienti', '/apparecchiature', '/inventario', '/notifiche'],
+    sections: [
+      '/dashboard',
+      '/interventi',
+      '/team',
+      '/clienti',
+      '/apparecchiature',
+      '/inventario',
+      '/notifiche',
+    ],
     patterns: [
       '/dashboard/**',
-      '/interventi/**', 
+      '/interventi/**',
       '/team/**',
       '/clienti/**',
       '/apparecchiature/**',
       '/inventario/**',
-      '/notifiche/**'
+      '/notifiche/**',
     ],
     exceptions: {
       deny: [],
-      allow: []
-    }
+      allow: [],
+    },
   },
   ufficio_tecnico: {
-    sections: ['/interventi', '/team', '/inventario', '/notifiche'],
+    sections: [
+      '/interventi',
+      '/team',
+      '/apparecchiature',
+      '/inventario',
+      '/notifiche',
+    ],
     patterns: [
-      '/interventi/**', 
+      '/interventi/**',
       '/team/**',
-      '/inventario/**', 
-      '/notifiche/**'
+      '/apparecchiature/**',
+      '/inventario/**',
+      '/notifiche/**',
     ],
     exceptions: {
       deny: [],
-      allow: []
-    }
+      allow: [],
+    },
   },
   magazziniere: {
-    sections: ['/dashboard', '/interventi', '/team', '/clienti', '/apparecchiature', '/inventario', '/notifiche'],
+    sections: [
+      '/dashboard',
+      '/interventi',
+      '/team',
+      '/clienti',
+      '/apparecchiature',
+      '/inventario',
+      '/notifiche',
+    ],
     patterns: [
       '/dashboard/**',
-      '/interventi/**', 
+      '/interventi/**',
       '/team/**',
       '/clienti/**',
       '/apparecchiature/**',
       '/inventario/**',
-      '/notifiche/**'
+      '/notifiche/**',
     ],
     exceptions: {
       deny: [],
-      allow: []
-    }
-  }
+      allow: [],
+    },
+  },
 };
 
 /**
@@ -102,20 +145,20 @@ const ROLE_PERMISSIONS: PermissionSystem = {
  */
 function matchesPattern(pattern: string, route: string): boolean {
   if (pattern === route) return true;
-  
+
   // Gestione pattern con ** - deve coprire sia la route esatta che le sottopagine
   if (pattern.endsWith('/**')) {
     const basePath = pattern.slice(0, -3);
     // Corrisponde se è esattamente la base path o se inizia con la base path seguita da /
     return route === basePath || route.startsWith(basePath + '/');
   }
-  
+
   // Gestione pattern con *
   if (pattern.includes('*')) {
     const regex = new RegExp(pattern.replace(/\*/g, '[^/]*'));
     return regex.test(route);
   }
-  
+
   return false;
 }
 
@@ -127,17 +170,25 @@ export function canAccessRoute(userRole: UserRole, route: string): boolean {
   if (!permissions) return false;
 
   // Controlla prima le exceptions di deny
-  if (permissions.exceptions.deny.some(deniedRoute => matchesPattern(deniedRoute, route))) {
+  if (
+    permissions.exceptions.deny.some((deniedRoute) =>
+      matchesPattern(deniedRoute, route)
+    )
+  ) {
     return false;
   }
 
   // Controlla le exceptions di allow
-  if (permissions.exceptions.allow.some(allowedRoute => matchesPattern(allowedRoute, route))) {
+  if (
+    permissions.exceptions.allow.some((allowedRoute) =>
+      matchesPattern(allowedRoute, route)
+    )
+  ) {
     return true;
   }
 
   // Controlla i pattern principali
-  return permissions.patterns.some(pattern => matchesPattern(pattern, route));
+  return permissions.patterns.some((pattern) => matchesPattern(pattern, route));
 }
 
 /**
@@ -156,12 +207,12 @@ export function getDefaultRoute(userRole: UserRole): string {
   if (!permissions || permissions.sections.length === 0) {
     return '/login';
   }
-  
+
   // Per i tecnici e ufficio_tecnico, default è interventi
   if (userRole === 'tecnico' || userRole === 'ufficio_tecnico') {
     return '/interventi';
   }
-  
+
   // Per gli amministratori, ufficio e magazziniere, default è dashboard
   return '/dashboard';
 }
@@ -219,7 +270,9 @@ export function isTechnicianRole(role: string): boolean {
  * Verifica se un ruolo ha permessi di amministratore (completi)
  */
 export function isAdminRole(role: string): boolean {
-  return role === 'amministrazione' || role === 'ufficio' || role === 'magazziniere';
+  return (
+    role === 'amministrazione' || role === 'ufficio' || role === 'magazziniere'
+  );
 }
 
 /**
@@ -227,21 +280,37 @@ export function isAdminRole(role: string): boolean {
  */
 export function testPatternMatching(): void {
   console.log('🧪 Testing pattern matching for all roles...');
-  
-  const roles: UserRole[] = ['amministrazione', 'tecnico', 'ufficio', 'ufficio_tecnico', 'magazziniere'];
-  const routes = ['/dashboard', '/interventi', '/team', '/clienti', '/apparecchiature', '/inventario', '/notifiche'];
-  
-  roles.forEach(role => {
+
+  const roles: UserRole[] = [
+    'amministrazione',
+    'tecnico',
+    'ufficio',
+    'ufficio_tecnico',
+    'magazziniere',
+  ];
+  const routes = [
+    '/dashboard',
+    '/interventi',
+    '/team',
+    '/clienti',
+    '/apparecchiature',
+    '/inventario',
+    '/notifiche',
+  ];
+
+  roles.forEach((role) => {
     console.log(`\n--- Testing role: ${role} ---`);
     console.log(`Default route: ${getDefaultRoute(role)}`);
     console.log(`Is valid role: ${isValidRole(role)}`);
     console.log(`Is technician role: ${isTechnicianRole(role)}`);
     console.log(`Is admin role: ${isAdminRole(role)}`);
-    
-    routes.forEach(route => {
-      console.log(`${role} can access ${route}: ${canAccessRoute(role, route)}`);
+
+    routes.forEach((route) => {
+      console.log(
+        `${role} can access ${route}: ${canAccessRoute(role, route)}`
+      );
     });
   });
-  
+
   console.log('\n✅ Pattern matching test completed for all roles');
-} 
+}
