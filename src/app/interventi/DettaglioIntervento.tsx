@@ -1,7 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, AlertCircle, Download, RefreshCw, Check } from 'lucide-react';
+import {
+  ArrowLeft,
+  AlertCircle,
+  Download,
+  RefreshCw,
+  Check,
+} from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import CustomerSectionDetail from './components/detail/CustomerSectionDetail';
 import InterventionDetailsSectionDetail from './components/detail/InterventionDetailsSectionDetail';
@@ -10,8 +16,17 @@ import InterventionStatusAndActions from './components/InterventionStatusAndActi
 import ReportRowsTable from './components/ReportRowsTable';
 import { Equipment } from '../../types/equipment';
 import { ArticleListItem } from '../../types/article';
-import { AssistanceInterventionDetail, UpdateAssistanceInterventionRequest } from '../../types/assistance-interventions';
-import { fetchAssistanceInterventionDetail, updateAssistanceIntervention, downloadAssistanceInterventionPDF, downloadPDFFile, getHomeServiceByType } from '../../utils/assistance-interventions-api';
+import {
+  AssistanceInterventionDetail,
+  UpdateAssistanceInterventionRequest,
+} from '../../types/assistance-interventions';
+import {
+  fetchAssistanceInterventionDetail,
+  updateAssistanceIntervention,
+  downloadAssistanceInterventionPDF,
+  downloadPDFFile,
+  getHomeServiceByType,
+} from '../../utils/assistance-interventions-api';
 import CreaRapportino from './CreaRapportino';
 import CancelInterventionButton from './components/small_components/CancelInterventionButton';
 import { getStatusId, toStatusKey } from '../../utils/intervention-status';
@@ -71,11 +86,17 @@ interface SimpleReport {
   is_failed: boolean;
 }
 
-export default function DettaglioIntervento({ isOpen, onClose, interventionId, onInterventionUpdated }: DettaglioInterventoProps) {
+export default function DettaglioIntervento({
+  isOpen,
+  onClose,
+  interventionId,
+  onInterventionUpdated,
+}: DettaglioInterventoProps) {
   const auth = useAuth();
   // Stato per caricare i dati dell'intervento
   const [isLoading, setIsLoading] = useState(true);
-  const [interventionData, setInterventionData] = useState<AssistanceInterventionDetail | null>(null);
+  const [interventionData, setInterventionData] =
+    useState<AssistanceInterventionDetail | null>(null);
   const [selectedStatus, setSelectedStatus] = useState('da_assegnare');
   // Stati per i campi obbligatori
   const [ragioneSociale, setRagioneSociale] = useState('');
@@ -85,7 +106,9 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   const [data, setData] = useState('');
   const [orarioIntervento, setOrarioIntervento] = useState('');
   // Stato per customer ID selezionato
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(
+    null
+  );
   // Stato per tracciare se le destinazioni sono state caricate ma sono vuote
   const [customerLocationsLoaded, setCustomerLocationsLoaded] = useState(false);
   const [hasCustomerLocations, setHasCustomerLocations] = useState(false);
@@ -96,7 +119,8 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   const [servizioDomicilio, setServizioDomicilio] = useState('Si');
   const [scontoServizioDomicilio, setScontoServizioDomicilio] = useState(false);
   // Flag per tracciare se l'utente ha modificato manualmente il servizio domicilio
-  const [isHomeServiceManuallyModified, setIsHomeServiceManuallyModified] = useState(false);
+  const [isHomeServiceManuallyModified, setIsHomeServiceManuallyModified] =
+    useState(false);
   // Stato per preventivo
   const [preventivo, setPreventivo] = useState(0);
   // Campi auto-compilati dal cliente selezionato
@@ -110,19 +134,23 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   const [dataCreazione, setDataCreazione] = useState('');
   // Nuovi stati per InterventionDetailsSection
   const [selectedEquipments, setSelectedEquipments] = useState<Equipment[]>([]);
-  const [selectedArticles, setSelectedArticles] = useState<SelectedArticle[]>([]);
+  const [selectedArticles, setSelectedArticles] = useState<SelectedArticle[]>(
+    []
+  );
   //const [originalAllocationsByArticle, setOriginalAllocationsByArticle] = useState<Record<string, Array<{ warehouse_id: string; quantity: number }>>>({});
   const [orarioApertura, setOrarioApertura] = useState('');
   const [noteInterne, setNoteInterne] = useState('');
   // Nuovi stati per CallDetailsSection
-  const [selectedTechnician, setSelectedTechnician] = useState<User | null>(null);
+  const [selectedTechnician, setSelectedTechnician] = useState<User | null>(
+    null
+  );
   const [codiceChiamata, setCodiceChiamata] = useState('');
   // Stato per il dialog di risultato
   const [dialog, setDialog] = useState<DialogState>({
     isOpen: false,
     type: 'success',
     title: '',
-    message: ''
+    message: '',
   });
   // Stato per il download PDF
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
@@ -136,18 +164,18 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   // Stato per il componente CreaRapportino
   const [showCreaRapportino, setShowCreaRapportino] = useState(false);
   // Stato per il rapportino esistente - uso tipo semplificato
-  const [existingReport, setExistingReport] = useState<SimpleReport | null>(null);
+  const [existingReport, setExistingReport] = useState<SimpleReport | null>(
+    null
+  );
   const [isCheckingReport] = useState(false);
   // Stato per il caricamento visualizzazione rapporto
   const [isLoadingReport, setIsLoadingReport] = useState(false);
   // Stato per il refresh dei dati
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-
   // Funzione per caricare i dettagli del cliente
   const loadCustomerDetails = async (customerId: number) => {
     try {
-      
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -162,23 +190,23 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
 
       if (response.ok) {
         const responseData = await response.json();
-        
+
         // Proviamo ad accedere ai dati in modi diversi
         const customerData = responseData.data || responseData; // Potrebbe essere annidato in .data
-        
+
         // Verifica se i campi esistono
         if (customerData.client_code !== undefined) {
         } else {
         }
-        
+
         if (customerData.phone_number !== undefined) {
         } else {
         }
-        
+
         if (customerData.mobile_phone_number !== undefined) {
         } else {
         }
-        
+
         // Popola i campi del cliente
         const clientCode = customerData.client_code || '';
         const phoneNumber = customerData.phone_number || '';
@@ -187,10 +215,13 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         setCodiceCliente(clientCode);
         setTelefonoFisso(phoneNumber);
         setNumeroCellulare(mobileNumber);
-
       } else {
         const errorText = await response.text();
-        console.error('❌ Error loading customer details:', response.status, errorText);
+        console.error(
+          '❌ Error loading customer details:',
+          response.status,
+          errorText
+        );
         // In caso di errore, lascia i campi vuoti
         setCodiceCliente('');
         setTelefonoFisso('');
@@ -198,7 +229,10 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       }
     } catch (error) {
       console.error('❌ Error loading customer details:', error);
-      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      console.error(
+        '❌ Error stack:',
+        error instanceof Error ? error.stack : 'No stack trace'
+      );
       // In caso di errore, lascia i campi vuoti
       setCodiceCliente('');
       setTelefonoFisso('');
@@ -209,7 +243,6 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   // Funzione per caricare i dati del creatore dell'intervento
   const loadCreatorDetails = async (createdBy: string) => {
     try {
-      
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -224,29 +257,35 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
 
       if (response.ok) {
         const responseData = await response.json();
-        
+
         // Basandomi sulla struttura API fornita, la risposta è direttamente l'oggetto utente
         const creatorData = responseData;
-        
+
         // Popola i campi dell'operatore creatore
-        const fullName = creatorData.surname 
-          ? `${creatorData.name} ${creatorData.surname}` 
+        const fullName = creatorData.surname
+          ? `${creatorData.name} ${creatorData.surname}`
           : creatorData.name || '';
         const role = creatorData.role || '';
-        
+
         setNomeOperatore(fullName);
         setRuoloOperatore(role);
-        
       } else {
         const errorText = await response.text();
-        console.error('❌ Error loading creator details:', response.status, errorText);
+        console.error(
+          '❌ Error loading creator details:',
+          response.status,
+          errorText
+        );
         // In caso di errore, lascia i campi vuoti
         setNomeOperatore('');
         setRuoloOperatore('');
       }
     } catch (error) {
       console.error('❌ Error loading creator details:', error);
-      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      console.error(
+        '❌ Error stack:',
+        error instanceof Error ? error.stack : 'No stack trace'
+      );
       // In caso di errore, lascia i campi vuoti
       setNomeOperatore('');
       setRuoloOperatore('');
@@ -258,9 +297,12 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     try {
       setIsLoading(true);
       setIsInitialLoad(true); // Inizio caricamento iniziale
-      const data = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
+      const data = await fetchAssistanceInterventionDetail(
+        interventionId,
+        auth.token || ''
+      );
       setInterventionData(data);
-      
+
       // Carica i dettagli del cliente PRIMA di settare gli altri campi
       if (data.customer_id) {
         await loadCustomerDetails(data.customer_id);
@@ -277,11 +319,11 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
 
       // Gestione data di creazione
       if (data.created_at) {
-        
         try {
           const createdDate = new Date(data.created_at);
           if (!isNaN(createdDate.getTime())) {
-            const formattedCreatedDate = createdDate.toLocaleDateString('it-IT');
+            const formattedCreatedDate =
+              createdDate.toLocaleDateString('it-IT');
             setDataCreazione(formattedCreatedDate);
           } else {
             console.error('❌ Invalid created_at date:', data.created_at);
@@ -295,13 +337,13 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         console.warn('⚠️ No created_at found in API response');
         setDataCreazione('');
       }
-      
+
       // Popola tutti i campi con i dati ricevuti
       setSelectedStatus(toStatusKey(data.status_label));
       setRagioneSociale(data.company_name);
       setTipologiaIntervento(data.type_id.toString());
       setZona(data.zone_id.toString());
-      setSelectedCustomerId(data.customer_id);  
+      setSelectedCustomerId(data.customer_id);
       setDestinazione(data.customer_location_id || '');
       setServizioDomicilio(data.flg_home_service ? 'Si' : 'No');
       setScontoServizioDomicilio(data.flg_discount_home_service);
@@ -310,12 +352,11 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       setPreventivo(parseFloat(String(data.quotation_price)) || 0);
       setOrarioApertura(data.opening_hours || '');
       setNoteInterne(data.internal_notes || '');
-      
+
       setCodiceChiamata(data.call_code);
-      
+
       // Gestione data e orari
       if (data.date) {
-        
         // Formattiamo la data per essere compatibile con input di tipo date (YYYY-MM-DD)
         let formattedDate = '';
         try {
@@ -334,7 +375,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         } catch (error) {
           console.error('❌ Error formatting date:', error);
         }
-        
+
         setData(formattedDate);
       } else {
         setData('');
@@ -342,18 +383,22 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       if (data.time_slot) {
         setOrarioIntervento(data.time_slot);
       }
-      
+
       // Estrazione ore da datetime
       if (data.from_datetime && data.to_datetime) {
-        const fromTime = new Date(data.from_datetime).toTimeString().substring(0, 5);
-        const toTime = new Date(data.to_datetime).toTimeString().substring(0, 5);
+        const fromTime = new Date(data.from_datetime)
+          .toTimeString()
+          .substring(0, 5);
+        const toTime = new Date(data.to_datetime)
+          .toTimeString()
+          .substring(0, 5);
         setOraInizio(fromTime);
         setOraFine(toTime);
       }
-      
+
       // Gestione equipaggiamenti e articoli collegati
       if (data.connected_equipment) {
-        const equipments: Equipment[] = data.connected_equipment.map(eq => ({
+        const equipments: Equipment[] = data.connected_equipment.map((eq) => ({
           id: eq.id,
           model: eq.model,
           description: eq.description,
@@ -362,55 +407,70 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
           brand_name: eq.brand_name || '',
           subfamily_name: eq.subfamily_name || '',
           customer_name: eq.customer_name || '',
-          pnc_code: eq.pnc_code ?? null
+          pnc_code: eq.pnc_code ?? null,
         }));
         setSelectedEquipments(equipments);
       }
-      
+
       if (data.connected_articles) {
-        const baseline: Record<string, Array<{ warehouse_id: string; quantity: number }>> = {};
-        const articles: SelectedArticle[] = data.connected_articles.map(art => {
-          const allocations = Array.isArray(art.movements)
-            ? art.movements
-                .filter(m => String(m.to_warehouse_id) === 'CL' && typeof m.from_warehouse_id !== 'undefined' && m.from_warehouse_id !== null)
-                .map(m => ({
-                  warehouse_id: String(m.from_warehouse_id ?? ''),
-                  warehouse_description: m.from_warehouse_name || String(m.from_warehouse_id ?? ''),
-                  quantity: m.quantity || 0,
-                }))
-            : [];
-          baseline[String(art.id)] = allocations.map(a => ({ warehouse_id: a.warehouse_id, quantity: a.quantity }));
-          return {
-            article: {
-              id: art.id.toString(),
-              pnc_code: art.pnc_code,
-              short_description: art.short_description,
-              description: art.description,
-              model: null,
-              order_date: null,
-              estimate_arrival_date: null,
-              alternative_pnc_code: null,
-              place_type_id: null,
-              place_id: null,
-              created_at: '',
-              updated_at: '',
-              brand_id: 0,
-              family_id: '',
-              subfamily_id: null,
-              family_label: '',
-              subfamily_label: null,
-              brand_label: '',
-              inventory: [],
-              quantity_stock: null,
-              quantity_reserved_client: null,
-              quantity_ordered: null,
-              warehouse_description: null,
-              suppliers: null
-            },
-            quantity: art.quantity || 1,
-            allocations,
-          } as SelectedArticle;
-        });
+        const baseline: Record<
+          string,
+          Array<{ warehouse_id: string; quantity: number }>
+        > = {};
+        const articles: SelectedArticle[] = data.connected_articles.map(
+          (art) => {
+            const allocations = Array.isArray(art.movements)
+              ? art.movements
+                  .filter(
+                    (m) =>
+                      String(m.to_warehouse_id) === 'CL' &&
+                      typeof m.from_warehouse_id !== 'undefined' &&
+                      m.from_warehouse_id !== null
+                  )
+                  .map((m) => ({
+                    warehouse_id: String(m.from_warehouse_id ?? ''),
+                    warehouse_description:
+                      m.from_warehouse_name ||
+                      String(m.from_warehouse_id ?? ''),
+                    quantity: m.quantity || 0,
+                  }))
+              : [];
+            baseline[String(art.id)] = allocations.map((a) => ({
+              warehouse_id: a.warehouse_id,
+              quantity: a.quantity,
+            }));
+            return {
+              article: {
+                id: art.id.toString(),
+                pnc_code: art.pnc_code,
+                short_description: art.short_description,
+                description: art.description,
+                model: null,
+                order_date: null,
+                estimate_arrival_date: null,
+                alternative_pnc_code: null,
+                place_type_id: null,
+                place_id: null,
+                created_at: '',
+                updated_at: '',
+                brand_id: 0,
+                family_id: '',
+                subfamily_id: null,
+                family_label: '',
+                subfamily_label: null,
+                brand_label: '',
+                inventory: [],
+                quantity_stock: null,
+                quantity_reserved_client: null,
+                quantity_ordered: null,
+                warehouse_description: null,
+                suppliers: null,
+              },
+              quantity: art.quantity || 1,
+              allocations,
+            } as SelectedArticle;
+          }
+        );
         setSelectedArticles(articles);
         // Enrich articles with fresh inventory so stock and warehouse counts are correct after refresh
         try {
@@ -423,10 +483,15 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
           const detailedArticles = await Promise.all(
             articles.map(async (sa) => {
               try {
-                const res = await fetch(`/api/articles/${encodeURIComponent(sa.article.id)}`, { headers });
+                const res = await fetch(
+                  `/api/articles/${encodeURIComponent(sa.article.id)}`,
+                  { headers }
+                );
                 if (!res.ok) return sa;
                 const detail = await res.json();
-                const inv = Array.isArray(detail.inventory) ? detail.inventory : [];
+                const inv = Array.isArray(detail.inventory)
+                  ? detail.inventory
+                  : [];
                 return {
                   ...sa,
                   article: {
@@ -445,7 +510,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         }
         //setOriginalAllocationsByArticle(baseline);
       }
-      
+
       // Il tecnico assegnato verrà gestito nei componenti figli
       if (data.assigned_to) {
         setSelectedTechnician({
@@ -458,17 +523,16 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
           note: null,
           disabled: false,
           status: 'active',
-          role: null
+          role: null,
         });
       }
-      
     } catch (error) {
       console.error('❌ Error loading intervention data:', error);
       setDialog({
         isOpen: true,
         type: 'error',
         title: 'Errore nel caricamento',
-        message: 'Impossibile caricare i dati dell\'intervento. Riprova.'
+        message: "Impossibile caricare i dati dell'intervento. Riprova.",
       });
     } finally {
       setIsLoading(false);
@@ -528,7 +592,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     // Dipendenze per autoSave
     isOpen,
     interventionData,
-    isLoading
+    isLoading,
     // Rimosso isInitialLoad dalle dipendenze per evitare autosave all'apertura
   ]);
 
@@ -536,33 +600,40 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   const isFormValid = () => {
     // Validazione base - data e orario non sono più obbligatori
     const baseValid = ragioneSociale && tipologiaIntervento && zona;
-    
+
     // Per la destinazione: è valida se:
     // 1. È compilata, OPPURE
     // 2. Le location sono state caricate ma sono vuote (cliente senza destinazioni)
     // Se un cliente è selezionato ma le location non sono ancora state caricate, non è valido
-    const destinationValid = destinazione || (selectedCustomerId && customerLocationsLoaded && !hasCustomerLocations);
-    
+    const destinationValid =
+      destinazione ||
+      (selectedCustomerId && customerLocationsLoaded && !hasCustomerLocations);
+
     // Validazione incrociata data/orario:
     // - Se c'è data DEVE esserci anche orario
     // - Se c'è orario DEVE esserci anche data
-    const dateTimeValid = (!data && !orarioIntervento) || (data && orarioIntervento);
-    
+    const dateTimeValid =
+      (!data && !orarioIntervento) || (data && orarioIntervento);
+
     return baseValid && destinationValid && dateTimeValid;
   };
 
   // Funzione per costruire datetime string
-  const buildDateTime = (date: string, timeSlot: string, specificTime?: string): string => {
+  const buildDateTime = (
+    date: string,
+    timeSlot: string,
+    specificTime?: string
+  ): string => {
     if (!date) {
       console.warn('⚠️ buildDateTime called with empty date');
       return '';
     }
-    
+
     if (timeSlot === 'fascia_oraria' && specificTime) {
       const result = `${date}T${specificTime}:00`;
       return result;
     } else if (timeSlot === 'mattina') {
-      const result = `${date}T08:00:00`; // 8:00  
+      const result = `${date}T08:00:00`; // 8:00
       return result;
     } else if (timeSlot === 'pomeriggio') {
       const result = `${date}T14:00:00`; // 14:00
@@ -578,12 +649,16 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   };
 
   // Funzione per costruire datetime di fine
-  const buildEndDateTime = (date: string, timeSlot: string, specificTime?: string): string => {
+  const buildEndDateTime = (
+    date: string,
+    timeSlot: string,
+    specificTime?: string
+  ): string => {
     if (!date) {
       console.warn('⚠️ buildEndDateTime called with empty date');
       return '';
     }
-    
+
     if (timeSlot === 'fascia_oraria' && specificTime) {
       const result = `${date}T${specificTime}:00`;
       return result;
@@ -621,16 +696,23 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
     try {
       setAutoSaveError(null);
 
-      const articlesPayload = selectedArticles.reduce<Array<UpdateAssistanceInterventionRequest['articles'][number]>>((acc, art) => {
-        const strId = String((art.article ).id);
+      const articlesPayload = selectedArticles.reduce<
+        Array<UpdateAssistanceInterventionRequest['articles'][number]>
+      >((acc, art) => {
+        const strId = String(art.article.id);
         if (!strId) return acc;
-        const filtered = (art.allocations || []).filter(a => (a.quantity || 0) > 0);
+        const filtered = (art.allocations || []).filter(
+          (a) => (a.quantity || 0) > 0
+        );
         const sum = filtered.reduce((s, a) => s + (a.quantity || 0), 0);
         if (sum <= 0) return acc;
         acc.push({
           article_id: strId,
           quantity: sum,
-          from_warehouses: filtered.map(a => ({ warehouse_id: a.warehouse_id, quantity: a.quantity }))
+          from_warehouses: filtered.map((a) => ({
+            warehouse_id: a.warehouse_id,
+            quantity: a.quantity,
+          })),
         });
         return acc;
       }, []);
@@ -641,40 +723,52 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         zone_id: parseInt(zona) || 0,
         customer_location_id: destinazione || '',
         flg_home_service: servizioDomicilio === 'Si',
-        flg_discount_home_service: servizioDomicilio === 'Si' ? scontoServizioDomicilio : false,
+        flg_discount_home_service:
+          servizioDomicilio === 'Si' ? scontoServizioDomicilio : false,
         date: data || null,
         time_slot: orarioIntervento || null,
-        from_datetime: data && orarioIntervento ? buildDateTime(data, orarioIntervento, oraInizio) : null,
-        to_datetime: data && orarioIntervento 
-          ? (orarioIntervento === 'fascia_oraria' 
-              ? buildDateTime(data, orarioIntervento, oraFine) 
-              : buildEndDateTime(data, orarioIntervento))
-          : null,
+        from_datetime:
+          data && orarioIntervento
+            ? buildDateTime(data, orarioIntervento, oraInizio)
+            : null,
+        to_datetime:
+          data && orarioIntervento
+            ? orarioIntervento === 'fascia_oraria'
+              ? buildDateTime(data, orarioIntervento, oraFine)
+              : buildEndDateTime(data, orarioIntervento)
+            : null,
         quotation_price: preventivo,
         opening_hours: orarioApertura,
         assigned_to: selectedTechnician?.id || '',
         call_code: codiceChiamata,
         internal_notes: noteInterne,
-        status_id: interventionData?.status_id ?? (getStatusId(selectedStatus) ?? 1),
-        equipments: selectedEquipments.map(eq => eq.id),
-        articles: articlesPayload
+        status_id:
+          interventionData?.status_id ?? getStatusId(selectedStatus) ?? 1,
+        equipments: selectedEquipments.map((eq) => eq.id),
+        articles: articlesPayload,
       };
 
-      await updateAssistanceIntervention(interventionId, requestData, auth.token || '');
-      
+      await updateAssistanceIntervention(
+        interventionId,
+        requestData,
+        auth.token || ''
+      );
+
       // 🆕 Ricarica i dati dell'intervento per aggiornare l'UI con eventuali modifiche server-side
       setIsInitialLoad(true); // Previeni ulteriori autosave durante il reload
-      
+
       try {
-        const updatedData = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
+        const updatedData = await fetchAssistanceInterventionDetail(
+          interventionId,
+          auth.token || ''
+        );
         setInterventionData(updatedData);
-        
+
         // Aggiorna lo status usando la label del server
         const newKey = toStatusKey(updatedData.status_label);
         if (newKey !== selectedStatus) {
           setSelectedStatus(newKey);
         }
-        
       } catch (reloadError) {
         console.error('❌ AutoSave: Error reloading data:', reloadError);
         // Non blocchiamo l'operazione se il reload fallisce
@@ -700,17 +794,22 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   const downloadPDF = async () => {
     try {
       setIsDownloadingPDF(true);
-      
-      const pdfBlob = await downloadAssistanceInterventionPDF(interventionId, auth.token || '');
+
+      // Salva prima le modifiche per assicurarsi che le apparecchiature e altri dati siano nel database
+      await autoSave();
+
+      const pdfBlob = await downloadAssistanceInterventionPDF(
+        interventionId,
+        auth.token || ''
+      );
       downloadPDFFile(pdfBlob, `intervento-${interventionId}.pdf`);
-      
     } catch (error) {
       console.error('❌ Error downloading PDF:', error);
       setDialog({
         isOpen: true,
         type: 'error',
         title: 'Errore download PDF',
-        message: 'Impossibile scaricare il PDF dell\'intervento. Riprova.'
+        message: "Impossibile scaricare il PDF dell'intervento. Riprova.",
       });
     } finally {
       setIsDownloadingPDF(false);
@@ -746,7 +845,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   const fetchUserInfo = async () => {
     try {
       setUserLoading(true);
-      
+
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -760,16 +859,16 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         headers,
         body: JSON.stringify({}),
       });
-      
+
       if (!response.ok) {
         if (response.status === 401) {
-          console.error('Sessione scaduta, effettuando logout');    
+          console.error('Sessione scaduta, effettuando logout');
           auth.logout();
           return;
         }
         throw new Error('Failed to fetch user info');
       }
-      
+
       const userData: UserInfo = await response.json();
       setUserInfo(userData);
     } catch (err) {
@@ -781,11 +880,16 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
 
   // Funzione per determinare se l'utente è amministratore
   const isAdmin = () => {
-    return userInfo?.role === 'amministrazione' || userInfo?.role === 'ufficio' || userInfo?.role === 'magazziniere';
+    return (
+      userInfo?.role === 'amministrazione' ||
+      userInfo?.role === 'ufficio' ||
+      userInfo?.role === 'magazziniere'
+    );
   };
 
   // Funzione per determinare se l'utente è tecnico
-  const isTechnician = userInfo?.role === 'tecnico' || userInfo?.role === 'ufficio_tecnico';
+  const isTechnician =
+    userInfo?.role === 'tecnico' || userInfo?.role === 'ufficio_tecnico';
 
   // Effect per caricare le informazioni utente al mount
   useEffect(() => {
@@ -805,7 +909,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         isOpen: true,
         type: 'error',
         title: 'Errore aggiornamento',
-        message: 'Impossibile aggiornare i dati dell\'intervento. Riprova.'
+        message: "Impossibile aggiornare i dati dell'intervento. Riprova.",
       });
     } finally {
       setIsRefreshing(false);
@@ -824,10 +928,10 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
   const visualizzaRapporto = async () => {
     try {
       setIsLoadingReport(true);
-      
+
       // Usa il report_id dal payload invece di fare chiamate API
       const reportId = interventionData?.report_id;
-      
+
       if (reportId) {
         const url = `/interventi/rapportino/${reportId}`;
         window.open(url, '_blank');
@@ -836,7 +940,8 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
           isOpen: true,
           type: 'error',
           title: 'Rapporto non disponibile',
-          message: 'Non è possibile visualizzare il rapporto in questo momento.'
+          message:
+            'Non è possibile visualizzare il rapporto in questo momento.',
         });
       }
     } catch (error) {
@@ -845,7 +950,8 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         isOpen: true,
         type: 'error',
         title: 'Errore visualizzazione rapporto',
-        message: 'Si è verificato un errore durante l\'apertura del rapporto. Riprova.'
+        message:
+          "Si è verificato un errore durante l'apertura del rapporto. Riprova.",
       });
     } finally {
       setIsLoadingReport(false);
@@ -876,7 +982,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         // Creo un oggetto report dal payload
         setExistingReport({
           id: interventionData.report_id,
-          is_failed: interventionData.report_is_failed || false
+          is_failed: interventionData.report_is_failed || false,
         });
       } else {
         setExistingReport(null);
@@ -891,7 +997,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       const isFailed = existingReport?.is_failed === true;
       const newStatus = isFailed ? 'non_completato' : 'completato';
       const newStatusId = isFailed ? 7 : 6;
-      
+
       // Prepara i dati per l'aggiornamento mantenendo tutti i valori esistenti
       const requestData: UpdateAssistanceInterventionRequest = {
         customer_id: selectedCustomerId || 0,
@@ -899,15 +1005,20 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         zone_id: parseInt(zona) || 0,
         customer_location_id: destinazione || '',
         flg_home_service: servizioDomicilio === 'Si',
-        flg_discount_home_service: servizioDomicilio === 'Si' ? scontoServizioDomicilio : false,
+        flg_discount_home_service:
+          servizioDomicilio === 'Si' ? scontoServizioDomicilio : false,
         date: data || null,
         time_slot: orarioIntervento || null,
-        from_datetime: data && orarioIntervento ? buildDateTime(data, orarioIntervento, oraInizio) : null,
-        to_datetime: data && orarioIntervento 
-          ? (orarioIntervento === 'fascia_oraria' 
-              ? buildDateTime(data, orarioIntervento, oraFine) 
-              : buildEndDateTime(data, orarioIntervento))
-          : null,
+        from_datetime:
+          data && orarioIntervento
+            ? buildDateTime(data, orarioIntervento, oraInizio)
+            : null,
+        to_datetime:
+          data && orarioIntervento
+            ? orarioIntervento === 'fascia_oraria'
+              ? buildDateTime(data, orarioIntervento, oraFine)
+              : buildEndDateTime(data, orarioIntervento)
+            : null,
         quotation_price: preventivo,
         opening_hours: orarioApertura,
         assigned_to: selectedTechnician?.id || '',
@@ -915,61 +1026,80 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         internal_notes: noteInterne,
         status_id: newStatusId, // Questo è il cambio importante
         approved_by: userInfo?.id || '', // Aggiunto campo approved_by con ID utente corrente
-        equipments: selectedEquipments.map(eq => eq.id),
-        articles: selectedArticles.reduce<Array<UpdateAssistanceInterventionRequest['articles'][number]>>((acc, art) => {
-          const strId = String((art.article ).id);
+        equipments: selectedEquipments.map((eq) => eq.id),
+        articles: selectedArticles.reduce<
+          Array<UpdateAssistanceInterventionRequest['articles'][number]>
+        >((acc, art) => {
+          const strId = String(art.article.id);
           if (!strId) return acc;
-          const filtered = (art.allocations || []).filter(a => (a.quantity || 0) > 0);
+          const filtered = (art.allocations || []).filter(
+            (a) => (a.quantity || 0) > 0
+          );
           const sum = filtered.reduce((s, a) => s + (a.quantity || 0), 0);
           if (sum <= 0) return acc;
           acc.push({
             article_id: strId,
             quantity: sum,
-            from_warehouses: filtered.map(a => ({ warehouse_id: a.warehouse_id, quantity: a.quantity }))
+            from_warehouses: filtered.map((a) => ({
+              warehouse_id: a.warehouse_id,
+              quantity: a.quantity,
+            })),
           });
           return acc;
-        }, [])
+        }, []),
       };
 
       // Chiamata API per aggiornare l'intervento
-      await updateAssistanceIntervention(interventionId, requestData, auth.token || '');
-      
+      await updateAssistanceIntervention(
+        interventionId,
+        requestData,
+        auth.token || ''
+      );
+
       // 🆕 Ricarica i dati dell'intervento per sincronizzare l'UI
       try {
-        const updatedData = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
+        const updatedData = await fetchAssistanceInterventionDetail(
+          interventionId,
+          auth.token || ''
+        );
         setInterventionData(updatedData);
-        
+
         // Aggiorna lo status usando la label del server
         setSelectedStatus(toStatusKey(updatedData.status_label));
-        
       } catch (reloadError) {
-        console.error('❌ Conferma rapporto: Error reloading data:', reloadError);
+        console.error(
+          '❌ Conferma rapporto: Error reloading data:',
+          reloadError
+        );
         // Fallback: aggiorna almeno lo status locale
         setSelectedStatus(newStatus);
       }
-      
+
       // Mostra messaggio di successo
       setDialog({
         isOpen: true,
         type: 'success',
         title: 'Rapporto confermato',
-        message: `Il rapporto è stato confermato con successo. L'intervento è ora ${newStatus === 'completato' ? 'completato' : 'non completato'}.`
+        message: `Il rapporto è stato confermato con successo. L'intervento è ora ${newStatus === 'completato' ? 'completato' : 'non completato'}.`,
       });
-      
+
       // Notifica il parent component dell'aggiornamento
       if (onInterventionUpdated) {
         onInterventionUpdated();
       }
-      
     } catch (error) {
       console.error('❌ Error confirming report:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Si è verificato un errore durante la conferma del rapporto. Riprova.';
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Si è verificato un errore durante la conferma del rapporto. Riprova.';
       setDialog({
         isOpen: true,
         type: 'error',
         title: 'Errore conferma rapporto',
-        message: 'Si è verificato un errore durante la conferma del rapporto. Riprova.',
-        errorDetail: errorMessage
+        message:
+          'Si è verificato un errore durante la conferma del rapporto. Riprova.',
+        errorDetail: errorMessage,
       });
     }
   };
@@ -984,15 +1114,20 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         zone_id: parseInt(zona) || 0,
         customer_location_id: destinazione || '',
         flg_home_service: servizioDomicilio === 'Si',
-        flg_discount_home_service: servizioDomicilio === 'Si' ? scontoServizioDomicilio : false,
+        flg_discount_home_service:
+          servizioDomicilio === 'Si' ? scontoServizioDomicilio : false,
         date: data || null,
         time_slot: orarioIntervento || null,
-        from_datetime: data && orarioIntervento ? buildDateTime(data, orarioIntervento, oraInizio) : null,
-        to_datetime: data && orarioIntervento 
-          ? (orarioIntervento === 'fascia_oraria' 
-              ? buildDateTime(data, orarioIntervento, oraFine) 
-              : buildEndDateTime(data, orarioIntervento))
-          : null,
+        from_datetime:
+          data && orarioIntervento
+            ? buildDateTime(data, orarioIntervento, oraInizio)
+            : null,
+        to_datetime:
+          data && orarioIntervento
+            ? orarioIntervento === 'fascia_oraria'
+              ? buildDateTime(data, orarioIntervento, oraFine)
+              : buildEndDateTime(data, orarioIntervento)
+            : null,
         quotation_price: preventivo,
         opening_hours: orarioApertura,
         assigned_to: selectedTechnician?.id || '',
@@ -1000,60 +1135,77 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         internal_notes: noteInterne,
         status_id: 9, // Status "fatturato" ha ID 9
         invoiced_by: userInfo?.id || '', // Aggiunto campo invoiced_by con ID utente corrente
-        equipments: selectedEquipments.map(eq => eq.id),
-        articles: selectedArticles.reduce<Array<UpdateAssistanceInterventionRequest['articles'][number]>>((acc, art) => {
-          const strId = String((art.article ).id);
+        equipments: selectedEquipments.map((eq) => eq.id),
+        articles: selectedArticles.reduce<
+          Array<UpdateAssistanceInterventionRequest['articles'][number]>
+        >((acc, art) => {
+          const strId = String(art.article.id);
           if (!strId) return acc;
           const allocations = art.allocations || [];
           const sum = allocations.reduce((s, a) => s + (a.quantity || 0), 0);
           acc.push({
             article_id: strId,
             quantity: sum > 0 ? sum : art.quantity,
-            from_warehouses: allocations.map(a => ({ warehouse_id: a.warehouse_id, quantity: a.quantity }))
+            from_warehouses: allocations.map((a) => ({
+              warehouse_id: a.warehouse_id,
+              quantity: a.quantity,
+            })),
           });
           return acc;
-        }, [])
+        }, []),
       };
 
       // Chiamata API per aggiornare l'intervento
-      await updateAssistanceIntervention(interventionId, requestData, auth.token || '');
-      
+      await updateAssistanceIntervention(
+        interventionId,
+        requestData,
+        auth.token || ''
+      );
+
       // 🆕 Ricarica i dati dell'intervento per sincronizzare l'UI
       try {
-        const updatedData = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
+        const updatedData = await fetchAssistanceInterventionDetail(
+          interventionId,
+          auth.token || ''
+        );
         setInterventionData(updatedData);
-        
+
         // Aggiorna lo status usando la label del server
         setSelectedStatus(toStatusKey(updatedData.status_label));
-        
       } catch (reloadError) {
-        console.error('❌ Manda in fatturazione: Error reloading data:', reloadError);
+        console.error(
+          '❌ Manda in fatturazione: Error reloading data:',
+          reloadError
+        );
         // Fallback: aggiorna almeno lo status locale
         setSelectedStatus('fatturato');
       }
-      
+
       // Mostra messaggio di successo
       setDialog({
         isOpen: true,
         type: 'success',
         title: 'Mandato in fatturazione',
-        message: 'L\'intervento è stato mandato in fatturazione con successo.'
+        message: "L'intervento è stato mandato in fatturazione con successo.",
       });
-      
+
       // Notifica il parent component dell'aggiornamento
       if (onInterventionUpdated) {
         onInterventionUpdated();
       }
-      
     } catch (error) {
       console.error('❌ Error sending to invoicing:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Si è verificato un errore durante l\'invio in fatturazione. Riprova.';
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Si è verificato un errore durante l'invio in fatturazione. Riprova.";
       setDialog({
         isOpen: true,
         type: 'error',
         title: 'Errore fatturazione',
-        message: 'Si è verificato un errore durante l\'invio in fatturazione. Riprova.',
-        errorDetail: errorMessage
+        message:
+          "Si è verificato un errore durante l'invio in fatturazione. Riprova.",
+        errorDetail: errorMessage,
       });
     }
   };
@@ -1068,15 +1220,20 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         zone_id: parseInt(zona) || 0,
         customer_location_id: destinazione || '',
         flg_home_service: servizioDomicilio === 'Si',
-        flg_discount_home_service: servizioDomicilio === 'Si' ? scontoServizioDomicilio : false,
+        flg_discount_home_service:
+          servizioDomicilio === 'Si' ? scontoServizioDomicilio : false,
         date: data || null,
         time_slot: orarioIntervento || null,
-        from_datetime: data && orarioIntervento ? buildDateTime(data, orarioIntervento, oraInizio) : null,
-        to_datetime: data && orarioIntervento 
-          ? (orarioIntervento === 'fascia_oraria' 
-              ? buildDateTime(data, orarioIntervento, oraFine) 
-              : buildEndDateTime(data, orarioIntervento))
-          : null,
+        from_datetime:
+          data && orarioIntervento
+            ? buildDateTime(data, orarioIntervento, oraInizio)
+            : null,
+        to_datetime:
+          data && orarioIntervento
+            ? orarioIntervento === 'fascia_oraria'
+              ? buildDateTime(data, orarioIntervento, oraFine)
+              : buildEndDateTime(data, orarioIntervento)
+            : null,
         quotation_price: preventivo,
         opening_hours: orarioApertura,
         assigned_to: selectedTechnician?.id || '',
@@ -1084,48 +1241,57 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         internal_notes: noteInterne,
         status_id: 8, // Status "annullato" ha ID 8
         cancelled_by: userInfo?.id || '', // Aggiunto campo cancelled_by con ID utente corrente
-        equipments: selectedEquipments.map(eq => eq.id),
+        equipments: selectedEquipments.map((eq) => eq.id),
         // Per annullo, non inviare articoli: il backend ripristina i movimenti
-        articles: []
+        articles: [],
       };
 
       // Chiamata API per aggiornare l'intervento
-      await updateAssistanceIntervention(interventionId, requestData, auth.token || '');
-      
+      await updateAssistanceIntervention(
+        interventionId,
+        requestData,
+        auth.token || ''
+      );
+
       // 🆕 Ricarica i dati dell'intervento per sincronizzare l'UI
       try {
-        const updatedData = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
+        const updatedData = await fetchAssistanceInterventionDetail(
+          interventionId,
+          auth.token || ''
+        );
         setInterventionData(updatedData);
-        
+
         // Aggiorna lo status usando la label del server
         setSelectedStatus(toStatusKey(updatedData.status_label));
-        
       } catch (reloadError) {
-        console.error('❌ Annulla intervento: Error reloading data:', reloadError);
+        console.error(
+          '❌ Annulla intervento: Error reloading data:',
+          reloadError
+        );
         // Fallback: aggiorna almeno lo status locale
         setSelectedStatus('annullato');
       }
-      
+
       // Mostra messaggio di successo
       setDialog({
         isOpen: true,
         type: 'success',
         title: 'Intervento annullato',
-        message: 'L\'intervento è stato annullato con successo.'
+        message: "L'intervento è stato annullato con successo.",
       });
-      
+
       // Notifica il parent component dell'aggiornamento
       if (onInterventionUpdated) {
         onInterventionUpdated();
       }
-      
     } catch (error) {
       console.error('❌ Error cancelling intervention:', error);
       setDialog({
         isOpen: true,
         type: 'error',
         title: 'Errore annullamento',
-        message: 'Si è verificato un errore durante l\'annullamento dell\'intervento. Riprova.'
+        message:
+          "Si è verificato un errore durante l'annullamento dell'intervento. Riprova.",
       });
     }
   };
@@ -1137,16 +1303,18 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       <div className="fixed top-0 left-16 right-0 bottom-0 bg-white z-50 overflow-y-auto">
         <div className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={onClose}
               className="flex items-center text-gray-600 hover:text-gray-900"
             >
               <ArrowLeft size={20} />
             </button>
-            <h1 className="text-xl font-semibold text-gray-900">Dettaglio intervento</h1>
+            <h1 className="text-xl font-semibold text-gray-900">
+              Dettaglio intervento
+            </h1>
           </div>
         </div>
-        
+
         <div className="p-6 max-w-6xl mx-auto pb-8">
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
@@ -1165,22 +1333,25 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={onClose}
               className="flex items-center text-gray-600 hover:text-gray-900"
             >
               <ArrowLeft size={20} />
             </button>
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">Dettaglio intervento</h1>
+              <h1 className="text-xl font-semibold text-gray-900">
+                Dettaglio intervento
+              </h1>
               {interventionData && (
                 <p className="text-sm text-gray-500">
-                  Codice: {interventionData.call_code} | ID: #{interventionData.id}
+                  Codice: {interventionData.call_code} | ID: #
+                  {interventionData.id}
                 </p>
               )}
             </div>
           </div>
-          
+
           {/* Pulsanti azioni */}
           <div className="flex items-center gap-3">
             {/* Pulsante aggiorna dati */}
@@ -1190,9 +1361,12 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
               className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
               title="Aggiorna dati intervento"
             >
-              <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+              <RefreshCw
+                size={16}
+                className={isRefreshing ? 'animate-spin' : ''}
+              />
             </button>
-            
+
             {/* Pulsante annulla intervento - solo per status completato o inferiori e solo admin */}
             {shouldShowCancelButton() && userInfo && isAdmin() && (
               <CancelInterventionButton
@@ -1200,7 +1374,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
                 disabled={isRefreshing || isDownloadingPDF}
               />
             )}
-            
+
             {/* Pulsante download PDF */}
             <button
               onClick={downloadPDF}
@@ -1213,7 +1387,7 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
           </div>
         </div>
       </div>
-      
+
       <div className="p-6 max-w-6xl mx-auto pb-8">
         {/* Status e pulsanti rapporto */}
         <InterventionStatusAndActions
@@ -1231,11 +1405,16 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
         />
 
         {/* Tabella righe rapporto per fatturazione - visibile solo per admin quando è abilitato "manda in fatturazione" */}
-        {(selectedStatus === 'completato' || selectedStatus === 'fatturato') && isAdmin() && existingReport && (
-          <div className="mt-6">
-            <ReportRowsTable interventionId={interventionId} status={selectedStatus} />
-          </div>
-        )}
+        {(selectedStatus === 'completato' || selectedStatus === 'fatturato') &&
+          isAdmin() &&
+          existingReport && (
+            <div className="mt-6">
+              <ReportRowsTable
+                interventionId={interventionId}
+                status={selectedStatus}
+              />
+            </div>
+          )}
 
         {/* Form sections */}
         <div className="space-y-8 mt-4">
@@ -1337,13 +1516,12 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
               </div>
             </div>
             <div className="mb-4">
-              <p className="text-sm text-gray-500">
-                {dialog.message}
-              </p>
+              <p className="text-sm text-gray-500">{dialog.message}</p>
               {/* Dettaglio errore dal backend */}
               {dialog.errorDetail && (
                 <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700 max-h-24 overflow-y-auto">
-                  <span className="font-medium">Dettaglio:</span> {dialog.errorDetail}
+                  <span className="font-medium">Dettaglio:</span>{' '}
+                  {dialog.errorDetail}
                 </div>
               )}
             </div>
@@ -1369,4 +1547,4 @@ export default function DettaglioIntervento({ isOpen, onClose, interventionId, o
       )}
     </div>
   );
-} 
+}

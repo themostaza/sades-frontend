@@ -16,6 +16,7 @@ interface Customer {
   zone_label: string;
   area: string | null;
   zone_id: number;
+  blacklisted: boolean;
 }
 
 interface CustomerLocation {
@@ -350,7 +351,12 @@ export default function CustomerSectionDetail({
                       className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
                     >
                       <div className="font-medium text-gray-900">
-                        {customer.company_name}
+                        {customer.company_name}{' '}
+                        {customer.blacklisted && (
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                            in blacklist
+                          </span>
+                        )}
                       </div>
                       <div className="text-sm text-gray-500">
                         {customer.address}, {customer.city} -{' '}
