@@ -2,15 +2,16 @@
 
 import React, { useState } from 'react';
 import { Check, AlertCircle } from 'lucide-react';
-import { getStatusColor, statusOptions } from '../../../utils/intervention-status';
+import {
+  getStatusColor,
+  statusOptions,
+} from '../../../utils/intervention-status';
 
 // Tipo semplificato per il report esistente
 interface SimpleReport {
   id: number;
   is_failed: boolean;
 }
-
-
 
 interface UserInfo {
   id: string;
@@ -44,8 +45,6 @@ interface ConfirmDialogState {
   onConfirm?: () => void;
 }
 
-
-
 export default function InterventionStatusAndActions({
   selectedStatus,
   userInfo,
@@ -58,13 +57,12 @@ export default function InterventionStatusAndActions({
   onConfirmReport,
   onSendToInvoicing,
 }: InterventionStatusAndActionsProps) {
-
   // Stato per il dialog di conferma
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>({
     isOpen: false,
     type: 'confirm',
     title: '',
-    message: ''
+    message: '',
   });
 
   // Funzione per gestire la conferma del rapporto
@@ -73,7 +71,7 @@ export default function InterventionStatusAndActions({
     const isFailed = existingReport?.is_failed === true;
     const statusText = isFailed ? 'non completato' : 'completato';
     const resultText = isFailed ? 'fallimento' : 'successo';
-    
+
     setConfirmDialog({
       isOpen: true,
       type: 'confirm',
@@ -82,7 +80,7 @@ export default function InterventionStatusAndActions({
       onConfirm: () => {
         setConfirmDialog({ ...confirmDialog, isOpen: false });
         onConfirmReport();
-      }
+      },
     });
   };
 
@@ -92,11 +90,12 @@ export default function InterventionStatusAndActions({
       isOpen: true,
       type: 'confirm',
       title: 'Manda in fatturazione',
-      message: 'Stai per mandare l\'intervento in fatturazione. L\'intervento passerà allo status "fatturato". Confermi?',
+      message:
+        'Stai per mandare l\'intervento in fatturazione. L\'intervento passerà allo status "fatturato". Confermi?',
       onConfirm: () => {
         setConfirmDialog({ ...confirmDialog, isOpen: false });
         onSendToInvoicing();
-      }
+      },
     });
   };
 
@@ -108,68 +107,21 @@ export default function InterventionStatusAndActions({
   return (
     <div className="space-y-6">
       {/* Report Actions - Solo per status "in_carico", "da_confermare", "completato", "non_completato" o "fatturato" */}
-      {!userLoading && userInfo && (selectedStatus === 'in_carico' || selectedStatus === 'da_confermare' || selectedStatus === 'completato' || selectedStatus === 'non_completato' || selectedStatus === 'fatturato') && (
-        <div className="flex justify-center">
-          {selectedStatus === 'fatturato' ? (
-            // Pulsante per status "fatturato" - solo visualizza rapporto a full width
-            <button
-              onClick={onViewReport}
-              disabled={isLoadingReport}
-              className={`px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium w-full justify-center ${
-                isLoadingReport 
-                  ? 'bg-gray-100 border border-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-white border border-gray-300 hover:bg-gray-50 text-gray-900'
-              }`}
-            >
-              {isLoadingReport ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                  Caricamento rapporto...
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 6 16 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                  Visualizza rapporto
-                </>
-              )}
-            </button>
-          ) : selectedStatus === 'non_completato' ? (
-            // Pulsante solo per status "non_completato" - solo visualizza rapporto
-            <button
-              onClick={onViewReport}
-              disabled={isLoadingReport}
-              className={`px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium w-full justify-center ${
-                isLoadingReport 
-                  ? 'bg-gray-100 border border-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-white border border-gray-300 hover:bg-gray-50 text-gray-900'
-              }`}
-            >
-              {isLoadingReport ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                  Caricamento rapporto...
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 6 16 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                  Visualizza rapporto
-                </>
-              )}
-            </button>
-          ) : selectedStatus === 'completato' ? (
-            // Pulsanti per status "completato" - visualizza rapporto e manda in fatturazione
-            <div className="flex gap-4 w-full">
+      {!userLoading &&
+        userInfo &&
+        (selectedStatus === 'in_carico' ||
+          selectedStatus === 'da_confermare' ||
+          selectedStatus === 'completato' ||
+          selectedStatus === 'non_completato' ||
+          selectedStatus === 'fatturato') && (
+          <div className="flex justify-center">
+            {selectedStatus === 'fatturato' ? (
+              // Pulsante per status "fatturato" - solo visualizza rapporto a full width
               <button
                 onClick={onViewReport}
                 disabled={isLoadingReport}
-                className={`px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium flex-1 justify-center w-full ${
-                  isLoadingReport 
+                className={`px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium w-full justify-center ${
+                  isLoadingReport
                     ? 'bg-gray-100 border border-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-white border border-gray-300 hover:bg-gray-50 text-gray-900'
                 }`}
@@ -177,84 +129,229 @@ export default function InterventionStatusAndActions({
                 {isLoadingReport ? (
                   <>
                     <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                    Caricamento...
+                    Caricamento rapporto...
                   </>
                 ) : (
                   <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 6 16 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 12a3 3 0 11-6 0 3 3 0 6 16 0z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                      />
                     </svg>
                     Visualizza rapporto
                   </>
                 )}
               </button>
+            ) : selectedStatus === 'non_completato' ? (
+              // Pulsante solo per status "non_completato" - solo visualizza rapporto
               <button
-                onClick={handleSendToInvoicing}
-                className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium flex-1 justify-center w-full"
+                onClick={onViewReport}
+                disabled={isLoadingReport}
+                className={`px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium w-full justify-center ${
+                  isLoadingReport
+                    ? 'bg-gray-100 border border-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-white border border-gray-300 hover:bg-gray-50 text-gray-900'
+                }`}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                </svg>
-                Manda in fatturazione
+                {isLoadingReport ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                    Caricamento rapporto...
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 12a3 3 0 11-6 0 3 3 0 6 16 0z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                      />
+                    </svg>
+                    Visualizza rapporto
+                  </>
+                )}
               </button>
-            </div>
-          ) : isCheckingReport ? (
-            <div className="w-full flex justify-center">
-              <div className="flex items-center gap-2 text-gray-600">
-                <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                <span>Verifica rapporto...</span>
+            ) : selectedStatus === 'completato' ? (
+              // Pulsanti per status "completato" - visualizza rapporto e manda in fatturazione
+              <div className="flex gap-4 w-full">
+                <button
+                  onClick={onViewReport}
+                  disabled={isLoadingReport}
+                  className={`px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium flex-1 justify-center w-full ${
+                    isLoadingReport
+                      ? 'bg-gray-100 border border-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-white border border-gray-300 hover:bg-gray-50 text-gray-900'
+                  }`}
+                >
+                  {isLoadingReport ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                      Caricamento...
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 12a3 3 0 11-6 0 3 3 0 6 16 0z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                        />
+                      </svg>
+                      Visualizza rapporto
+                    </>
+                  )}
+                </button>
+                {userInfo.role !== 'tecnico' && (
+                  <button
+                    onClick={handleSendToInvoicing}
+                    className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium flex-1 justify-center w-full"
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"
+                      />
+                    </svg>
+                    Manda in fatturazione
+                  </button>
+                )}
               </div>
-            </div>
-          ) : existingReport ? (
-            <div className="flex gap-4 w-full">
+            ) : isCheckingReport ? (
+              <div className="w-full flex justify-center">
+                <div className="flex items-center gap-2 text-gray-600">
+                  <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Verifica rapporto...</span>
+                </div>
+              </div>
+            ) : existingReport ? (
+              <div className="flex gap-4 w-full">
+                <button
+                  onClick={onViewReport}
+                  disabled={isLoadingReport}
+                  className={`px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium flex-1 justify-center w-full ${
+                    isLoadingReport
+                      ? 'bg-gray-100 border border-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-white border border-gray-300 hover:bg-gray-50 text-gray-900'
+                  }`}
+                >
+                  {isLoadingReport ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                      Caricamento...
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 12a3 3 0 11-6 0 3 3 0 6 16 0z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                        />
+                      </svg>
+                      Visualizza rapporto
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleConfirmReport}
+                  className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium flex-1 justify-center w-full"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  Conferma rapporto
+                </button>
+              </div>
+            ) : (
               <button
-                onClick={onViewReport}
-                disabled={isLoadingReport}
-                className={`px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium flex-1 justify-center w-full ${
-                  isLoadingReport 
-                    ? 'bg-gray-100 border border-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-white border border-gray-300 hover:bg-gray-50 text-gray-900'
-                }`}
+                onClick={onCreateReport}
+                className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium w-full justify-center"
               >
-                {isLoadingReport ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                    Caricamento...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 6 16 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                    Visualizza rapporto
-                  </>
-                )}
-              </button>
-              <button
-                onClick={handleConfirmReport}
-                className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium flex-1 justify-center w-full"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
                 </svg>
-                Conferma rapporto
+                Crea Rapporto
               </button>
-            </div>
-          ) : (
-            <button
-              onClick={onCreateReport}
-              className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors font-medium w-full justify-center"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Crea Rapporto
-            </button>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
 
       {/* Status badges */}
       <div>
@@ -265,16 +362,14 @@ export default function InterventionStatusAndActions({
               <div
                 key={status.key}
                 className={`${
-                  isSelected 
-                    ? 'px-4 py-2 rounded-md text-sm font-bold ring-2 ring-blue-500' 
+                  isSelected
+                    ? 'px-4 py-2 rounded-md text-sm font-bold ring-2 ring-blue-500'
                     : 'px-3 py-1 rounded-full text-xs font-medium opacity-40'
                 } ${getStatusColor(status.key)} transition-all cursor-default`}
                 title="Status calcolato automaticamente"
               >
                 {status.label}
-                {isSelected && (
-                  <span className="ml-1 text-xs">👍</span>
-                )}
+                {isSelected && <span className="ml-1 text-xs">👍</span>}
               </div>
             );
           })}
@@ -296,8 +391,18 @@ export default function InterventionStatusAndActions({
                 </div>
               ) : (
                 <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg
+                    className="w-6 h-6 text-blue-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
                 </div>
               )}
@@ -308,9 +413,7 @@ export default function InterventionStatusAndActions({
               </div>
             </div>
             <div className="mb-6">
-              <p className="text-sm text-gray-500">
-                {confirmDialog.message}
-              </p>
+              <p className="text-sm text-gray-500">{confirmDialog.message}</p>
             </div>
             <div className="flex justify-end gap-3">
               <button
@@ -333,4 +436,4 @@ export default function InterventionStatusAndActions({
       )}
     </div>
   );
-} 
+}

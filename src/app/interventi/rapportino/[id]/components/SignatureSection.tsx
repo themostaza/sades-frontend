@@ -14,9 +14,11 @@ interface SignatureCanvasRef {
 }
 
 // Import dinamico di SignatureCanvas per evitare errori SSR
-const SignatureCanvas = dynamic(() => import('react-signature-canvas'), { 
+const SignatureCanvas = dynamic(() => import('react-signature-canvas'), {
   ssr: false,
-  loading: () => <div className="w-full h-32 bg-gray-100 animate-pulse rounded-lg"></div>
+  loading: () => (
+    <div className="w-full h-32 bg-gray-100 animate-pulse rounded-lg"></div>
+  ),
 }) as React.ComponentType<{
   ref: (ref: SignatureCanvasRef | null) => void;
   penColor: string;
@@ -42,14 +44,18 @@ interface SignatureDialogProps {
   onClose: () => void;
   onClear: () => void;
   onSave: () => void;
-  onFileUpload: (fileInfo: { cdnUrl: string; name: string; type: string }) => void;
+  onFileUpload: (fileInfo: {
+    cdnUrl: string;
+    name: string;
+    type: string;
+  }) => void;
 }
 
 export function SignatureSection({
   signatureUrl,
   status,
   isSavingSignature,
-  onOpenSignatureDialog
+  onOpenSignatureDialog,
 }: SignatureSectionProps) {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -60,12 +66,11 @@ export function SignatureSection({
             Firma o Documento Cliente
           </h3>
           <p className="text-sm text-gray-600 mt-1">
-            {signatureUrl 
-              ? 'Firma o documento acquisito ✓' 
-              : status === 'DRAFT' 
+            {signatureUrl
+              ? 'Firma o documento acquisito ✓'
+              : status === 'DRAFT'
                 ? 'Clicca per raccogliere la firma o importare un documento'
-                : 'Nessuna firma o documento disponibile'
-            }
+                : 'Nessuna firma o documento disponibile'}
           </p>
         </div>
         {status === 'DRAFT' && (
@@ -82,24 +87,30 @@ export function SignatureSection({
             ) : (
               <>
                 <PenTool size={16} />
-                {signatureUrl ? 'Modifica Firma o Documento' : 'Firma o importa documento'}
+                {signatureUrl
+                  ? 'Modifica Firma o Documento'
+                  : 'Firma o importa documento'}
               </>
             )}
           </button>
         )}
       </div>
-      
+
       {/* Mostra la firma esistente se presente */}
       {signatureUrl && (
         <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-          <div className="text-sm font-medium text-gray-600 mb-2">Firma o documento del cliente:</div>
+          <div className="text-sm font-medium text-gray-600 mb-2">
+            Firma o documento del cliente:
+          </div>
           <div className="bg-white rounded border p-4">
             {signatureUrl.toLowerCase().endsWith('.pdf') ? (
               // Visualizzazione per PDF
               <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
                 <FileText size={32} className="text-red-500" />
                 <div className="flex-1">
-                  <p className="font-medium text-gray-900">Documento PDF caricato</p>
+                  <p className="font-medium text-gray-900">
+                    Documento PDF caricato
+                  </p>
                   <p className="text-sm text-gray-600">
                     {signatureUrl.split('/').pop() || 'documento.pdf'}
                   </p>
@@ -141,7 +152,7 @@ export function SignatureDialog({
   onClose,
   onClear,
   onSave,
-  onFileUpload
+  onFileUpload,
 }: SignatureDialogProps) {
   const [signatureMode, setSignatureMode] = useState<'draw' | 'upload'>('draw');
 
@@ -164,7 +175,7 @@ export function SignatureDialog({
               <XCircle size={24} />
             </button>
           </div>
-          
+
           {/* Toggle tra Disegna e Carica file */}
           <div className="mb-6">
             <div className="flex gap-4 p-1 bg-gray-100 rounded-lg">
@@ -173,9 +184,10 @@ export function SignatureDialog({
                 disabled={isSaving}
                 className={`
                   flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors
-                  ${signatureMode === 'draw' 
-                    ? 'bg-white text-teal-600 shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-900'
+                  ${
+                    signatureMode === 'draw'
+                      ? 'bg-white text-teal-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
                   }
                   ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
                 `}
@@ -188,9 +200,10 @@ export function SignatureDialog({
                 disabled={isSaving}
                 className={`
                   flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors
-                  ${signatureMode === 'upload' 
-                    ? 'bg-white text-teal-600 shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-900'
+                  ${
+                    signatureMode === 'upload'
+                      ? 'bg-white text-teal-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
                   }
                   ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
                 `}
@@ -200,25 +213,29 @@ export function SignatureDialog({
               </button>
             </div>
           </div>
-          
+
           {signatureMode === 'draw' ? (
             <>
               <p className="text-sm text-gray-600 mb-4">
-                Il cliente può firmare nell&apos;area sottostante utilizzando il dito o un pennino.
+                Il cliente può firmare nell&apos;area sottostante utilizzando il
+                dito o un pennino.
               </p>
-              
+
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 bg-gray-50 mb-4">
                 <SignatureCanvas
-                  ref={(ref: SignatureCanvasRef | null) => { setSignatureRef(ref); }}
-                  penColor="black"
+                  ref={(ref: SignatureCanvasRef | null) => {
+                    setSignatureRef(ref);
+                  }}
+                  penColor="#000"
                   canvasProps={{
                     width: 600,
                     height: 250,
-                    className: 'signature-canvas w-full bg-white rounded border'
+                    className:
+                      'signature-canvas w-full bg-white rounded border',
                   }}
                 />
               </div>
-              
+
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={onClear}
@@ -257,9 +274,10 @@ export function SignatureDialog({
           ) : (
             <>
               <p className="text-sm text-gray-600 mb-4">
-                Carica un&apos;immagine (PNG, JPG, JPEG) o un documento PDF contenente la firma del cliente.
+                Carica un&apos;immagine (PNG, JPG, JPEG) o un documento PDF
+                contenente la firma del cliente.
               </p>
-              
+
               <div className="mb-4">
                 <S3FileUploader
                   onUploadSuccess={(fileInfo) => {
@@ -276,7 +294,7 @@ export function SignatureDialog({
                   label="Clicca per caricare immagine o PDF"
                 />
               </div>
-              
+
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={onClose}
@@ -293,4 +311,3 @@ export function SignatureDialog({
     </div>
   );
 }
-
