@@ -74,9 +74,8 @@ async function duplicateFailedInterventionBackend(
       originalIntervention.id
     );
 
-    // 2. Fetch del rapportino failed per ottenere motivo e tecnico
+    // 2. Fetch del rapportino failed per ottenere il motivo del fallimento
     let failureReasonLabel = '';
-    let technicianName = '';
 
     try {
       const reportResponse = await fetch(
@@ -96,28 +95,6 @@ async function duplicateFailedInterventionBackend(
         if (reportData.failure_reason) {
           failureReasonLabel = getFailureReasonLabel(reportData.failure_reason);
           console.log('❌ Motivo fallimento:', failureReasonLabel);
-        }
-
-        // Fetch dei dati del tecnico che ha segnalato il fallimento
-        if (reportData.created_by) {
-          try {
-            const userResponse = await fetch(
-              `${BASE_URL}api/users/${reportData.created_by}`,
-              {
-                method: 'GET',
-                headers,
-              }
-            );
-
-            if (userResponse.ok) {
-              const userData = await userResponse.json();
-              technicianName =
-                `${userData.name || ''} ${userData.surname || ''}`.trim();
-              console.log('👤 Tecnico segnalatore:', technicianName);
-            }
-          } catch (userError) {
-            console.warn('⚠️ Impossibile recuperare dati tecnico:', userError);
-          }
         }
       }
     } catch (reportError) {
@@ -154,13 +131,21 @@ async function duplicateFailedInterventionBackend(
 
     console.log('📦 Articoli da riassegnare:', articlesWithWarehouses.length);
 
-    // 4. Genera la nota interna arricchita con motivo e tecnico
+    // 4. Genera la nota interna arricchita con motivo e tecnico assegnato
     let duplicateNote = `[Intervento duplicato da #${interventionId} (rapportino failed)]`;
     if (failureReasonLabel) {
       duplicateNote += `\nMotivo: ${failureReasonLabel}`;
     }
-    if (technicianName) {
-      duplicateNote += `\nTecnico: ${technicianName}`;
+    const assignedTechnicianName = [
+      originalIntervention.assigned_to_name,
+      originalIntervention.assigned_to_surname,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    if (assignedTechnicianName) {
+      duplicateNote += `\nTecnico: ${assignedTechnicianName}`;
+      console.log('👤 Tecnico assegnato:', assignedTechnicianName);
     }
 
     const finalInternalNotes = originalIntervention.internal_notes
