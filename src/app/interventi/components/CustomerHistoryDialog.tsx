@@ -50,7 +50,10 @@ export default function CustomerHistoryDialog({
   const [hasMore, setHasMore] = useState(false);
 
   // Stati per i filtri
-  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([
+    'in_carico',
+    'fatturato',
+  ]);
   const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [showStatusMultiSelect, setShowStatusMultiSelect] = useState(false);
   const [showLocationSelect, setShowLocationSelect] = useState(false);
@@ -579,17 +582,7 @@ export default function CustomerHistoryDialog({
                 return (
                   <div
                     key={intervention.id}
-                    className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-                    role="button"
-                    tabIndex={0}
-                    onClick={openDetail}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        openDetail();
-                      }
-                    }}
-                    title="Apri dettaglio in una nuova scheda"
+                    className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
                   >
                     {/* Header intervento */}
                     <div className="flex items-start justify-between mb-3">
@@ -620,7 +613,13 @@ export default function CustomerHistoryDialog({
                           {intervention.type_label}
                         </p>
                       </div>
-                      <ExternalLink size={16} className="text-gray-400 mt-1" />
+                      <button
+                        onClick={openDetail}
+                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                        title="Apri dettaglio in una nuova scheda"
+                      >
+                        <ExternalLink size={16} className="text-gray-400" />
+                      </button>
                     </div>
 
                     {/* Dettagli intervento */}
@@ -718,14 +717,20 @@ export default function CustomerHistoryDialog({
                       <div className="mt-3 pt-3 border-t border-gray-100">
                         <div className="flex items-center gap-2">
                           <FileText size={16} className="text-gray-400" />
-                          <span className="text-sm text-gray-700">
+                          <a
+                            href={`/interventi/rapportino/${intervention.report_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-teal-600 hover:text-teal-700 underline font-medium"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             Rapportino presente
                             {intervention.report_is_failed && (
                               <span className="text-red-600 ml-2">
                                 (Fallito)
                               </span>
                             )}
-                          </span>
+                          </a>
                         </div>
                       </div>
                     )}
