@@ -4,7 +4,11 @@ import React from 'react';
 import { X, Search, Eye, Download, Trash2 } from 'lucide-react';
 import Image from 'next/image';
 import S3ImageUploader from '@/components/S3ImageUploader';
-import type { EditableEquipmentItem, GasCompressorType, RechargeableGasType } from './types';
+import type {
+  EditableEquipmentItem,
+  GasCompressorType,
+  RechargeableGasType,
+} from './types';
 
 interface EquipmentItemEditableProps {
   item: EditableEquipmentItem;
@@ -50,7 +54,7 @@ export default function EquipmentItemEditable({
   setLightboxUrl,
   allItems,
   gasCompressorTypes,
-  rechargeableGasTypes
+  rechargeableGasTypes,
 }: EquipmentItemEditableProps) {
   return (
     <div className="border border-gray-200 rounded-lg p-6 bg-gray-50">
@@ -69,14 +73,29 @@ export default function EquipmentItemEditable({
             readOnly
             className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700 cursor-pointer"
           />
-          <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+          <Search
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+            size={16}
+          />
         </div>
 
         {item.selectedEquipment && (
           <div className="mt-2 flex items-center justify-between bg-gray-100 p-3 rounded-lg">
             <div>
-              <div className="font-medium text-gray-700">{item.selectedEquipment.description}</div>
-              <div className="text-sm text-gray-500">Modello: {item.selectedEquipment.model} | S/N: {item.selectedEquipment.serial_number} | PNC: {item.selectedEquipment.pnc_code || 'N/A'} | Data vendita: {item.selectedEquipment.sale_date ? new Date(item.selectedEquipment.sale_date).toLocaleDateString('it-IT') : 'N/A'} | ID: {item.selectedEquipment.id}</div>
+              <div className="font-medium text-gray-700">
+                {item.selectedEquipment.description}
+              </div>
+              <div className="text-sm text-gray-500">
+                Modello: {item.selectedEquipment.model} | S/N:{' '}
+                {item.selectedEquipment.serial_number} | PNC:{' '}
+                {item.selectedEquipment.pnc_code || 'N/A'} | Data vendita:{' '}
+                {item.selectedEquipment.sale_date
+                  ? new Date(
+                      item.selectedEquipment.sale_date
+                    ).toLocaleDateString('it-IT')
+                  : 'N/A'}{' '}
+                | ID: {item.selectedEquipment.id}
+              </div>
             </div>
             <button
               onClick={() => onUpdateItem('selectedEquipment', null)}
@@ -104,23 +123,45 @@ export default function EquipmentItemEditable({
             readOnly
             className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700 cursor-pointer"
           />
-          <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+          <Search
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+            size={16}
+          />
         </div>
 
         {/* Lista ricambi selezionati con quantità e info preventivo */}
         {item.selectedArticles.length > 0 && (
           <div className="mt-3 space-y-2">
-            <div className="text-sm font-medium text-gray-700">Ricambi selezionati:</div>
+            <div className="text-sm font-medium text-gray-700">
+              Ricambi selezionati:
+            </div>
             {item.selectedArticles.map((selectedArticle) => {
               const planned = getPlannedArticleQty(selectedArticle.article.id);
-              const currentTotal = allItems.reduce((sum, it) => sum + (it.selectedArticles.find(sa => sa.article.id === selectedArticle.article.id)?.quantity || 0), 0);
+              const currentTotal = allItems.reduce(
+                (sum, it) =>
+                  sum +
+                  (it.selectedArticles.find(
+                    (sa) => sa.article.id === selectedArticle.article.id
+                  )?.quantity || 0),
+                0
+              );
               const diff = Math.max(0, currentTotal - planned);
               return (
-                <div key={selectedArticle.article.id} className="flex items-center justify-between bg-teal-50 border border-teal-200 p-3 rounded-lg">
+                <div
+                  key={selectedArticle.article.id}
+                  className="flex items-center justify-between bg-teal-50 border border-teal-200 p-3 rounded-lg"
+                >
                   <div className="flex-1">
-                    <span className="text-gray-900 font-medium">{selectedArticle.article.short_description}</span>
-                    <div className="text-sm text-gray-600">{selectedArticle.article.description}</div>
-                    <div className="text-xs text-gray-500 mt-1">PNC: {selectedArticle.article.pnc_code || 'N/A'} | ID: {selectedArticle.article.id}</div>
+                    <span className="text-gray-900 font-medium">
+                      {selectedArticle.article.short_description}
+                    </span>
+                    <div className="text-sm text-gray-600">
+                      {selectedArticle.article.description}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      PNC: {selectedArticle.article.pnc_code || 'N/A'} | ID:{' '}
+                      {selectedArticle.article.id}
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 ml-3">
                     <div className="flex items-center gap-2">
@@ -128,17 +169,28 @@ export default function EquipmentItemEditable({
                       <input
                         type="number"
                         value={selectedArticle.quantity}
-                        onChange={(e) => onUpdateArticleQuantity(selectedArticle.article.id, parseInt(e.target.value) || 1)}
+                        onChange={(e) =>
+                          onUpdateArticleQuantity(
+                            selectedArticle.article.id,
+                            parseInt(e.target.value) || 1
+                          )
+                        }
                         min="1"
                         className="w-16 px-2 py-1 border border-gray-300 rounded text-gray-700 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                       />
                     </div>
-                    <div className="text-xs text-gray-600 whitespace-nowrap">Prev: {planned}</div>
+                    <div className="text-xs text-gray-600 whitespace-nowrap">
+                      Prev: {planned}
+                    </div>
                     {diff > 0 && (
-                      <div className="text-xs text-yellow-700 whitespace-nowrap">+{diff} oltre prev.</div>
+                      <div className="text-xs text-yellow-700 whitespace-nowrap">
+                        +{diff} oltre prev.
+                      </div>
                     )}
                     <button
-                      onClick={() => onRemoveArticle(selectedArticle.article.id)}
+                      onClick={() =>
+                        onRemoveArticle(selectedArticle.article.id)
+                      }
                       className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
                       title="Rimuovi ricambio"
                     >
@@ -166,7 +218,7 @@ export default function EquipmentItemEditable({
       {/* Note per questa apparecchiatura */}
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Note intervento per questa apparecchiatura
+          Note interne
         </label>
         <textarea
           value={item.notes}
@@ -180,7 +232,9 @@ export default function EquipmentItemEditable({
       {/* Gestione gas per questa apparecchiatura */}
       <div className="bg-gray-50 rounded-lg p-4 mb-4">
         <div className="flex items-center justify-between mb-4">
-          <h4 className="text-md font-medium text-gray-900">Gestione gas per questa apparecchiatura</h4>
+          <h4 className="text-md font-medium text-gray-900">
+            Gestione gas per questa apparecchiatura
+          </h4>
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
@@ -191,7 +245,7 @@ export default function EquipmentItemEditable({
             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-teal-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
           </label>
         </div>
-        
+
         {item.hasGas && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -201,12 +255,20 @@ export default function EquipmentItemEditable({
                 </label>
                 <select
                   value={item.tipologiaCompressore}
-                  onChange={(e) => onUpdateItem('tipologiaCompressore', e.target.value)}
+                  onChange={(e) =>
+                    onUpdateItem('tipologiaCompressore', e.target.value)
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
                 >
                   <option value="">Seleziona tipologia</option>
-                  {gasCompressorTypes.map(type => (
-                    <option key={type.id} value={type.label} className="text-gray-700">{type.label}</option>
+                  {gasCompressorTypes.map((type) => (
+                    <option
+                      key={type.id}
+                      value={type.label}
+                      className="text-gray-700"
+                    >
+                      {type.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -216,7 +278,9 @@ export default function EquipmentItemEditable({
                 </label>
                 <select
                   value={item.nuovaInstallazione}
-                  onChange={(e) => onUpdateItem('nuovaInstallazione', e.target.value)}
+                  onChange={(e) =>
+                    onUpdateItem('nuovaInstallazione', e.target.value)
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
                 >
                   <option value="">Seleziona opzione</option>
@@ -225,7 +289,7 @@ export default function EquipmentItemEditable({
                 </select>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -233,12 +297,20 @@ export default function EquipmentItemEditable({
                 </label>
                 <select
                   value={item.tipologiaGasCaricato}
-                  onChange={(e) => onUpdateItem('tipologiaGasCaricato', e.target.value)}
+                  onChange={(e) =>
+                    onUpdateItem('tipologiaGasCaricato', e.target.value)
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
                 >
                   <option value="">Seleziona gas</option>
-                  {rechargeableGasTypes.map(type => (
-                    <option key={type.id} value={type.label} className="text-gray-700">{type.label}</option>
+                  {rechargeableGasTypes.map((type) => (
+                    <option
+                      key={type.id}
+                      value={type.label}
+                      className="text-gray-700"
+                    >
+                      {type.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -250,10 +322,14 @@ export default function EquipmentItemEditable({
                   <input
                     type="text"
                     value={item.quantitaGasCaricato}
-                    onChange={(e) => onUpdateItem('quantitaGasCaricato', e.target.value)}
+                    onChange={(e) =>
+                      onUpdateItem('quantitaGasCaricato', e.target.value)
+                    }
                     className={`w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${getTextColorClass(item.quantitaGasCaricato)}`}
                   />
-                  <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">gr</span>
+                  <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                    gr
+                  </span>
                 </div>
               </div>
               <div>
@@ -267,11 +343,13 @@ export default function EquipmentItemEditable({
                     onChange={(e) => onUpdateItem('caricaMax', e.target.value)}
                     className={`w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${getTextColorClass(item.caricaMax)}`}
                   />
-                  <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">gr</span>
+                  <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                    gr
+                  </span>
                 </div>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -280,7 +358,9 @@ export default function EquipmentItemEditable({
                 <input
                   type="text"
                   value={item.modelloCompressore}
-                  onChange={(e) => onUpdateItem('modelloCompressore', e.target.value)}
+                  onChange={(e) =>
+                    onUpdateItem('modelloCompressore', e.target.value)
+                  }
                   className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${getTextColorClass(item.modelloCompressore)}`}
                 />
               </div>
@@ -291,7 +371,9 @@ export default function EquipmentItemEditable({
                 <input
                   type="text"
                   value={item.matricolaCompressore}
-                  onChange={(e) => onUpdateItem('matricolaCompressore', e.target.value)}
+                  onChange={(e) =>
+                    onUpdateItem('matricolaCompressore', e.target.value)
+                  }
                   className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${getTextColorClass(item.matricolaCompressore)}`}
                 />
               </div>
@@ -302,12 +384,14 @@ export default function EquipmentItemEditable({
                 <input
                   type="text"
                   value={item.numeroUnivoco}
-                  onChange={(e) => onUpdateItem('numeroUnivoco', e.target.value)}
+                  onChange={(e) =>
+                    onUpdateItem('numeroUnivoco', e.target.value)
+                  }
                   className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${getTextColorClass(item.numeroUnivoco)}`}
                 />
               </div>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Servizi aggiuntivi
@@ -318,7 +402,7 @@ export default function EquipmentItemEditable({
                   'Smaltimento compressore',
                   'Smaltimento gas',
                   'Smantellamento',
-                  'Recupero gas'
+                  'Recupero gas e riutilizzo dal cliente',
                 ].map((servizio) => (
                   <label key={servizio} className="flex items-center">
                     <input
@@ -327,15 +411,19 @@ export default function EquipmentItemEditable({
                       onChange={() => onToggleServizio(servizio)}
                       className="rounded border-gray-300 text-teal-600 shadow-sm focus:border-teal-500 focus:ring focus:ring-teal-200 focus:ring-opacity-50"
                     />
-                    <span className="ml-2 text-sm text-gray-700">{servizio}</span>
+                    <span className="ml-2 text-sm text-gray-700">
+                      {servizio}
+                    </span>
                   </label>
                 ))}
               </div>
               {item.serviziAggiuntivi.length === 0 && (
-                <p className="text-sm text-gray-500 mt-1">Nessun servizio aggiuntivo selezionato</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Nessun servizio aggiuntivo selezionato
+                </p>
               )}
             </div>
-            
+
             {/* Campi recupero gas: visibili solo se NON è selezionato 'Ricerca perdite' */}
             {shouldShowRecuperoGasFields() && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -345,12 +433,20 @@ export default function EquipmentItemEditable({
                   </label>
                   <select
                     value={item.tipologiaGasRecuperato}
-                    onChange={(e) => onUpdateItem('tipologiaGasRecuperato', e.target.value)}
+                    onChange={(e) =>
+                      onUpdateItem('tipologiaGasRecuperato', e.target.value)
+                    }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700"
                   >
                     <option value="">Seleziona gas</option>
-                    {rechargeableGasTypes.map(type => (
-                      <option key={type.id} value={type.label} className="text-gray-700">{type.label}</option>
+                    {rechargeableGasTypes.map((type) => (
+                      <option
+                        key={type.id}
+                        value={type.label}
+                        className="text-gray-700"
+                      >
+                        {type.label}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -362,10 +458,14 @@ export default function EquipmentItemEditable({
                     <input
                       type="text"
                       value={item.quantitaGasRecuperato}
-                      onChange={(e) => onUpdateItem('quantitaGasRecuperato', e.target.value)}
+                      onChange={(e) =>
+                        onUpdateItem('quantitaGasRecuperato', e.target.value)
+                      }
                       className={`w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${getTextColorClass(item.quantitaGasRecuperato)}`}
                     />
-                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">gr</span>
+                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                      gr
+                    </span>
                   </div>
                 </div>
               </div>
@@ -377,7 +477,9 @@ export default function EquipmentItemEditable({
       {/* Immagini per questa apparecchiatura */}
       <div className="bg-gray-50 rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">
-          <h4 className="text-md font-medium text-gray-900">Immagini per questa apparecchiatura</h4>
+          <h4 className="text-md font-medium text-gray-900">
+            Immagini per questa apparecchiatura
+          </h4>
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
@@ -388,18 +490,21 @@ export default function EquipmentItemEditable({
             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-teal-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
           </label>
         </div>
-        
+
         {item.hasImages && (
           <>
             {/* Griglia delle immagini caricate */}
             {item.images.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 {item.images.map((image) => (
-                  <div key={image.id} className="border border-gray-200 rounded-lg p-3 bg-white">
+                  <div
+                    key={image.id}
+                    className="border border-gray-200 rounded-lg p-3 bg-white"
+                  >
                     {/* Preview dell'immagine */}
                     <div className="mb-3">
-                      <Image 
-                        src={image.url} 
+                      <Image
+                        src={image.url}
                         alt={image.name}
                         width={200}
                         height={150}
@@ -411,9 +516,12 @@ export default function EquipmentItemEditable({
                         }}
                       />
                     </div>
-                    
+
                     <div className="space-y-2">
-                      <div className="text-sm text-gray-600 truncate" title={image.name}>
+                      <div
+                        className="text-sm text-gray-600 truncate"
+                        title={image.name}
+                      >
                         {image.name}
                       </div>
                       <div className="text-xs text-gray-500">
@@ -421,14 +529,14 @@ export default function EquipmentItemEditable({
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <button 
+                          <button
                             className="text-blue-600 hover:text-blue-700 p-1"
                             onClick={() => window.open(image.url, '_blank')}
                             title="Visualizza immagine"
                           >
                             <Eye size={14} />
                           </button>
-                          <button 
+                          <button
                             className="text-green-600 hover:text-green-700 p-1"
                             onClick={() => {
                               const link = document.createElement('a');
@@ -454,22 +562,27 @@ export default function EquipmentItemEditable({
                 ))}
               </div>
             )}
-            
+
             {/* Uploader per aggiungere nuove immagini */}
             <div>
               <S3ImageUploader
-                onUploadSuccess={(fileInfo: { cdnUrl: string; name: string }) => 
-                  onImageUpload({ cdnUrl: fileInfo.cdnUrl, name: fileInfo.name })
+                onUploadSuccess={(fileInfo: { cdnUrl: string; name: string }) =>
+                  onImageUpload({
+                    cdnUrl: fileInfo.cdnUrl,
+                    name: fileInfo.name,
+                  })
                 }
                 onUploadFailed={(error: Error) => {
                   console.error('Error uploading equipment image:', error);
-                  alert('Errore durante il caricamento dell\'immagine dell\'apparecchiatura');
+                  alert(
+                    "Errore durante il caricamento dell'immagine dell'apparecchiatura"
+                  );
                 }}
                 multiple={true}
                 folder="intervention-report-images"
               />
             </div>
-            
+
             {item.images.length === 0 && (
               <div className="text-center py-4 text-gray-500 text-sm">
                 Nessuna immagine caricata per questa apparecchiatura
@@ -481,4 +594,3 @@ export default function EquipmentItemEditable({
     </div>
   );
 }
-
