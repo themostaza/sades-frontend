@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
     const customerId = searchParams.get('customer_id') || '';
     const assignedToId = searchParams.get('assigned_to_id') || '';
     const manualCheck = searchParams.get('manual_check') || '';
+    const typeId = searchParams.get('type_id') || '';
     const sortBy = searchParams.get('sort_by') || '';
     const sortOrder = searchParams.get('sort_order') || '';
 
@@ -52,6 +53,7 @@ export async function GET(request: NextRequest) {
       customerId,
       assignedToId,
       manualCheck,
+      typeId,
       sortBy,
       sortOrder,
     });
@@ -114,6 +116,10 @@ export async function GET(request: NextRequest) {
 
     if (manualCheck) {
       apiUrl.searchParams.append('manual_check', manualCheck);
+    }
+
+    if (typeId) {
+      apiUrl.searchParams.append('type_id', typeId);
     }
 
     if (sortBy) {

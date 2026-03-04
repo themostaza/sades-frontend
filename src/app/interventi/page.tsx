@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, InfoIcon, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import NuovoIntervento from './NuovoIntervento';
@@ -8,11 +8,22 @@ import DettaglioIntervento from './DettaglioIntervento';
 import CalendarioView from './CalendarioView';
 import RichiediAssenza from './RichiediAssenza';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AssistanceIntervention, AssistanceInterventionsApiResponse, UpdateAssistanceInterventionRequest } from '../../types/assistance-interventions';
-import { getStatusColor, statusOptions, getStatusId } from '../../utils/intervention-status';
-import { updateAssistanceIntervention, fetchAssistanceInterventionDetail, bulkUpdateManualCheck } from '../../utils/assistance-interventions-api';
+import {
+  AssistanceIntervention,
+  AssistanceInterventionsApiResponse,
+  UpdateAssistanceInterventionRequest,
+} from '../../types/assistance-interventions';
+import {
+  getStatusColor,
+  statusOptions,
+  getStatusId,
+} from '../../utils/intervention-status';
+import {
+  updateAssistanceIntervention,
+  fetchAssistanceInterventionDetail,
+  bulkUpdateManualCheck,
+} from '../../utils/assistance-interventions-api';
 import MainPageTable from './components/MainPageTable';
-
 
 // Interfaccia per le informazioni utente
 interface UserInfo {
@@ -25,14 +36,25 @@ interface UserInfo {
 }
 
 export default function InterventiPage() {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(''); // valore visualizzato nell'input
+  const [debouncedSearch, setDebouncedSearch] = useState(''); // valore effettivo per la query API
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(50);
-  
+
   // Stati per i dati API
-  const [interventionsData, setInterventionsData] = useState<AssistanceIntervention[]>([]);
-  const [zonesData, setZonesData] = useState<{id: number, label: string}[]>([]);
-  const [techniciansData, setTechniciansData] = useState<{id: number, name: string, surname: string | null}[]>([]);
+  const [interventionsData, setInterventionsData] = useState<
+    AssistanceIntervention[]
+  >([]);
+  const [zonesData, setZonesData] = useState<{ id: number; label: string }[]>(
+    []
+  );
+  const [techniciansData, setTechniciansData] = useState<
+    { id: number; name: string; surname: string | null }[]
+  >([]);
+  const [interventionTypesData, setInterventionTypesData] = useState<
+    { id: number; label: string }[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,23 +62,29 @@ export default function InterventiPage() {
     total: 0,
     page: 1,
     skip: 20,
-    totalPages: 1
+    totalPages: 1,
   });
 
   // Stati per i filtri
-  const [dateRange, setDateRange] = useState<{from: string; to: string}>({from: '', to: ''});
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({
+    from: '',
+    to: '',
+  });
   const [selectedZone, setSelectedZone] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedTechnician, setSelectedTechnician] = useState('');
   const [selectedManualCheck, setSelectedManualCheck] = useState('');
+  const [selectedInterventionType, setSelectedInterventionType] = useState('');
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const [viewMode, setViewMode] = useState<'lista' | 'calendario'>('lista');
   const [showNuovoIntervento, setShowNuovoIntervento] = useState(false);
-  
+
   // Stati per il dettaglio intervento
   const [showDettaglioIntervento, setShowDettaglioIntervento] = useState(false);
-  const [selectedInterventionId, setSelectedInterventionId] = useState<number | null>(null);
+  const [selectedInterventionId, setSelectedInterventionId] = useState<
+    number | null
+  >(null);
 
   // Stati per la gestione utente e ruoli
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
@@ -64,17 +92,19 @@ export default function InterventiPage() {
   const [showRichiediAssenza, setShowRichiediAssenza] = useState(false);
 
   // Stati per la selezione multipla
-  const [selectedInterventions, setSelectedInterventions] = useState<number[]>([]);
+  const [selectedInterventions, setSelectedInterventions] = useState<number[]>(
+    []
+  );
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [bulkActionProgress, setBulkActionProgress] = useState({
     current: 0,
     total: 0,
-    currentInterventionId: null as number | null
+    currentInterventionId: null as number | null,
   });
 
   // Stato per tracciare se abbiamo letto i parametri URL
   const [urlParamsRead, setUrlParamsRead] = useState(false);
-  
+
   // Stato per tracciare se abbiamo già impostato i filtri di default
   const [defaultFiltersSet, setDefaultFiltersSet] = useState(false);
 
@@ -86,7 +116,7 @@ export default function InterventiPage() {
   const fetchUserInfo = async () => {
     try {
       setUserLoading(true);
-      
+
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -100,7 +130,7 @@ export default function InterventiPage() {
         headers,
         body: JSON.stringify({}),
       });
-      
+
       if (!response.ok) {
         if (response.status === 401) {
           auth.logout();
@@ -108,7 +138,7 @@ export default function InterventiPage() {
         }
         throw new Error('Failed to fetch user info');
       }
-      
+
       const userData: UserInfo = await response.json();
       setUserInfo(userData);
     } catch {
@@ -121,11 +151,11 @@ export default function InterventiPage() {
   useEffect(() => {
     const statusFromUrl = searchParams.get('status');
     const interventionIdFromUrl = searchParams.get('ai'); // assistance intervention ID
-    
+
     if (statusFromUrl) {
       setSelectedStatus(statusFromUrl);
     }
-    
+
     // Deep link: se c'è il parametro "ai", apri direttamente il dettaglio
     if (interventionIdFromUrl) {
       const interventionId = parseInt(interventionIdFromUrl, 10);
@@ -134,7 +164,7 @@ export default function InterventiPage() {
         setShowDettaglioIntervento(true);
       }
     }
-    
+
     setUrlParamsRead(true);
   }, [searchParams]);
 
@@ -160,7 +190,7 @@ export default function InterventiPage() {
   const handleRowClick = (interventionId: number) => {
     setSelectedInterventionId(interventionId);
     setShowDettaglioIntervento(true);
-    
+
     // Aggiungi il parametro "ai" all'URL per supportare il deep linking
     const currentParams = new URLSearchParams(searchParams.toString());
     currentParams.set('ai', interventionId.toString());
@@ -172,16 +202,16 @@ export default function InterventiPage() {
   const handleDettaglioClose = () => {
     setShowDettaglioIntervento(false);
     setSelectedInterventionId(null);
-    
+
     const currentParams = new URLSearchParams(searchParams.toString());
     if (currentParams.has('ai')) {
       currentParams.delete('ai');
-      const newUrl = currentParams.toString() 
-        ? `/interventi?${currentParams.toString()}` 
+      const newUrl = currentParams.toString()
+        ? `/interventi?${currentParams.toString()}`
         : '/interventi';
       router.replace(newUrl);
     }
-    
+
     fetchInterventionsData();
   };
 
@@ -197,21 +227,20 @@ export default function InterventiPage() {
       }
 
       const response = await fetch('/api/zones', { headers });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch zones data');
       }
-      
+
       const data = await response.json();
       setZonesData(data);
-    } catch {
-    }
+    } catch {}
   };
 
   // Funzione per recuperare i tecnici dall'API (solo per admin)
   const fetchTechniciansData = async () => {
     if (!isAdmin()) return;
-    
+
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -221,16 +250,39 @@ export default function InterventiPage() {
         headers['Authorization'] = `Bearer ${auth.token}`;
       }
 
-      const response = await fetch('/api/users?role_id=2&skip=1000', { headers }); // role_id=2 per i tecnici, skip alto per prendere tutti
-      
+      const response = await fetch('/api/users?role_id=2&skip=1000', {
+        headers,
+      }); // role_id=2 per i tecnici, skip alto per prendere tutti
+
       if (!response.ok) {
         throw new Error('Failed to fetch technicians data');
       }
-      
+
       const data = await response.json();
       setTechniciansData(data.data || []);
-    } catch {
-    }
+    } catch {}
+  };
+
+  // Funzione per recuperare le tipologie di intervento dall'API
+  const fetchInterventionTypesData = async () => {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (auth.token) {
+        headers['Authorization'] = `Bearer ${auth.token}`;
+      }
+
+      const response = await fetch('/api/intervention-types', { headers });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch intervention types data');
+      }
+
+      const data = await response.json();
+      setInterventionTypesData(data);
+    } catch {}
   };
 
   // Funzione per recuperare i dati dall'API
@@ -238,16 +290,16 @@ export default function InterventiPage() {
     try {
       setLoading(true);
       setError(null);
-      
+
       const params = new URLSearchParams({
         page: currentPage.toString(),
         skip: pageSize.toString(),
         sort_by: 'id',
         sort_order: 'desc',
       });
-      
-      if (searchTerm.trim()) {
-        params.append('query', searchTerm.trim());
+
+      if (debouncedSearch.trim()) {
+        params.append('query', debouncedSearch.trim());
       }
       if (dateRange.from && !dateRange.to) {
         // Single date selection
@@ -276,6 +328,10 @@ export default function InterventiPage() {
         params.append('manual_check', selectedManualCheck);
       }
 
+      if (selectedInterventionType) {
+        params.append('type_id', selectedInterventionType);
+      }
+
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -284,8 +340,11 @@ export default function InterventiPage() {
         headers['Authorization'] = `Bearer ${auth.token}`;
       }
 
-      const response = await fetch(`/api/assistance-interventions?${params.toString()}`, { headers });
-      
+      const response = await fetch(
+        `/api/assistance-interventions?${params.toString()}`,
+        { headers }
+      );
+
       if (!response.ok) {
         if (response.status === 401) {
           auth.logout();
@@ -293,9 +352,9 @@ export default function InterventiPage() {
         }
         throw new Error('Failed to fetch interventions data');
       }
-      
+
       const data: AssistanceInterventionsApiResponse = await response.json();
-      
+
       setInterventionsData(data.data);
       setMeta(data.meta);
     } catch (err) {
@@ -310,18 +369,40 @@ export default function InterventiPage() {
   useEffect(() => {
     if (!urlParamsRead) return;
     if (!isAdmin() && !userInfo) return;
-    
+
     fetchInterventionsData();
-  }, [currentPage, searchTerm, dateRange, selectedZone, selectedStatus, selectedTechnician, selectedManualCheck, auth.token, urlParamsRead, userInfo]);
+  }, [
+    currentPage,
+    debouncedSearch,
+    dateRange,
+    selectedZone,
+    selectedStatus,
+    selectedTechnician,
+    selectedManualCheck,
+    selectedInterventionType,
+    auth.token,
+    urlParamsRead,
+    userInfo,
+  ]);
 
   // Effetto per pulire la selezione quando cambiano i filtri o la pagina
   useEffect(() => {
     clearSelection();
-  }, [currentPage, searchTerm, dateRange, selectedZone, selectedStatus, selectedTechnician, selectedManualCheck]);
+  }, [
+    currentPage,
+    debouncedSearch,
+    dateRange,
+    selectedZone,
+    selectedStatus,
+    selectedTechnician,
+    selectedManualCheck,
+    selectedInterventionType,
+  ]);
 
-  // Effetto per caricare le zone al mount del componente
+  // Effetto per caricare le zone e le tipologie al mount del componente
   useEffect(() => {
     fetchZonesData();
+    fetchInterventionTypesData();
   }, [auth.token]);
 
   // Effetto per caricare i tecnici al mount del componente (solo per admin)
@@ -331,10 +412,21 @@ export default function InterventiPage() {
     }
   }, [auth.token, userInfo]);
 
-  const handleSearch = (value: string) => {
+  const handleSearch = useCallback((value: string) => {
     setSearchTerm(value);
-    setCurrentPage(1);
-  };
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(value);
+      setCurrentPage(1);
+    }, 400);
+  }, []);
+
+  // Cleanup del timeout al unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
@@ -343,11 +435,13 @@ export default function InterventiPage() {
   const handleStatusFilter = (status: string) => {
     setSelectedStatus(status);
     setCurrentPage(1);
-    
+
     if (status === '') {
       const url = new URL(window.location.href);
       url.searchParams.delete('status');
-      router.replace(url.pathname + (url.search ? url.search : ''), { scroll: false });
+      router.replace(url.pathname + (url.search ? url.search : ''), {
+        scroll: false,
+      });
     }
   };
 
@@ -361,13 +455,21 @@ export default function InterventiPage() {
     setCurrentPage(1);
   };
 
+  const handleInterventionTypeFilter = (typeId: string) => {
+    setSelectedInterventionType(typeId);
+    setCurrentPage(1);
+  };
+
   const formatDate = (dateString: string) => {
     if (!dateString || dateString.trim() === '') return '-';
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) return '-';
       if (date.getFullYear() <= 1970) return '-';
-      return date.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
+      return date.toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: 'short',
+      });
     } catch {
       return '-';
     }
@@ -379,7 +481,11 @@ export default function InterventiPage() {
   };
 
   const isAdmin = () => {
-    return userInfo?.role === 'amministrazione' || userInfo?.role === 'ufficio' || userInfo?.role === 'magazziniere';
+    return (
+      userInfo?.role === 'amministrazione' ||
+      userInfo?.role === 'ufficio' ||
+      userInfo?.role === 'magazziniere'
+    );
   };
 
   const isTechOffice = () => {
@@ -387,28 +493,43 @@ export default function InterventiPage() {
   };
 
   // Funzione per verificare se un intervento può essere annullato
-  const canInterventionBeCancelled = (intervention: AssistanceIntervention): boolean => {
+  const canInterventionBeCancelled = (
+    intervention: AssistanceIntervention
+  ): boolean => {
     const statusKey = (intervention.status_label || '')
       .toLowerCase()
       .trim()
       .replace(/\s+/g, '_');
     // Stati non annullabili: da_confermare, completato, non_completato, annullato, fatturato
-    const nonCancellableStatuses = ['da_confermare', 'completato', 'non_completato', 'annullato', 'fatturato'];
+    const nonCancellableStatuses = [
+      'da_confermare',
+      'completato',
+      'non_completato',
+      'annullato',
+      'fatturato',
+    ];
     return !nonCancellableStatuses.includes(statusKey);
   };
 
   // Funzioni per gestire la selezione multipla
-  const handleSelectIntervention = (interventionId: number, selected: boolean) => {
+  const handleSelectIntervention = (
+    interventionId: number,
+    selected: boolean
+  ) => {
     if (selected) {
-      setSelectedInterventions(prev => [...prev, interventionId]);
+      setSelectedInterventions((prev) => [...prev, interventionId]);
     } else {
-      setSelectedInterventions(prev => prev.filter(id => id !== interventionId));
+      setSelectedInterventions((prev) =>
+        prev.filter((id) => id !== interventionId)
+      );
     }
   };
 
   const handleSelectAll = (selected: boolean) => {
     if (selected) {
-      setSelectedInterventions(interventionsData.map(intervention => intervention.id));
+      setSelectedInterventions(
+        interventionsData.map((intervention) => intervention.id)
+      );
     } else {
       setSelectedInterventions([]);
     }
@@ -421,19 +542,25 @@ export default function InterventiPage() {
   // Funzione per verifica manuale massiva (manual_check=true)
   const handleBulkVerify = async () => {
     if (selectedInterventions.length === 0) return;
-    const selectedInterventionsData = interventionsData.filter(intervention => 
+    const selectedInterventionsData = interventionsData.filter((intervention) =>
       selectedInterventions.includes(intervention.id)
     );
-    const verifyEligible = selectedInterventionsData.filter(intervention => intervention.manual_check === false);
+    const verifyEligible = selectedInterventionsData.filter(
+      (intervention) => intervention.manual_check === false
+    );
     if (verifyEligible.length !== selectedInterventionsData.length) {
       alert('Seleziona solo interventi non verificati per procedere.');
       return;
     }
 
     setBulkActionLoading(true);
-    setBulkActionProgress({ current: 0, total: verifyEligible.length, currentInterventionId: null });
+    setBulkActionProgress({
+      current: 0,
+      total: verifyEligible.length,
+      currentInterventionId: null,
+    });
 
-    const ids = verifyEligible.map(i => i.id);
+    const ids = verifyEligible.map((i) => i.id);
     try {
       await bulkUpdateManualCheck(ids, { value: true }, auth.token || '');
       fetchInterventionsData();
@@ -443,26 +570,36 @@ export default function InterventiPage() {
       alert('Errore durante la verifica massiva. Riprova.');
     } finally {
       setBulkActionLoading(false);
-      setBulkActionProgress({ current: 0, total: 0, currentInterventionId: null });
+      setBulkActionProgress({
+        current: 0,
+        total: 0,
+        currentInterventionId: null,
+      });
     }
   };
 
   // Funzione per rimuovere la verifica manuale massiva (manual_check=false)
   const handleBulkUnverify = async () => {
     if (selectedInterventions.length === 0) return;
-    const selectedInterventionsData = interventionsData.filter(intervention => 
+    const selectedInterventionsData = interventionsData.filter((intervention) =>
       selectedInterventions.includes(intervention.id)
     );
-    const unverifyEligible = selectedInterventionsData.filter(intervention => intervention.manual_check === true);
+    const unverifyEligible = selectedInterventionsData.filter(
+      (intervention) => intervention.manual_check === true
+    );
     if (unverifyEligible.length !== selectedInterventionsData.length) {
       alert('Seleziona solo interventi verificati per procedere.');
       return;
     }
 
     setBulkActionLoading(true);
-    setBulkActionProgress({ current: 0, total: unverifyEligible.length, currentInterventionId: null });
+    setBulkActionProgress({
+      current: 0,
+      total: unverifyEligible.length,
+      currentInterventionId: null,
+    });
 
-    const ids = unverifyEligible.map(i => i.id);
+    const ids = unverifyEligible.map((i) => i.id);
     try {
       await bulkUpdateManualCheck(ids, { value: false }, auth.token || '');
       fetchInterventionsData();
@@ -472,51 +609,74 @@ export default function InterventiPage() {
       alert('Errore durante la rimozione verifica massiva. Riprova.');
     } finally {
       setBulkActionLoading(false);
-      setBulkActionProgress({ current: 0, total: 0, currentInterventionId: null });
+      setBulkActionProgress({
+        current: 0,
+        total: 0,
+        currentInterventionId: null,
+      });
     }
   };
 
   // Funzione per duplicazione massiva
-  const handleBulkDuplicate = async (cancelOriginals: boolean = true, targetDate?: string) => {
+  const handleBulkDuplicate = async (
+    cancelOriginals: boolean = true,
+    targetDate?: string
+  ) => {
     if (selectedInterventions.length === 0) return;
-    
+
     // Filtra solo gli interventi che possono essere duplicati
-    const selectedInterventionsData = interventionsData.filter(intervention => 
+    const selectedInterventionsData = interventionsData.filter((intervention) =>
       selectedInterventions.includes(intervention.id)
     );
-    
+
     // Stati dinamici che permettono la duplicazione
-    const duplicableStatuses = ['da_assegnare', 'attesa_preventivo', 'attesa_ricambio', 'in_carico'];
-    
-    const duplicableInterventions = selectedInterventionsData.filter(intervention => {
-      const statusKey = (intervention.status_label || '')
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, '_');
-      return duplicableStatuses.includes(statusKey);
-    });
-    
+    const duplicableStatuses = [
+      'da_assegnare',
+      'attesa_preventivo',
+      'attesa_ricambio',
+      'in_carico',
+    ];
+
+    const duplicableInterventions = selectedInterventionsData.filter(
+      (intervention) => {
+        const statusKey = (intervention.status_label || '')
+          .toLowerCase()
+          .trim()
+          .replace(/\s+/g, '_');
+        return duplicableStatuses.includes(statusKey);
+      }
+    );
+
     if (duplicableInterventions.length === 0) {
-      alert('Nessuno degli interventi selezionati può essere duplicato. Solo gli interventi con stati dinamici (da assegnare, attesa preventivo, attesa ricambio, in carico) possono essere duplicati.');
+      alert(
+        'Nessuno degli interventi selezionati può essere duplicato. Solo gli interventi con stati dinamici (da assegnare, attesa preventivo, attesa ricambio, in carico) possono essere duplicati.'
+      );
       return;
     }
-    
+
     if (duplicableInterventions.length < selectedInterventions.length) {
-      const nonDuplicableCount = selectedInterventions.length - duplicableInterventions.length;
-      if (!confirm(`${nonDuplicableCount} intervento${nonDuplicableCount !== 1 ? 'i' : ''} selezionat${nonDuplicableCount !== 1 ? 'i' : 'o'} non può essere duplicat${nonDuplicableCount !== 1 ? 'i' : 'o'} (stato non dinamico). Vuoi procedere con la duplicazione dei rimanenti ${duplicableInterventions.length} intervento${duplicableInterventions.length !== 1 ? 'i' : ''}?`)) {
+      const nonDuplicableCount =
+        selectedInterventions.length - duplicableInterventions.length;
+      if (
+        !confirm(
+          `${nonDuplicableCount} intervento${nonDuplicableCount !== 1 ? 'i' : ''} selezionat${nonDuplicableCount !== 1 ? 'i' : 'o'} non può essere duplicat${nonDuplicableCount !== 1 ? 'i' : 'o'} (stato non dinamico). Vuoi procedere con la duplicazione dei rimanenti ${duplicableInterventions.length} intervento${duplicableInterventions.length !== 1 ? 'i' : ''}?`
+        )
+      ) {
         return;
       }
     }
-    
+
     setBulkActionLoading(true);
     setBulkActionProgress({
       current: 0,
       total: duplicableInterventions.length,
-      currentInterventionId: null
+      currentInterventionId: null,
     });
-    
+
     try {
-      const duplicableIds = duplicableInterventions.map(intervention => intervention.id);
+      const duplicableIds = duplicableInterventions.map(
+        (intervention) => intervention.id
+      );
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -527,47 +687,63 @@ export default function InterventiPage() {
       }
 
       // Chiamata all'API di duplicazione massiva
-      const response = await fetch('/api/assistance-interventions/bulk-duplicate', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          intervention_ids: duplicableIds,
-          cancel_originals: cancelOriginals,
-          user_id: userInfo?.id || '',
-          target_date: targetDate
-        }),
-      });
+      const response = await fetch(
+        '/api/assistance-interventions/bulk-duplicate',
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            intervention_ids: duplicableIds,
+            cancel_originals: cancelOriginals,
+            user_id: userInfo?.id || '',
+            target_date: targetDate,
+          }),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to duplicate interventions: ${response.status}`);
+        throw new Error(
+          `Failed to duplicate interventions: ${response.status}`
+        );
       }
 
       const result = await response.json();
-      
+
       if (result.success) {
-        console.log(`✅ Duplicazione completata: ${result.results.duplicated.length} interventi duplicati`);
+        console.log(
+          `✅ Duplicazione completata: ${result.results.duplicated.length} interventi duplicati`
+        );
         if (result.results.cancelled.length > 0) {
-          console.log(`✅ Annullamento completato: ${result.results.cancelled.length} interventi annullati`);
+          console.log(
+            `✅ Annullamento completato: ${result.results.cancelled.length} interventi annullati`
+          );
         }
-        
+
         // Ricarica i dati e pulisci la selezione
         fetchInterventionsData();
         clearSelection();
       } else {
-        console.error('❌ Errori durante la duplicazione:', result.results.errors);
+        console.error(
+          '❌ Errori durante la duplicazione:',
+          result.results.errors
+        );
         // Mostra gli errori all'utente
         if (result.results.errors.length > 0) {
-          const errorMessages = result.results.errors.map((err: {intervention_id: number, error: string}) => `ID ${err.intervention_id}: ${err.error}`).join('\n');
+          const errorMessages = result.results.errors
+            .map(
+              (err: { intervention_id: number; error: string }) =>
+                `ID ${err.intervention_id}: ${err.error}`
+            )
+            .join('\n');
           alert(`Errori durante la duplicazione:\n${errorMessages}`);
         }
-        
+
         // Se alcune duplicazioni sono riuscite, ricarica comunque i dati
         if (result.results.duplicated.length > 0) {
           fetchInterventionsData();
           clearSelection();
         }
       }
-      
     } catch (error) {
       console.error('💥 Errore durante la duplicazione massiva:', error);
       alert('Errore durante la duplicazione degli interventi. Riprova.');
@@ -576,7 +752,7 @@ export default function InterventiPage() {
       setBulkActionProgress({
         current: 0,
         total: 0,
-        currentInterventionId: null
+        currentInterventionId: null,
       });
     }
   };
@@ -584,54 +760,66 @@ export default function InterventiPage() {
   // Funzione per annullamento massivo
   const handleBulkCancel = async () => {
     if (selectedInterventions.length === 0) return;
-    
+
     // Filtra solo gli interventi che possono essere annullati
-    const selectedInterventionsData = interventionsData.filter(intervention => 
+    const selectedInterventionsData = interventionsData.filter((intervention) =>
       selectedInterventions.includes(intervention.id)
     );
-    
-    const cancellableInterventions = selectedInterventionsData.filter(intervention => 
-      canInterventionBeCancelled(intervention)
+
+    const cancellableInterventions = selectedInterventionsData.filter(
+      (intervention) => canInterventionBeCancelled(intervention)
     );
-    
+
     if (cancellableInterventions.length === 0) {
-      alert('Nessuno degli interventi selezionati può essere annullato. Gli interventi in stato "Da confermare", "Completato", "Non completato", "Annullato" o "Fatturato" non possono essere annullati.');
+      alert(
+        'Nessuno degli interventi selezionati può essere annullato. Gli interventi in stato "Da confermare", "Completato", "Non completato", "Annullato" o "Fatturato" non possono essere annullati.'
+      );
       return;
     }
-    
+
     if (cancellableInterventions.length < selectedInterventions.length) {
-      const nonCancellableCount = selectedInterventions.length - cancellableInterventions.length;
-      if (!confirm(`${nonCancellableCount} intervento${nonCancellableCount !== 1 ? 'i' : ''} selezionat${nonCancellableCount !== 1 ? 'i' : 'o'} non può essere annullat${nonCancellableCount !== 1 ? 'i' : 'o'} (stato non annullabile). Vuoi procedere con l'annullamento dei rimanenti ${cancellableInterventions.length} intervento${cancellableInterventions.length !== 1 ? 'i' : ''}?`)) {
+      const nonCancellableCount =
+        selectedInterventions.length - cancellableInterventions.length;
+      if (
+        !confirm(
+          `${nonCancellableCount} intervento${nonCancellableCount !== 1 ? 'i' : ''} selezionat${nonCancellableCount !== 1 ? 'i' : 'o'} non può essere annullat${nonCancellableCount !== 1 ? 'i' : 'o'} (stato non annullabile). Vuoi procedere con l'annullamento dei rimanenti ${cancellableInterventions.length} intervento${cancellableInterventions.length !== 1 ? 'i' : ''}?`
+        )
+      ) {
         return;
       }
     }
-    
+
     setBulkActionLoading(true);
     setBulkActionProgress({
       current: 0,
       total: cancellableInterventions.length,
-      currentInterventionId: null
+      currentInterventionId: null,
     });
-    
+
     let successCount = 0;
     let errorCount = 0;
-    const cancellableIds = cancellableInterventions.map(intervention => intervention.id);
+    const cancellableIds = cancellableInterventions.map(
+      (intervention) => intervention.id
+    );
 
     try {
       for (let i = 0; i < cancellableIds.length; i++) {
         const interventionId = cancellableIds[i];
-        
+
         // Aggiorna il progresso
         setBulkActionProgress({
           current: i + 1,
           total: cancellableIds.length,
-          currentInterventionId: interventionId
+          currentInterventionId: interventionId,
         });
 
         try {
           // Prima recuperiamo i dettagli dell'intervento
-          const interventionDetail = await fetchAssistanceInterventionDetail(interventionId, auth.token || '');
-          
+          const interventionDetail = await fetchAssistanceInterventionDetail(
+            interventionId,
+            auth.token || ''
+          );
+
           // Prepariamo i dati per l'aggiornamento mantenendo tutti i valori esistenti
           const requestData: UpdateAssistanceInterventionRequest = {
             customer_id: interventionDetail.customer_id || 0,
@@ -639,31 +827,41 @@ export default function InterventiPage() {
             zone_id: interventionDetail.zone_id || 0,
             customer_location_id: interventionDetail.customer_location_id || '',
             flg_home_service: interventionDetail.flg_home_service || false,
-            flg_discount_home_service: interventionDetail.flg_discount_home_service || false,
+            flg_discount_home_service:
+              interventionDetail.flg_discount_home_service || false,
             date: interventionDetail.date || null,
             time_slot: interventionDetail.time_slot || null,
             from_datetime: interventionDetail.from_datetime || null,
             to_datetime: interventionDetail.to_datetime || null,
-            quotation_price: parseFloat(interventionDetail.quotation_price) || 0,
+            quotation_price:
+              parseFloat(interventionDetail.quotation_price) || 0,
             opening_hours: interventionDetail.opening_hours || '',
             assigned_to: interventionDetail.assigned_to || '',
             call_code: interventionDetail.call_code || '',
             internal_notes: interventionDetail.internal_notes || '',
             status_id: 8, // Status "annullato" ha ID 8
             cancelled_by: userInfo?.id || '', // Campo cancelled_by con ID utente corrente
-            equipments: interventionDetail.connected_equipment?.map(eq => eq.id) || [],
-            articles: interventionDetail.connected_articles?.map(art => ({
-              article_id: art.id,
-              quantity: art.quantity
-            })) || []
+            equipments:
+              interventionDetail.connected_equipment?.map((eq) => eq.id) || [],
+            articles:
+              interventionDetail.connected_articles?.map((art) => ({
+                article_id: art.id,
+                quantity: art.quantity,
+              })) || [],
           };
 
           // Chiamata API per aggiornare l'intervento
-          await updateAssistanceIntervention(interventionId, requestData, auth.token || '');
+          await updateAssistanceIntervention(
+            interventionId,
+            requestData,
+            auth.token || ''
+          );
           successCount++;
-          
         } catch (error) {
-          console.error(`Errore nell'annullamento dell'intervento ${interventionId}:`, error);
+          console.error(
+            `Errore nell'annullamento dell'intervento ${interventionId}:`,
+            error
+          );
           errorCount++;
         }
       }
@@ -677,14 +875,15 @@ export default function InterventiPage() {
 
       // Potresti aggiungere qui un toast notification per mostrare il risultato
       // Per ora logghiamo il risultato
-      console.log(`Operazione completata: ${successCount} successi, ${errorCount} errori`);
-      
+      console.log(
+        `Operazione completata: ${successCount} successi, ${errorCount} errori`
+      );
     } finally {
       setBulkActionLoading(false);
       setBulkActionProgress({
         current: 0,
         total: 0,
-        currentInterventionId: null
+        currentInterventionId: null,
       });
     }
   };
@@ -707,8 +906,10 @@ export default function InterventiPage() {
       <div className="p-4 sm:p-6 bg-white min-h-screen">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <p className="text-red-600 mb-4">Errore nel caricamento degli interventi</p>
-            <button 
+            <p className="text-red-600 mb-4">
+              Errore nel caricamento degli interventi
+            </p>
+            <button
               onClick={fetchInterventionsData}
               className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg"
             >
@@ -726,14 +927,18 @@ export default function InterventiPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex flex-col">
-            <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Interventi</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">
+              Interventi
+            </h1>
           </div>
           {isAdmin() && (
             <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
               <button
                 onClick={() => setViewMode('lista')}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'lista' ? 'bg-teal-600 text-white' : 'text-gray-700 hover:text-gray-900'
+                  viewMode === 'lista'
+                    ? 'bg-teal-600 text-white'
+                    : 'text-gray-700 hover:text-gray-900'
                 }`}
               >
                 Lista
@@ -741,7 +946,9 @@ export default function InterventiPage() {
               <button
                 onClick={() => setViewMode('calendario')}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'calendario' ? 'bg-teal-600 text-white' : 'text-gray-700 hover:text-gray-900'
+                  viewMode === 'calendario'
+                    ? 'bg-teal-600 text-white'
+                    : 'text-gray-700 hover:text-gray-900'
                 }`}
               >
                 Calendario
@@ -757,7 +964,7 @@ export default function InterventiPage() {
           {!userLoading && userInfo && (
             <>
               {(isAdmin() || isTechOffice()) && (
-                <button 
+                <button
                   onClick={() => setShowNuovoIntervento(true)}
                   className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors w-full sm:w-auto justify-center"
                 >
@@ -766,7 +973,7 @@ export default function InterventiPage() {
                 </button>
               )}
               {!isAdmin() && (
-                <button 
+                <button
                   onClick={() => setShowRichiediAssenza(true)}
                   className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors w-full sm:w-auto justify-center"
                 >
@@ -782,10 +989,16 @@ export default function InterventiPage() {
       {selectedStatus && (
         <div className="mt-1 flex items-center gap-2 flex-wrap mb-4">
           <span className="text-sm text-gray-600">Filtrato per stato:</span>
-          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(selectedStatus)}`}>
-            {statusOptions.find(s => s.key === selectedStatus)?.label}
+          <span
+            className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(selectedStatus)}`}
+          >
+            {statusOptions.find((s) => s.key === selectedStatus)?.label}
           </span>
-          <button onClick={() => handleStatusFilter('')} className="text-gray-400 hover:text-gray-600 ml-1" title="Rimuovi filtro">
+          <button
+            onClick={() => handleStatusFilter('')}
+            className="text-gray-400 hover:text-gray-600 ml-1"
+            title="Rimuovi filtro"
+          >
             <X size={14} />
           </button>
         </div>
@@ -793,42 +1006,45 @@ export default function InterventiPage() {
 
       {viewMode === 'lista' && (
         <MainPageTable
-            interventionsData={interventionsData}
-            zonesData={zonesData}
-            techniciansData={techniciansData}
-            meta={meta}
-            loading={loading}
-            initialLoading={initialLoading}
-            searchTerm={searchTerm}
-            dateRange={dateRange}
-            selectedZone={selectedZone}
-            selectedStatus={selectedStatus}
-            selectedTechnician={selectedTechnician}
-            selectedManualCheck={selectedManualCheck}
-            showMobileFilters={showMobileFilters}
-            isAdmin={isAdmin()}
-            selectedInterventions={selectedInterventions}
-            bulkActionLoading={bulkActionLoading}
-            bulkActionProgress={bulkActionProgress}
-            handleSearch={handleSearch}
-            handleStatusFilter={handleStatusFilter}
-            handleTechnicianFilter={handleTechnicianFilter}
-            handleManualCheckFilter={handleManualCheckFilter}
-            handleRowClick={handleRowClick}
-            handlePageChange={handlePageChange}
-            setDateRange={setDateRange}
-            setSelectedZone={setSelectedZone}
-            setShowMobileFilters={setShowMobileFilters}
-            formatDate={formatDate}
-            formatTechnician={formatTechnician}
-            handleSelectIntervention={handleSelectIntervention}
-            handleSelectAll={handleSelectAll}
-            clearSelection={clearSelection}
-            handleBulkCancel={handleBulkCancel}
-            handleBulkDuplicate={handleBulkDuplicate}
-            handleBulkVerify={handleBulkVerify}
-            handleBulkUnverify={handleBulkUnverify}
-            canInterventionBeCancelled={canInterventionBeCancelled}
+          interventionsData={interventionsData}
+          zonesData={zonesData}
+          techniciansData={techniciansData}
+          interventionTypesData={interventionTypesData}
+          meta={meta}
+          loading={loading}
+          initialLoading={initialLoading}
+          searchTerm={searchTerm}
+          dateRange={dateRange}
+          selectedZone={selectedZone}
+          selectedStatus={selectedStatus}
+          selectedTechnician={selectedTechnician}
+          selectedManualCheck={selectedManualCheck}
+          selectedInterventionType={selectedInterventionType}
+          showMobileFilters={showMobileFilters}
+          isAdmin={isAdmin()}
+          selectedInterventions={selectedInterventions}
+          bulkActionLoading={bulkActionLoading}
+          bulkActionProgress={bulkActionProgress}
+          handleSearch={handleSearch}
+          handleStatusFilter={handleStatusFilter}
+          handleTechnicianFilter={handleTechnicianFilter}
+          handleManualCheckFilter={handleManualCheckFilter}
+          handleInterventionTypeFilter={handleInterventionTypeFilter}
+          handleRowClick={handleRowClick}
+          handlePageChange={handlePageChange}
+          setDateRange={setDateRange}
+          setSelectedZone={setSelectedZone}
+          setShowMobileFilters={setShowMobileFilters}
+          formatDate={formatDate}
+          formatTechnician={formatTechnician}
+          handleSelectIntervention={handleSelectIntervention}
+          handleSelectAll={handleSelectAll}
+          clearSelection={clearSelection}
+          handleBulkCancel={handleBulkCancel}
+          handleBulkDuplicate={handleBulkDuplicate}
+          handleBulkVerify={handleBulkVerify}
+          handleBulkUnverify={handleBulkUnverify}
+          canInterventionBeCancelled={canInterventionBeCancelled}
         />
       )}
 
@@ -866,4 +1082,4 @@ export default function InterventiPage() {
       )}
     </div>
   );
-} 
+}

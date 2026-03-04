@@ -1514,16 +1514,18 @@ export default function CreaRapportino({
                               </label>
                               <input
                                 type="number"
+                                step="any"
+                                min="0"
                                 value={selectedArticle.quantity}
-                                onChange={(e) =>
+                                onChange={(e) => {
+                                  const parsed = parseFloat(e.target.value);
                                   updateArticleQuantity(
                                     item.id,
                                     selectedArticle.article.id,
-                                    parseInt(e.target.value) || 1
-                                  )
-                                }
-                                min="1"
-                                className="w-16 px-2 py-1 border border-gray-300 rounded text-gray-700 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                                    !isNaN(parsed) && parsed >= 0 ? parsed : 0
+                                  );
+                                }}
+                                className="w-20 px-2 py-1 border border-gray-300 rounded text-gray-700 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                               />
                             </div>
                             <div className="text-xs text-gray-600 whitespace-nowrap">

@@ -1,9 +1,23 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Search, MapPin, Filter, User, X, AlertCircle, Copy, FileText, CornerDownRight } from 'lucide-react';
+import {
+  Search,
+  MapPin,
+  Filter,
+  User,
+  X,
+  AlertCircle,
+  Copy,
+  FileText,
+  CornerDownRight,
+} from 'lucide-react';
 import { AssistanceIntervention } from '../../../types/assistance-interventions';
-import { getStatusColor, statusOptions, toStatusKey } from '../../../utils/intervention-status';
+import {
+  getStatusColor,
+  statusOptions,
+  toStatusKey,
+} from '../../../utils/intervention-status';
 import DateRangePicker from '../../../components/DateRangePicker';
 
 // --- Componente di Paginazione Riutilizzabile ---
@@ -29,9 +43,12 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
   showLoadingIndicator = false,
 }) => {
   return (
-    <div className={`px-3 sm:px-6 py-3 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-3 ${className}`}>
+    <div
+      className={`px-3 sm:px-6 py-3 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-3 ${className}`}
+    >
       <div className="text-sm text-gray-700 text-center sm:text-left">
-        Pagina {meta.page} di {meta.totalPages} - Totale: {meta.total} interventi
+        Pagina {meta.page} di {meta.totalPages} - Totale: {meta.total}{' '}
+        interventi
         {showLoadingIndicator && loading && (
           <span className="ml-2 text-teal-600">
             <div className="inline-block w-3 h-3 border border-teal-600 border-t-transparent rounded-full animate-spin"></div>
@@ -61,23 +78,24 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
   );
 };
 
-
 interface MainPageTableProps {
   // Dati
   interventionsData: AssistanceIntervention[];
   zonesData: { id: number; label: string }[];
   techniciansData: { id: number; name: string; surname: string | null }[];
-  meta: { page: number; totalPages: number; total: number; };
+  interventionTypesData: { id: number; label: string }[];
+  meta: { page: number; totalPages: number; total: number };
   loading: boolean;
   initialLoading: boolean;
-  
+
   // Stati dei filtri
   searchTerm: string;
-  dateRange: {from: string; to: string};
+  dateRange: { from: string; to: string };
   selectedZone: string;
   selectedStatus: string;
   selectedTechnician: string;
   selectedManualCheck: string;
+  selectedInterventionType: string;
   showMobileFilters: boolean;
   isAdmin: boolean;
 
@@ -95,14 +113,15 @@ interface MainPageTableProps {
   handleStatusFilter: (status: string) => void;
   handleTechnicianFilter: (technicianId: string) => void;
   handleManualCheckFilter: (value: string) => void;
+  handleInterventionTypeFilter: (typeId: string) => void;
   handleRowClick: (id: number) => void;
   handlePageChange: (page: number) => void;
-  setDateRange: (dateRange: {from: string; to: string}) => void;
+  setDateRange: (dateRange: { from: string; to: string }) => void;
   setSelectedZone: (zone: string) => void;
   setShowMobileFilters: (show: boolean) => void;
   formatDate: (date: string) => string;
   formatTechnician: (name: string, surname: string | null) => string;
-  
+
   // Gestori per selezione multipla
   handleSelectIntervention: (interventionId: number, selected: boolean) => void;
   handleSelectAll: (selected: boolean) => void;
@@ -118,6 +137,7 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
   interventionsData,
   zonesData,
   techniciansData,
+  interventionTypesData,
   meta,
   loading,
   initialLoading,
@@ -127,6 +147,7 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
   selectedStatus,
   selectedTechnician,
   selectedManualCheck,
+  selectedInterventionType,
   showMobileFilters,
   isAdmin,
   selectedInterventions,
@@ -136,6 +157,7 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
   handleStatusFilter,
   handleTechnicianFilter,
   handleManualCheckFilter,
+  handleInterventionTypeFilter,
   handleRowClick,
   handlePageChange,
   setDateRange,
@@ -152,9 +174,9 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
   handleBulkUnverify,
   canInterventionBeCancelled,
 }) => {
-  
   const [showBulkCancelConfirm, setShowBulkCancelConfirm] = useState(false);
-  const [showBulkDuplicateConfirm, setShowBulkDuplicateConfirm] = useState(false);
+  const [showBulkDuplicateConfirm, setShowBulkDuplicateConfirm] =
+    useState(false);
   const [showBulkVerifyConfirm, setShowBulkVerifyConfirm] = useState(false);
   const [showBulkUnverifyConfirm, setShowBulkUnverifyConfirm] = useState(false);
   const [duplicateWithCancel, setDuplicateWithCancel] = useState(true);
@@ -166,13 +188,16 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
   });
 
   // Verifica se tutti gli interventi selezionati possono essere annullati
-  const selectedInterventionsData = interventionsData.filter(intervention => 
+  const selectedInterventionsData = interventionsData.filter((intervention) =>
     selectedInterventions.includes(intervention.id)
   );
-  
-  const canCancelAnySelected = selectedInterventions.length > 0 && 
+
+  const canCancelAnySelected =
+    selectedInterventions.length > 0 &&
     selectedInterventionsData.length > 0 &&
-    selectedInterventionsData.every(intervention => canInterventionBeCancelled(intervention));
+    selectedInterventionsData.every((intervention) =>
+      canInterventionBeCancelled(intervention)
+    );
 
   const handleBulkCancelClick = () => {
     setShowBulkCancelConfirm(true);
@@ -205,28 +230,44 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
   };
 
   // Stati dinamici che permettono la duplicazione
-  const duplicableStatuses = ['da_assegnare', 'attesa_preventivo', 'attesa_ricambio', 'in_carico'];
+  const duplicableStatuses = [
+    'da_assegnare',
+    'attesa_preventivo',
+    'attesa_ricambio',
+    'in_carico',
+  ];
 
   // Verifica se un intervento può essere duplicato (solo stati dinamici)
-  const canInterventionBeDuplicated = (intervention: AssistanceIntervention): boolean => {
+  const canInterventionBeDuplicated = (
+    intervention: AssistanceIntervention
+  ): boolean => {
     const statusKey = toStatusKey(intervention.status_label);
     return duplicableStatuses.includes(statusKey);
   };
 
   // Verifica se tutti gli interventi selezionati possono essere duplicati
-  const canDuplicateAnySelected = selectedInterventions.length > 0 && 
+  const canDuplicateAnySelected =
+    selectedInterventions.length > 0 &&
     selectedInterventionsData.length > 0 &&
-    selectedInterventionsData.every(intervention => canInterventionBeDuplicated(intervention));
+    selectedInterventionsData.every((intervention) =>
+      canInterventionBeDuplicated(intervention)
+    );
 
   // Verifica se tutti i selezionati sono non verificati (manual_check === false)
-  const canBulkVerify = selectedInterventions.length > 0 &&
+  const canBulkVerify =
+    selectedInterventions.length > 0 &&
     selectedInterventionsData.length > 0 &&
-    selectedInterventionsData.every(intervention => intervention.manual_check === false);
+    selectedInterventionsData.every(
+      (intervention) => intervention.manual_check === false
+    );
 
   // Verifica se tutti i selezionati sono verificati (manual_check === true)
-  const canBulkUnverify = selectedInterventions.length > 0 &&
+  const canBulkUnverify =
+    selectedInterventions.length > 0 &&
     selectedInterventionsData.length > 0 &&
-    selectedInterventionsData.every(intervention => intervention.manual_check === true);
+    selectedInterventionsData.every(
+      (intervention) => intervention.manual_check === true
+    );
 
   return (
     <>
@@ -234,10 +275,13 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           {/* Search bar */}
           <div className="relative flex-1 max-w-full sm:max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <Search
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              size={20}
+            />
             <input
               type="text"
-              placeholder="Cerca Ragione sociale, descrizione, tecnico"
+              placeholder="Cerca ragione sociale, destinazione, tecnico"
               value={searchTerm}
               onChange={(e) => handleSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-700 placeholder-gray-400"
@@ -254,15 +298,22 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
           </div>
           {/* Zona filter */}
           <div className="relative flex-1 sm:flex-none sm:min-w-[180px]">
-            <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+            <MapPin
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              size={16}
+            />
             <select
               value={selectedZone}
               onChange={(e) => setSelectedZone(e.target.value)}
               className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
             >
-              <option value="" className="text-gray-400">Filtra per zona</option>
-              {zonesData.map(zone => (
-                <option key={zone.id} value={zone.id} className="text-gray-700">{zone.label}</option>
+              <option value="" className="text-gray-400">
+                Filtra per zona
+              </option>
+              {zonesData.map((zone) => (
+                <option key={zone.id} value={zone.id} className="text-gray-700">
+                  {zone.label}
+                </option>
               ))}
             </select>
           </div>
@@ -273,9 +324,30 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
               onChange={(e) => handleStatusFilter(e.target.value)}
               className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
             >
-              {statusOptions.map(status => (
-                <option key={status.key} value={status.key} className="text-gray-700">
+              {statusOptions.map((status) => (
+                <option
+                  key={status.key}
+                  value={status.key}
+                  className="text-gray-700"
+                >
                   {status.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {/* Tipologia intervento filter */}
+          <div className="relative flex-1 sm:flex-none sm:min-w-[180px]">
+            <select
+              value={selectedInterventionType}
+              onChange={(e) => handleInterventionTypeFilter(e.target.value)}
+              className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
+            >
+              <option value="" className="text-gray-400">
+                Filtra per tipologia
+              </option>
+              {interventionTypesData.map((type) => (
+                <option key={type.id} value={type.id} className="text-gray-700">
+                  {type.label}
                 </option>
               ))}
             </select>
@@ -285,16 +357,27 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
             <div className="flex-1 sm:flex-none grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Tecnico */}
               <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                <User
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                  size={16}
+                />
                 <select
                   value={selectedTechnician}
                   onChange={(e) => handleTechnicianFilter(e.target.value)}
                   className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
                 >
-                  <option value="" className="text-gray-400">Filtra per tecnico</option>
-                  {techniciansData.map(technician => (
-                    <option key={technician.id} value={technician.id} className="text-gray-700">
-                      {technician.surname ? `${technician.name} ${technician.surname}` : technician.name}
+                  <option value="" className="text-gray-400">
+                    Filtra per tecnico
+                  </option>
+                  {techniciansData.map((technician) => (
+                    <option
+                      key={technician.id}
+                      value={technician.id}
+                      className="text-gray-700"
+                    >
+                      {technician.surname
+                        ? `${technician.name} ${technician.surname}`
+                        : technician.name}
                     </option>
                   ))}
                 </select>
@@ -334,15 +417,26 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
             />
             {/* Zona filter */}
             <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+              <MapPin
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                size={16}
+              />
               <select
                 value={selectedZone}
                 onChange={(e) => setSelectedZone(e.target.value)}
                 className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
               >
-                <option value="" className="text-gray-400">Filtra per zona</option>
-                {zonesData.map(zone => (
-                  <option key={zone.id} value={zone.id} className="text-gray-700">{zone.label}</option>
+                <option value="" className="text-gray-400">
+                  Filtra per zona
+                </option>
+                {zonesData.map((zone) => (
+                  <option
+                    key={zone.id}
+                    value={zone.id}
+                    className="text-gray-700"
+                  >
+                    {zone.label}
+                  </option>
                 ))}
               </select>
             </div>
@@ -353,9 +447,34 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 onChange={(e) => handleStatusFilter(e.target.value)}
                 className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
               >
-                {statusOptions.map(status => (
-                  <option key={status.key} value={status.key} className="text-gray-700">
+                {statusOptions.map((status) => (
+                  <option
+                    key={status.key}
+                    value={status.key}
+                    className="text-gray-700"
+                  >
                     {status.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {/* Tipologia intervento filter */}
+            <div className="relative">
+              <select
+                value={selectedInterventionType}
+                onChange={(e) => handleInterventionTypeFilter(e.target.value)}
+                className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
+              >
+                <option value="" className="text-gray-400">
+                  Filtra per tipologia
+                </option>
+                {interventionTypesData.map((type) => (
+                  <option
+                    key={type.id}
+                    value={type.id}
+                    className="text-gray-700"
+                  >
+                    {type.label}
                   </option>
                 ))}
               </select>
@@ -364,16 +483,27 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
             {isAdmin && (
               <div className="grid grid-cols-1 gap-3">
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                  <User
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                    size={16}
+                  />
                   <select
                     value={selectedTechnician}
                     onChange={(e) => handleTechnicianFilter(e.target.value)}
                     className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 appearance-none bg-white text-gray-700"
                   >
-                    <option value="" className="text-gray-400">Filtra per tecnico</option>
-                    {techniciansData.map(technician => (
-                      <option key={technician.id} value={technician.id} className="text-gray-700">
-                        {technician.surname ? `${technician.name} ${technician.surname}` : technician.name}
+                    <option value="" className="text-gray-400">
+                      Filtra per tecnico
+                    </option>
+                    {techniciansData.map((technician) => (
+                      <option
+                        key={technician.id}
+                        value={technician.id}
+                        className="text-gray-700"
+                      >
+                        {technician.surname
+                          ? `${technician.name} ${technician.surname}`
+                          : technician.name}
                       </option>
                     ))}
                   </select>
@@ -401,7 +531,9 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-blue-900">
-                {selectedInterventions.length} intervento{selectedInterventions.length !== 1 ? 'i' : ''} selezionat{selectedInterventions.length !== 1 ? 'i' : 'o'}
+                {selectedInterventions.length} intervento
+                {selectedInterventions.length !== 1 ? 'i' : ''} selezionat
+                {selectedInterventions.length !== 1 ? 'i' : 'o'}
               </span>
               <button
                 onClick={clearSelection}
@@ -415,15 +547,18 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 onClick={handleBulkDuplicateClick}
                 disabled={bulkActionLoading || !canDuplicateAnySelected}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                title={!canDuplicateAnySelected ? 'Solo gli interventi con stati dinamici (da assegnare, attesa preventivo, attesa ricambio, in carico) possono essere duplicati' : 'Duplica gli interventi selezionati per una data futura'}
+                title={
+                  !canDuplicateAnySelected
+                    ? 'Solo gli interventi con stati dinamici (da assegnare, attesa preventivo, attesa ricambio, in carico) possono essere duplicati'
+                    : 'Duplica gli interventi selezionati per una data futura'
+                }
               >
                 {bulkActionLoading ? (
                   <>
                     <div className="w-4 h-4 border border-white border-t-transparent rounded-full animate-spin"></div>
-                    {bulkActionProgress.total > 0 
+                    {bulkActionProgress.total > 0
                       ? `Duplicando ${bulkActionProgress.current}/${bulkActionProgress.total}...`
-                      : 'Duplicando...'
-                    }
+                      : 'Duplicando...'}
                   </>
                 ) : (
                   <>
@@ -436,15 +571,18 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 onClick={handleBulkCancelClick}
                 disabled={bulkActionLoading || !canCancelAnySelected}
                 className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                title={!canCancelAnySelected ? 'Nessuno degli interventi selezionati può essere annullato' : 'Annulla gli interventi selezionati'}
+                title={
+                  !canCancelAnySelected
+                    ? 'Nessuno degli interventi selezionati può essere annullato'
+                    : 'Annulla gli interventi selezionati'
+                }
               >
                 {bulkActionLoading ? (
                   <>
                     <div className="w-4 h-4 border border-white border-t-transparent rounded-full animate-spin"></div>
-                    {bulkActionProgress.total > 0 
+                    {bulkActionProgress.total > 0
                       ? `Annullando ${bulkActionProgress.current}/${bulkActionProgress.total}...`
-                      : 'Annullando...'
-                    }
+                      : 'Annullando...'}
                   </>
                 ) : (
                   <>
@@ -457,7 +595,11 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 onClick={() => setShowBulkVerifyConfirm(true)}
                 disabled={bulkActionLoading || !canBulkVerify}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                title={!canBulkVerify ? 'Seleziona solo interventi non verificati' : 'Segna come verificati'}
+                title={
+                  !canBulkVerify
+                    ? 'Seleziona solo interventi non verificati'
+                    : 'Segna come verificati'
+                }
               >
                 Verifica selezionati
               </button>
@@ -465,29 +607,42 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 onClick={() => setShowBulkUnverifyConfirm(true)}
                 disabled={bulkActionLoading || !canBulkUnverify}
                 className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                title={!canBulkUnverify ? 'Seleziona solo interventi verificati' : 'Segna come non verificati'}
+                title={
+                  !canBulkUnverify
+                    ? 'Seleziona solo interventi verificati'
+                    : 'Segna come non verificati'
+                }
               >
                 Rimuovi verifica
               </button>
             </div>
           </div>
-          
+
           {/* Barra di progresso */}
           {bulkActionLoading && bulkActionProgress.total > 0 && (
             <div className="mt-3">
               <div className="flex items-center justify-between text-xs text-blue-700 mb-1">
                 <span>Progresso annullamento</span>
-                <span>{Math.round((bulkActionProgress.current / bulkActionProgress.total) * 100)}%</span>
+                <span>
+                  {Math.round(
+                    (bulkActionProgress.current / bulkActionProgress.total) *
+                      100
+                  )}
+                  %
+                </span>
               </div>
               <div className="w-full bg-blue-200 rounded-full h-2">
-                <div 
+                <div
                   className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
-                  style={{ width: `${(bulkActionProgress.current / bulkActionProgress.total) * 100}%` }}
+                  style={{
+                    width: `${(bulkActionProgress.current / bulkActionProgress.total) * 100}%`,
+                  }}
                 ></div>
               </div>
               {bulkActionProgress.currentInterventionId && (
                 <div className="text-xs text-blue-600 mt-1">
-                  Elaborando intervento ID: {bulkActionProgress.currentInterventionId}
+                  Elaborando intervento ID:{' '}
+                  {bulkActionProgress.currentInterventionId}
                 </div>
               )}
             </div>
@@ -514,7 +669,11 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                   <th className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
                     <input
                       type="checkbox"
-                      checked={selectedInterventions.length === interventionsData.length && interventionsData.length > 0}
+                      checked={
+                        selectedInterventions.length ===
+                          interventionsData.length &&
+                        interventionsData.length > 0
+                      }
                       onChange={(e) => handleSelectAll(e.target.checked)}
                       className="w-4 h-4 text-teal-600 bg-gray-100 border-gray-300 rounded focus:ring-teal-500 focus:ring-2"
                     />
@@ -541,74 +700,122 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[130px]">
                   Status
                 </th>
-                <th className="px-3 sm:px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
-                  
-                </th>
+                <th className="px-3 sm:px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10"></th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading && !initialLoading ? (
                 <tr>
-                  <td colSpan={isAdmin ? 9 : 8} className="px-6 py-8 text-center">
+                  <td
+                    colSpan={isAdmin ? 9 : 8}
+                    className="px-6 py-8 text-center"
+                  >
                     <div className="flex flex-col items-center">
                       <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mb-2"></div>
-                      <p className="text-sm text-gray-600">Aggiornamento in corso...</p>
+                      <p className="text-sm text-gray-600">
+                        Aggiornamento in corso...
+                      </p>
                     </div>
                   </td>
                 </tr>
               ) : interventionsData.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 9 : 8} className="px-6 py-8 text-center text-gray-500">
+                  <td
+                    colSpan={isAdmin ? 9 : 8}
+                    className="px-6 py-8 text-center text-gray-500"
+                  >
                     Nessun intervento trovato
                   </td>
                 </tr>
               ) : (
                 interventionsData.map((intervention) => (
                   <React.Fragment key={intervention.id}>
-                    <tr className={`hover:bg-gray-50 transition-colors ${intervention.internal_notes ? '[&>td]:border-b-0' : ''}`}>
+                    <tr
+                      className={`hover:bg-gray-50 transition-colors ${intervention.internal_notes ? '[&>td]:border-b-0' : ''}`}
+                    >
                       {isAdmin && (
                         <td className="px-3 sm:px-6 py-4 text-center">
                           <input
                             type="checkbox"
-                            checked={selectedInterventions.includes(intervention.id)}
+                            checked={selectedInterventions.includes(
+                              intervention.id
+                            )}
                             onChange={(e) => {
                               e.stopPropagation();
-                              handleSelectIntervention(intervention.id, e.target.checked);
+                              handleSelectIntervention(
+                                intervention.id,
+                                e.target.checked
+                              );
                             }}
                             className="w-4 h-4 text-teal-600 bg-gray-100 border-gray-300 rounded focus:ring-teal-500 focus:ring-2"
                           />
                         </td>
                       )}
-                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-900 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
+                      <td
+                        className="px-3 sm:px-6 py-4 text-sm text-gray-900 cursor-pointer"
+                        onClick={() => handleRowClick(intervention.id)}
+                      >
                         <div>
                           <div className="font-medium break-words">
                             {intervention.company_name}
-                            <span className="text-gray-600 font-normal"> ({intervention.customer_client_code || 'N/A'})</span>
+                            <span className="text-gray-600 font-normal">
+                              {' '}
+                              ({intervention.customer_client_code || 'N/A'})
+                            </span>
                           </div>
-                          <div className="text-xs text-gray-500">#{intervention.call_code} ({intervention.id})</div>
-                          <div className="text-xs text-gray-600 mt-1 break-words">{intervention.location_label}</div>
+                          <div className="text-xs text-gray-500">
+                            #{intervention.call_code} ({intervention.id})
+                          </div>
+                          <div className="text-xs text-gray-600 mt-1 break-words">
+                            {intervention.location_label}
+                          </div>
                         </div>
                       </td>
-                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
+                      <td
+                        className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 cursor-pointer"
+                        onClick={() => handleRowClick(intervention.id)}
+                      >
                         {formatDate(intervention.date)}
                       </td>
-                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
-                        {intervention.from_datetime && intervention.to_datetime ? (
-                          `${intervention.from_datetime.substring(11, 16)} -> ${intervention.to_datetime.substring(11, 16)}`
-                        ) : (
-                          intervention.time_slot || '-'
-                        )}
+                      <td
+                        className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 cursor-pointer"
+                        onClick={() => handleRowClick(intervention.id)}
+                      >
+                        {intervention.from_datetime && intervention.to_datetime
+                          ? `${intervention.from_datetime.substring(11, 16)} -> ${intervention.to_datetime.substring(11, 16)}`
+                          : intervention.time_slot || '-'}
                       </td>
-                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
-                        <div className="break-words">{intervention.zone_label}</div>
+                      <td
+                        className="px-3 sm:px-6 py-4 text-sm text-gray-600 cursor-pointer"
+                        onClick={() => handleRowClick(intervention.id)}
+                      >
+                        <div className="break-words">
+                          {intervention.zone_label}
+                        </div>
                       </td>
-                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
-                        <div className="break-words">{formatTechnician(intervention.assigned_to_name, intervention.assigned_to_surname)}</div>
+                      <td
+                        className="px-3 sm:px-6 py-4 text-sm text-gray-600 cursor-pointer"
+                        onClick={() => handleRowClick(intervention.id)}
+                      >
+                        <div className="break-words">
+                          {formatTechnician(
+                            intervention.assigned_to_name,
+                            intervention.assigned_to_surname
+                          )}
+                        </div>
                       </td>
-                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-600 cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
-                        <div className="break-words">{intervention.type_label}</div>
+                      <td
+                        className="px-3 sm:px-6 py-4 text-sm text-gray-600 cursor-pointer"
+                        onClick={() => handleRowClick(intervention.id)}
+                      >
+                        <div className="break-words">
+                          {intervention.type_label}
+                        </div>
                       </td>
-                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => handleRowClick(intervention.id)}>
+                      <td
+                        className="px-3 sm:px-6 py-4 whitespace-nowrap cursor-pointer"
+                        onClick={() => handleRowClick(intervention.id)}
+                      >
                         <div className="flex flex-col gap-1">
                           <span
                             className={`inline-flex w-fit px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(toStatusKey(intervention.status_label))}`}
@@ -642,26 +849,33 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                         ) : null}
                       </td>
                     </tr>
-                      {intervention.internal_notes && (
-                        <tr className="bg-gray-50">
-                          {isAdmin && <td className="px-3 sm:px-6 py-2"></td>}
-                          <td colSpan={isAdmin ? 8 : 7} className="px-3 sm:px-6 py-2 text-sm text-gray-700">
-                            <div className="flex items-start gap-2">
-                              <CornerDownRight size={16} className="text-gray-400 mt-0.5 flex-shrink-0" />
-                              <div className="italic break-words">
-                                <strong>note:</strong> {intervention.internal_notes}
-                              </div>
+                    {intervention.internal_notes && (
+                      <tr className="bg-gray-50">
+                        {isAdmin && <td className="px-3 sm:px-6 py-2"></td>}
+                        <td
+                          colSpan={isAdmin ? 8 : 7}
+                          className="px-3 sm:px-6 py-2 text-sm text-gray-700"
+                        >
+                          <div className="flex items-start gap-2">
+                            <CornerDownRight
+                              size={16}
+                              className="text-gray-400 mt-0.5 flex-shrink-0"
+                            />
+                            <div className="italic break-words">
+                              <strong>note:</strong>{' '}
+                              {intervention.internal_notes}
                             </div>
-                          </td>
-                        </tr>
-                      )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                   </React.Fragment>
                 ))
               )}
             </tbody>
           </table>
         </div>
-        
+
         {/* Bottom Pagination */}
         <PaginationControls
           meta={meta}
@@ -688,13 +902,18 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
             </div>
             <div className="mb-6">
               <p className="text-sm text-gray-500 mb-4">
-                Sei sicuro di voler duplicare {selectedInterventions.length} intervento{selectedInterventions.length !== 1 ? 'i' : ''}? 
-                Tutti gli interventi selezionati verranno duplicati con stato &quot;Da assegnare&quot;.
+                Sei sicuro di voler duplicare {selectedInterventions.length}{' '}
+                intervento{selectedInterventions.length !== 1 ? 'i' : ''}? Tutti
+                gli interventi selezionati verranno duplicati con stato &quot;Da
+                assegnare&quot;.
               </p>
-              
+
               {/* Selettore data */}
               <div className="mb-4">
-                <label htmlFor="duplicateDate" className="block text-sm font-medium text-gray-700 mb-2">
+                <label
+                  htmlFor="duplicateDate"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
                   Data di duplicazione:
                 </label>
                 <input
@@ -706,7 +925,7 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                   className="text-gray-700 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              
+
               {/* Checkbox annullamento */}
               <div className="flex items-center">
                 <input
@@ -716,7 +935,10 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                   onChange={(e) => setDuplicateWithCancel(e.target.checked)}
                   className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                 />
-                <label htmlFor="duplicateWithCancel" className="ml-2 text-sm text-gray-700">
+                <label
+                  htmlFor="duplicateWithCancel"
+                  className="ml-2 text-sm text-gray-700"
+                >
                   Annulla automaticamente gli interventi originali
                 </label>
               </div>
@@ -755,8 +977,10 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
             </div>
             <div className="mb-6">
               <p className="text-sm text-gray-500">
-                Sei sicuro di voler annullare {selectedInterventions.length} intervento{selectedInterventions.length !== 1 ? 'i' : ''}? 
-                Questa operazione non può essere annullata. Tutti gli interventi selezionati passeranno allo status &quot;Annullato&quot;.
+                Sei sicuro di voler annullare {selectedInterventions.length}{' '}
+                intervento{selectedInterventions.length !== 1 ? 'i' : ''}?
+                Questa operazione non può essere annullata. Tutti gli interventi
+                selezionati passeranno allo status &quot;Annullato&quot;.
               </p>
             </div>
             <div className="flex justify-end gap-3">
@@ -793,7 +1017,9 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
             </div>
             <div className="mb-6">
               <p className="text-sm text-gray-500">
-                Confermi di voler segnare {selectedInterventions.length} intervento{selectedInterventions.length !== 1 ? 'i' : ''} come verificat{selectedInterventions.length !== 1 ? 'i' : 'o'}?
+                Confermi di voler segnare {selectedInterventions.length}{' '}
+                intervento{selectedInterventions.length !== 1 ? 'i' : ''} come
+                verificat{selectedInterventions.length !== 1 ? 'i' : 'o'}?
               </p>
             </div>
             <div className="flex justify-end gap-3">
@@ -804,7 +1030,10 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 Annulla
               </button>
               <button
-                onClick={() => { setShowBulkVerifyConfirm(false); handleBulkVerify(); }}
+                onClick={() => {
+                  setShowBulkVerifyConfirm(false);
+                  handleBulkVerify();
+                }}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
                 Conferma
@@ -830,7 +1059,9 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
             </div>
             <div className="mb-6">
               <p className="text-sm text-gray-500">
-                Confermi di voler segnare {selectedInterventions.length} intervento{selectedInterventions.length !== 1 ? 'i' : ''} come non verificat{selectedInterventions.length !== 1 ? 'i' : 'o'}?
+                Confermi di voler segnare {selectedInterventions.length}{' '}
+                intervento{selectedInterventions.length !== 1 ? 'i' : ''} come
+                non verificat{selectedInterventions.length !== 1 ? 'i' : 'o'}?
               </p>
             </div>
             <div className="flex justify-end gap-3">
@@ -841,7 +1072,10 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                 Annulla
               </button>
               <button
-                onClick={() => { setShowBulkUnverifyConfirm(false); handleBulkUnverify(); }}
+                onClick={() => {
+                  setShowBulkUnverifyConfirm(false);
+                  handleBulkUnverify();
+                }}
                 className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
               >
                 Conferma
