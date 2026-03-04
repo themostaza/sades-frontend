@@ -1,13 +1,27 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { getStatusColor, statusOptions, toStatusKey } from '../../../utils/intervention-status';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  getStatusColor,
+  statusOptions,
+  toStatusKey,
+} from '../../../utils/intervention-status';
 import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { useCalendarNotes } from '../../../hooks/useCalendarNotes';
 import CalendarNoteDialog from './CalendarNoteDialog';
 import { useAuth } from '../../../contexts/AuthContext';
 import { CalendarNote } from '@/types/calendar-notes';
 
+interface Absence {
+  id: number;
+  user_uid: string;
+  from_date: string;
+  to_date: string;
+  status: string;
+  note: string;
+  name: string;
+  surname: string;
+}
 
 interface Intervento {
   id: string;
@@ -46,9 +60,22 @@ interface CalendarGridProps {
 
 // Fasce orarie
 const timeSlots = [
-  '07:00', '08:00', '09:00', '10:00', '11:00', '12:00',
-  '13:00', '14:00', '15:00', '16:00', '17:00', '18:00',
-  '19:00', '20:00', '21:00', '22:00'
+  '07:00',
+  '08:00',
+  '09:00',
+  '10:00',
+  '11:00',
+  '12:00',
+  '13:00',
+  '14:00',
+  '15:00',
+  '16:00',
+  '17:00',
+  '18:00',
+  '19:00',
+  '20:00',
+  '21:00',
+  '22:00',
 ];
 
 export default function CalendarGrid({
@@ -63,23 +90,31 @@ export default function CalendarGrid({
   technicianFilter,
   onTechnicianFilterChange,
   statusFilter,
-  onStatusFilterChange
+  onStatusFilterChange,
 }: CalendarGridProps) {
-  const [showTechnicianMultiSelect, setShowTechnicianMultiSelect] = useState(false);
+  const [showTechnicianMultiSelect, setShowTechnicianMultiSelect] =
+    useState(false);
   const [showStatusMultiSelect, setShowStatusMultiSelect] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   // Stato per gestire z-index dinamico degli interventi sovrapposti
-  const [interventionZIndexes, setInterventionZIndexes] = useState<Record<string, number>>({});
+  const [interventionZIndexes, setInterventionZIndexes] = useState<
+    Record<string, number>
+  >({});
 
   // Calendar Notes state
   const { notes, fetchNotes } = useCalendarNotes();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [techIdMap, setTechIdMap] = useState<Record<string, string>>({});
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [selectedTechName, setSelectedTechName] = useState<string>('');
-  const [selectedTechId, setSelectedTechId] = useState<string | undefined>(undefined);
+  const [selectedTechId, setSelectedTechId] = useState<string | undefined>(
+    undefined
+  );
   const [selectedNote, setSelectedNote] = useState<CalendarNote | null>(null);
+
+  // Absence state
+  const [approvedAbsences, setApprovedAbsences] = useState<Absence[]>([]);
 
   // Genera i giorni lavorativi della settimana corrente (Lunedì-Sabato)
   const getWeekDays = (date: Date) => {
@@ -101,8 +136,18 @@ export default function CalendarGrid({
   // Funzione per ottenere il mese e anno corrente
   const getCurrentMonthYear = () => {
     const months = [
-      'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-      'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
+      'Gennaio',
+      'Febbraio',
+      'Marzo',
+      'Aprile',
+      'Maggio',
+      'Giugno',
+      'Luglio',
+      'Agosto',
+      'Settembre',
+      'Ottobre',
+      'Novembre',
+      'Dicembre',
     ];
     const date = viewMode === 'weekly' ? currentWeek : currentDate;
     return `${months[date.getMonth()]} ${date.getFullYear()}`;
@@ -112,51 +157,66 @@ export default function CalendarGrid({
   const getCurrentDayFormatted = () => {
     const day = currentDate.getDate();
     const months = [
-      'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-      'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
+      'Gennaio',
+      'Febbraio',
+      'Marzo',
+      'Aprile',
+      'Maggio',
+      'Giugno',
+      'Luglio',
+      'Agosto',
+      'Settembre',
+      'Ottobre',
+      'Novembre',
+      'Dicembre',
     ];
     return `${day} ${months[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
   };
 
   // Ottieni i tecnici unici dagli interventi per la vista giornaliera
   const getUniqueTechnicians = (): string[] => {
-    const technicians = Array.from(new Set(
-      interventions
-        .map(i => i.tecnico)
-        .filter(t => t && t !== '-')
-    )).sort();
-    
+    const technicians = Array.from(
+      new Set(interventions.map((i) => i.tecnico).filter((t) => t && t !== '-'))
+    ).sort();
+
     // Se c'è un filtro attivo, restituisci solo i tecnici filtrati
     if (technicianFilter.length > 0) {
-      const filtered = technicians.filter(t => technicianFilter.includes(t));
+      const filtered = technicians.filter((t) => technicianFilter.includes(t));
       return filtered.length > 0 ? filtered : ['Nessun tecnico'];
     }
-    
+
     // Se non ci sono tecnici, mostra almeno una colonna placeholder
     return technicians.length > 0 ? technicians : ['Nessun tecnico'];
   };
 
   // Funzioni di normalizzazione status
-  const normalizeStatus = (status: string): string => (status ? status.toLowerCase().trim() : '');
+  const normalizeStatus = (status: string): string =>
+    status ? status.toLowerCase().trim() : '';
   // toStatusKey importata da utils
 
-
-
   // Funzione per ottenere gli interventi che iniziano in un time slot specifico
-  const getInterventiForTimeSlot = (dayOrTechnician: Date | string, timeSlot: string): Intervento[] => {
-    return interventions.filter(intervento => {
+  const getInterventiForTimeSlot = (
+    dayOrTechnician: Date | string,
+    timeSlot: string
+  ): Intervento[] => {
+    return interventions.filter((intervento) => {
       // Filtra per tecnico se ci sono filtri attivi
-      if (technicianFilter.length > 0 && !technicianFilter.includes(intervento.tecnico)) {
+      if (
+        technicianFilter.length > 0 &&
+        !technicianFilter.includes(intervento.tecnico)
+      ) {
         return false;
       }
 
       // Filtra per status se ci sono filtri attivi
       if (statusFilter.length > 0) {
-        const interventionStatus = normalizeStatus(intervento.statusLabel || intervento.status);
-        const hasMatchingStatus = statusFilter.some(filterStatus => 
-          normalizeStatus(filterStatus) === interventionStatus
+        const interventionStatus = normalizeStatus(
+          intervento.statusLabel || intervento.status
         );
-        
+        const hasMatchingStatus = statusFilter.some(
+          (filterStatus) => normalizeStatus(filterStatus) === interventionStatus
+        );
+
         if (!hasMatchingStatus) {
           return false;
         }
@@ -165,53 +225,62 @@ export default function CalendarGrid({
       if (viewMode === 'weekly') {
         // Vista settimanale: filtra per giorno
         const dayString = (dayOrTechnician as Date).toISOString().split('T')[0];
-        
+
         // Se l'intervento ha un from_datetime, usa direttamente la stringa ISO per il filtraggio
         if (intervento.from_datetime) {
           const interventionDay = intervento.from_datetime.substring(0, 10); // YYYY-MM-DD
           const interventionTime = intervento.from_datetime.substring(11, 16); // HH:MM
           return interventionDay === dayString && interventionTime === timeSlot;
         }
-        
+
         // Altrimenti usa il time_slot
         const interventionDate = new Date(intervento.data);
         const interventionDay = interventionDate.toISOString().split('T')[0];
-        
+
         if (interventionDay !== dayString) return false;
-        
+
         // Mappa i time_slot alle fasce orarie
-        if (intervento.orario === 'mattina' && timeSlot === '08:00') return true;
-        if (intervento.orario === 'pomeriggio' && timeSlot === '14:00') return true;
-        if (intervento.orario === 'tutto_il_giorno' && timeSlot === '08:00') return true;
-        
+        if (intervento.orario === 'mattina' && timeSlot === '08:00')
+          return true;
+        if (intervento.orario === 'pomeriggio' && timeSlot === '14:00')
+          return true;
+        if (intervento.orario === 'tutto_il_giorno' && timeSlot === '08:00')
+          return true;
+
         return false;
       } else {
         // Vista giornaliera: filtra per tecnico e orario
         const technicianName = dayOrTechnician as string;
-        
+
         // Controlla se l'intervento appartiene al tecnico
         if (intervento.tecnico !== technicianName) return false;
-        
+
         // Controlla se l'intervento è nel giorno corrente
         const currentDayString = currentDate.toISOString().split('T')[0];
-        
+
         if (intervento.from_datetime) {
           const interventionDay = intervento.from_datetime.substring(0, 10);
           const interventionTime = intervento.from_datetime.substring(11, 16);
-          return interventionDay === currentDayString && interventionTime === timeSlot;
+          return (
+            interventionDay === currentDayString &&
+            interventionTime === timeSlot
+          );
         }
-        
+
         // Fallback con data parsing
         const interventionDate = new Date(intervento.data);
         const interventionDay = interventionDate.toISOString().split('T')[0];
-        
+
         if (interventionDay !== currentDayString) return false;
-        
+
         // Mappa i time_slot alle fasce orarie
-        if (intervento.orario === 'mattina' && timeSlot === '08:00') return true;
-        if (intervento.orario === 'pomeriggio' && timeSlot === '14:00') return true;
-        if (intervento.orario === 'tutto_il_giorno' && timeSlot === '08:00') return true;
-        
+        if (intervento.orario === 'mattina' && timeSlot === '08:00')
+          return true;
+        if (intervento.orario === 'pomeriggio' && timeSlot === '14:00')
+          return true;
+        if (intervento.orario === 'tutto_il_giorno' && timeSlot === '08:00')
+          return true;
+
         return false;
       }
     });
@@ -226,7 +295,7 @@ export default function CalendarGrid({
       if (intervento.orario === 'tutto_il_giorno') return 10; // 8:00-18:00
       return 1; // Default 1 ora
     }
-    
+
     try {
       const startTime = new Date(intervento.from_datetime);
       const endTime = new Date(intervento.to_datetime);
@@ -252,57 +321,70 @@ export default function CalendarGrid({
   };
 
   // Funzione per verificare se due interventi si sovrappongono temporalmente
-  const doInterventsOverlap = (intervention1: Intervento, intervention2: Intervento): boolean => {
-    if (!intervention1.from_datetime || !intervention1.to_datetime || 
-        !intervention2.from_datetime || !intervention2.to_datetime) {
+  const doInterventsOverlap = (
+    intervention1: Intervento,
+    intervention2: Intervento
+  ): boolean => {
+    if (
+      !intervention1.from_datetime ||
+      !intervention1.to_datetime ||
+      !intervention2.from_datetime ||
+      !intervention2.to_datetime
+    ) {
       return false;
     }
-    
+
     const start1 = new Date(intervention1.from_datetime);
     const end1 = new Date(intervention1.to_datetime);
     const start2 = new Date(intervention2.from_datetime);
     const end2 = new Date(intervention2.to_datetime);
-    
+
     return start1 < end2 && start2 < end1;
   };
 
   // Funzione per ottenere interventi sovrapposti in un time slot
-  const getOverlappingInterventions = (dayOrTechnician: Date | string, timeSlot: string): Intervento[] => {
-    const slotInterventions = getInterventiForTimeSlot(dayOrTechnician, timeSlot);
+  const getOverlappingInterventions = (
+    dayOrTechnician: Date | string,
+    timeSlot: string
+  ): Intervento[] => {
+    const slotInterventions = getInterventiForTimeSlot(
+      dayOrTechnician,
+      timeSlot
+    );
     const overlapping: Intervento[] = [];
-    
+
     for (let i = 0; i < slotInterventions.length; i++) {
       for (let j = i + 1; j < slotInterventions.length; j++) {
         if (doInterventsOverlap(slotInterventions[i], slotInterventions[j])) {
-          if (!overlapping.some(int => int.id === slotInterventions[i].id)) {
+          if (!overlapping.some((int) => int.id === slotInterventions[i].id)) {
             overlapping.push(slotInterventions[i]);
           }
-          if (!overlapping.some(int => int.id === slotInterventions[j].id)) {
+          if (!overlapping.some((int) => int.id === slotInterventions[j].id)) {
             overlapping.push(slotInterventions[j]);
           }
         }
       }
     }
-    
+
     return overlapping;
   };
 
   // Funzione per portare un intervento dietro agli altri
   const sendInterventionToBack = (interventionId: string) => {
-    setInterventionZIndexes(prev => {
+    setInterventionZIndexes((prev) => {
       const currentZIndex = prev[interventionId] || 20;
       // Diminuisce di 3, con minimo di 5
       const newZIndex = Math.max(5, currentZIndex - 3);
       return {
         ...prev,
-        [interventionId]: newZIndex
+        [interventionId]: newZIndex,
       };
     });
   };
 
   // Funzione per portare un intervento in primo piano
   const bringInterventionToFront = (interventionId: string) => {
-    setInterventionZIndexes(prev => {
+    setInterventionZIndexes((prev) => {
       // Trova il z-index più alto attualmente in uso
       const maxZIndex = Math.max(
         20, // z-index base
@@ -310,20 +392,33 @@ export default function CalendarGrid({
       );
       return {
         ...prev,
-        [interventionId]: maxZIndex + 1
+        [interventionId]: maxZIndex + 1,
       };
     });
   };
 
   // Funzione per ottenere il z-index di un intervento
-  const getInterventionZIndex = (interventionId: string, defaultIndex: number): number => {
-    return interventionZIndexes[interventionId] || (20 + defaultIndex);
+  const getInterventionZIndex = (
+    interventionId: string,
+    defaultIndex: number
+  ): number => {
+    return interventionZIndexes[interventionId] || 20 + defaultIndex;
   };
 
   // Funzione per calcolare il layout a colonne degli interventi sovrapposti (stile Google Calendar)
-  const calculateInterventionLayout = (interventions: Intervento[]): Array<{intervention: Intervento, column: number, totalColumns: number}> => {
+  const calculateInterventionLayout = (
+    interventions: Intervento[]
+  ): Array<{
+    intervention: Intervento;
+    column: number;
+    totalColumns: number;
+  }> => {
     if (interventions.length <= 1) {
-      return interventions.map(intervention => ({ intervention, column: 0, totalColumns: 1 }));
+      return interventions.map((intervention) => ({
+        intervention,
+        column: 0,
+        totalColumns: 1,
+      }));
     }
 
     // Ordina gli interventi per ora di inizio
@@ -334,11 +429,17 @@ export default function CalendarGrid({
     });
 
     // Array per tenere traccia delle colonne occupate
-    const columns: Array<{endTime: Date, interventions: Intervento[]}> = [];
-    const layout: Array<{intervention: Intervento, column: number, totalColumns: number}> = [];
+    const columns: Array<{ endTime: Date; interventions: Intervento[] }> = [];
+    const layout: Array<{
+      intervention: Intervento;
+      column: number;
+      totalColumns: number;
+    }> = [];
 
-    sortedInterventions.forEach(intervention => {
-      const startTime = new Date(intervention.from_datetime || intervention.data);
+    sortedInterventions.forEach((intervention) => {
+      const startTime = new Date(
+        intervention.from_datetime || intervention.data
+      );
       const endTime = new Date(intervention.to_datetime || intervention.data);
 
       // Trova la prima colonna libera
@@ -363,26 +464,40 @@ export default function CalendarGrid({
       layout.push({
         intervention,
         column: columnIndex,
-        totalColumns: Math.max(columns.length, columnIndex + 1)
+        totalColumns: Math.max(columns.length, columnIndex + 1),
       });
     });
 
     // Aggiorna totalColumns per tutti gli elementi
-    const maxColumns = Math.max(...layout.map(item => item.totalColumns));
-    return layout.map(item => ({ ...item, totalColumns: maxColumns }));
+    const maxColumns = Math.max(...layout.map((item) => item.totalColumns));
+    return layout.map((item) => ({ ...item, totalColumns: maxColumns }));
   };
 
   const weekDays = getWeekDays(currentWeek);
-  const dayNames = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
+  const dayNames = [
+    'Lunedì',
+    'Martedì',
+    'Mercoledì',
+    'Giovedì',
+    'Venerdì',
+    'Sabato',
+  ];
 
   // Opzioni tecnici disponibili nella settimana
-  const technicianOptions = Array.from(new Set(interventions.map(i => i.tecnico).filter(t => t && t !== '-')));
+  const technicianOptions = Array.from(
+    new Set(interventions.map((i) => i.tecnico).filter((t) => t && t !== '-'))
+  );
 
   // Gestisce il click fuori dai dropdown per chiuderli
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (!target.closest('.technician-multi-select') && !target.closest('.status-multi-select') && !target.closest('.date-picker-popover') && !target.closest('.date-picker-toggle')) {
+      if (
+        !target.closest('.technician-multi-select') &&
+        !target.closest('.status-multi-select') &&
+        !target.closest('.date-picker-popover') &&
+        !target.closest('.date-picker-toggle')
+      ) {
         setShowTechnicianMultiSelect(false);
         setShowStatusMultiSelect(false);
         setShowDatePicker(false);
@@ -400,7 +515,11 @@ export default function CalendarGrid({
     const handleKeyPress = (event: KeyboardEvent) => {
       // Ignora se l'utente sta scrivendo in un input/textarea
       const target = event.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
         return;
       }
 
@@ -442,24 +561,34 @@ export default function CalendarGrid({
   // Build technician name -> id map from users
   useEffect(() => {
     if (viewMode !== 'daily') return;
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
     if (token) headers['Authorization'] = `Bearer ${token}`;
     fetch('/api/users?skip=200', { headers })
-      .then(r => (r.ok ? r.json() : Promise.reject(r)))
-      .then((data: { data?: Array<{ id: string; name: string; surname: string }> }) => {
-        const map: Record<string, string> = {};
-        (data.data || []).forEach((u) => {
-          const full = `${u.name} ${u.surname}`.trim();
-          if (full) map[full] = u.id;
-        });
-        setTechIdMap(map);
-      })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+      .then(
+        (data: {
+          data?: Array<{ id: string; name: string; surname: string }>;
+        }) => {
+          const map: Record<string, string> = {};
+          (data.data || []).forEach((u) => {
+            const full = `${u.name} ${u.surname}`.trim();
+            if (full) map[full] = u.id;
+          });
+          setTechIdMap(map);
+        }
+      )
       .catch(() => {});
   }, [viewMode, token]);
 
   const openNoteDialog = (technician: string) => {
     const currentDayString = currentDate.toISOString().split('T')[0];
-    const existing = notes.find(n => n.user_name === technician && (n.note_date || '').startsWith(currentDayString));
+    const existing = notes.find(
+      (n) =>
+        n.user_name === technician &&
+        (n.note_date || '').startsWith(currentDayString)
+    );
     setSelectedTechName(technician);
     setSelectedTechId(techIdMap[technician]);
     setSelectedNote(existing || null);
@@ -473,6 +602,76 @@ export default function CalendarGrid({
     fetchNotes({ start_date: day, end_date: day, limit: 20, page: 1 });
   };
 
+  // Fetch approved absences for the visible date range
+  const fetchAbsences = useCallback(async () => {
+    console.log('📅 fetchAbsences called, token:', !!token, 'user:', user);
+    if (!token) return;
+    try {
+      const params = new URLSearchParams({
+        status: 'approved',
+        limit: '100',
+        page: '1',
+      });
+      // If user is a technician, fetch only their own absences
+      if (user?.role === 'tecnico' && user?.id) {
+        params.set('user_id', user.id);
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/absences?${params.toString()}`, {
+        headers,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        console.log('📅 Absences fetch:', {
+          params: params.toString(),
+          data: json.data,
+          count: json.data?.length,
+        });
+        setApprovedAbsences(json.data || []);
+      } else {
+        console.error('📅 Absences fetch failed:', res.status);
+      }
+    } catch (err) {
+      console.error('Failed to fetch absences for calendar:', err);
+    }
+  }, [token, user?.role, user?.id]);
+
+  useEffect(() => {
+    console.log('📅 fetchAbsences effect triggered');
+    fetchAbsences();
+  }, [fetchAbsences]);
+
+  // Check if a specific day has approved absences, optionally filtered by technician name
+  const getAbsencesForDay = (
+    dayStr: string,
+    technicianName?: string
+  ): Absence[] => {
+    const result = approvedAbsences.filter((abs) => {
+      // Handle both "YYYY-MM-DD" plain date strings and ISO timestamps
+      const from = abs.from_date.substring(0, 10);
+      const to = abs.to_date ? abs.to_date.substring(0, 10) : from;
+      if (dayStr < from || dayStr > to) return false;
+      if (technicianName) {
+        const fullName = `${abs.name} ${abs.surname}`.trim();
+        return fullName === technicianName;
+      }
+      return true;
+    });
+    if (result.length > 0) {
+      console.log('📅 getAbsencesForDay match:', {
+        dayStr,
+        technicianName,
+        result,
+      });
+    }
+    return result;
+  };
+
   return (
     <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden">
       {/* Header del calendario + filtri */}
@@ -482,7 +681,9 @@ export default function CalendarGrid({
           {/* Selettore modalità vista */}
           <select
             value={viewMode}
-            onChange={(e) => onViewModeChange(e.target.value as 'weekly' | 'daily')}
+            onChange={(e) =>
+              onViewModeChange(e.target.value as 'weekly' | 'daily')
+            }
             className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
           >
             <option value="weekly">S</option>
@@ -492,7 +693,11 @@ export default function CalendarGrid({
           {/* Navigazione */}
           <div className="flex items-center gap-2 min-w-[220px] relative">
             <button
-              onClick={() => viewMode === 'weekly' ? onWeekChange('prev') : onDayChange('prev')}
+              onClick={() =>
+                viewMode === 'weekly'
+                  ? onWeekChange('prev')
+                  : onDayChange('prev')
+              }
               className="p-2 hover:bg-gray-100 rounded-full"
             >
               <ChevronLeft size={20} className="text-gray-600" />
@@ -503,10 +708,16 @@ export default function CalendarGrid({
               onClick={() => setShowDatePicker(true)}
               title="Seleziona giornata"
             >
-              {viewMode === 'weekly' ? getCurrentMonthYear() : getCurrentDayFormatted()}
+              {viewMode === 'weekly'
+                ? getCurrentMonthYear()
+                : getCurrentDayFormatted()}
             </button>
             <button
-              onClick={() => viewMode === 'weekly' ? onWeekChange('next') : onDayChange('next')}
+              onClick={() =>
+                viewMode === 'weekly'
+                  ? onWeekChange('next')
+                  : onDayChange('next')
+              }
               className="p-2 hover:bg-gray-100 rounded-full"
             >
               <ChevronRight size={20} className="text-gray-600" />
@@ -533,7 +744,7 @@ export default function CalendarGrid({
             )}
           </div>
         </div>
-        
+
         {/* Filtri calendario */}
         <div className="flex flex-wrap gap-4 items-center relative">
           {/* Technician Multi-select */}
@@ -550,7 +761,8 @@ export default function CalendarGrid({
             </button>
             {showTechnicianMultiSelect && (
               <div className="absolute right-0 z-30 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg min-w-[180px] max-h-60 overflow-y-auto">
-                <div className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2"
+                <div
+                  className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2"
                   onClick={() => onTechnicianFilterChange([])}
                 >
                   <input
@@ -560,13 +772,15 @@ export default function CalendarGrid({
                   />
                   <span className="text-gray-700">Tutti</span>
                 </div>
-                {technicianOptions.map(tech => (
+                {technicianOptions.map((tech) => (
                   <div
                     key={tech}
                     className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2"
                     onClick={() => {
                       if (technicianFilter.includes(tech)) {
-                        onTechnicianFilterChange(technicianFilter.filter(t => t !== tech));
+                        onTechnicianFilterChange(
+                          technicianFilter.filter((t) => t !== tech)
+                        );
                       } else {
                         onTechnicianFilterChange([...technicianFilter, tech]);
                       }
@@ -598,7 +812,8 @@ export default function CalendarGrid({
             </button>
             {showStatusMultiSelect && (
               <div className="absolute right-0 z-30 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg min-w-[180px] max-h-60 overflow-y-auto">
-                <div className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2"
+                <div
+                  className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2"
                   onClick={() => onStatusFilterChange([])}
                 >
                   <input
@@ -608,9 +823,11 @@ export default function CalendarGrid({
                   />
                   <span className="text-gray-700">Tutti</span>
                 </div>
-                {statusOptions.map(status => {
-                  const isSelected = statusFilter.some(filterStatus => 
-                    normalizeStatus(filterStatus) === normalizeStatus(status.label)
+                {statusOptions.map((status) => {
+                  const isSelected = statusFilter.some(
+                    (filterStatus) =>
+                      normalizeStatus(filterStatus) ===
+                      normalizeStatus(status.label)
                   );
                   return (
                     <div
@@ -618,20 +835,22 @@ export default function CalendarGrid({
                       className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center gap-2"
                       onClick={() => {
                         if (isSelected) {
-                          onStatusFilterChange(statusFilter.filter(s => 
-                            normalizeStatus(s) !== normalizeStatus(status.label)
-                          ));
+                          onStatusFilterChange(
+                            statusFilter.filter(
+                              (s) =>
+                                normalizeStatus(s) !==
+                                normalizeStatus(status.label)
+                            )
+                          );
                         } else {
                           onStatusFilterChange([...statusFilter, status.label]);
                         }
                       }}
                     >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        readOnly
-                      />
-                      <span className={`text-xs font-medium rounded-full px-2 py-1 ${getStatusColor(status.key)}`}>
+                      <input type="checkbox" checked={isSelected} readOnly />
+                      <span
+                        className={`text-xs font-medium rounded-full px-2 py-1 ${getStatusColor(status.key)}`}
+                      >
                         {status.label}
                       </span>
                     </div>
@@ -649,19 +868,30 @@ export default function CalendarGrid({
         {viewMode === 'daily' && getUniqueTechnicians().length > 6 && (
           <div className="text-xs text-gray-500 mb-2 px-4 flex items-center gap-2">
             <span>↔</span>
-            <span>Scorri orizzontalmente per vedere tutti i {getUniqueTechnicians().length} tecnici</span>
+            <span>
+              Scorri orizzontalmente per vedere tutti i{' '}
+              {getUniqueTechnicians().length} tecnici
+            </span>
           </div>
         )}
-        <div className={viewMode === 'daily' ? `min-w-[${120 + (getUniqueTechnicians().length * 120)}px]` : "min-w-full"}>
+        <div
+          className={
+            viewMode === 'daily'
+              ? `min-w-[${120 + getUniqueTechnicians().length * 120}px]`
+              : 'min-w-full'
+          }
+        >
           {viewMode === 'weekly' ? (
             /* Header giorni - Vista Settimanale */
             <div className="grid grid-cols-7 border-b border-gray-200">
               <div className="p-4 bg-gray-50 border-r border-gray-200">
-                <span className="text-sm font-medium text-gray-500">Orario</span>
+                <span className="text-sm font-medium text-gray-500">
+                  Orario
+                </span>
               </div>
               {weekDays.map((day, index) => (
-                <button 
-                  key={day.toISOString()} 
+                <button
+                  key={day.toISOString()}
                   className="p-4 bg-gray-50 border-r border-gray-200 last:border-r-0 hover:bg-gray-100 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-inset"
                   onClick={() => {
                     // Imposta la data corrente al giorno cliccato
@@ -685,22 +915,42 @@ export default function CalendarGrid({
             </div>
           ) : (
             /* Header tecnici - Vista Giornaliera */
-            <div className={`grid border-b border-gray-200`} style={{gridTemplateColumns: `120px repeat(${getUniqueTechnicians().length}, minmax(120px, 1fr))`}}>
+            <div
+              className={`grid border-b border-gray-200`}
+              style={{
+                gridTemplateColumns: `120px repeat(${getUniqueTechnicians().length}, minmax(120px, 1fr))`,
+              }}
+            >
               <div className="p-4 bg-gray-50 border-r border-gray-200">
-                <span className="text-sm font-medium text-gray-500">Orario</span>
+                <span className="text-sm font-medium text-gray-500">
+                  Orario
+                </span>
               </div>
               {getUniqueTechnicians().map((technician, index) => (
-                <div key={`${technician}-${index}`} className="p-3 bg-gray-50 border-r border-gray-200 last:border-r-0 min-w-[120px]">
+                <div
+                  key={`${technician}-${index}`}
+                  className="p-3 bg-gray-50 border-r border-gray-200 last:border-r-0 min-w-[120px]"
+                >
                   <div className="text-center">
-                    <div className="text-sm font-medium text-gray-900 truncate" title={technician}>
+                    <div
+                      className="text-sm font-medium text-gray-900 truncate"
+                      title={technician}
+                    >
                       {technician}
                     </div>
                     <div className="mt-1 flex justify-center">
                       {(() => {
                         const day = currentDate.toISOString().split('T')[0];
-                        const note = notes.find(n => n.user_name === technician && (n.note_date || '').startsWith(day));
+                        const note = notes.find(
+                          (n) =>
+                            n.user_name === technician &&
+                            (n.note_date || '').startsWith(day)
+                        );
                         if (note) {
-                          const preview = note.note?.length > 24 ? `${note.note.substring(0, 24)}…` : note.note;
+                          const preview =
+                            note.note?.length > 24
+                              ? `${note.note.substring(0, 24)}…`
+                              : note.note;
                           return (
                             <button
                               className="text-xs px-2 py-0.5 rounded border border-yellow-200 text-yellow-700 bg-yellow-50 hover:bg-yellow-100"
@@ -722,6 +972,27 @@ export default function CalendarGrid({
                         );
                       })()}
                     </div>
+                    {/* Badge assenza nella vista giornaliera */}
+                    {(() => {
+                      const dayStr = currentDate.toISOString().split('T')[0];
+                      const techAbsences = getAbsencesForDay(
+                        dayStr,
+                        technician
+                      );
+                      if (techAbsences.length === 0) return null;
+                      return (
+                        <div
+                          className="mt-1 px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-300 text-center"
+                          title={
+                            techAbsences[0].note
+                              ? `Assenza — ${techAbsences[0].note}`
+                              : 'Assenza approvata'
+                          }
+                        >
+                          🏖 Assenza
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}
@@ -730,10 +1001,20 @@ export default function CalendarGrid({
 
           {/* Righe orari */}
           {timeSlots.map((timeSlot) => (
-            <div 
-              key={timeSlot} 
-              className={viewMode === 'weekly' ? "grid grid-cols-7 border-b border-gray-200 last:border-b-0 relative" : "grid border-b border-gray-200 last:border-b-0 relative"}
-              style={viewMode === 'daily' ? {gridTemplateColumns: `120px repeat(${getUniqueTechnicians().length}, minmax(120px, 1fr))`} : undefined}
+            <div
+              key={timeSlot}
+              className={
+                viewMode === 'weekly'
+                  ? 'grid grid-cols-7 border-b border-gray-200 last:border-b-0 relative'
+                  : 'grid border-b border-gray-200 last:border-b-0 relative'
+              }
+              style={
+                viewMode === 'daily'
+                  ? {
+                      gridTemplateColumns: `120px repeat(${getUniqueTechnicians().length}, minmax(120px, 1fr))`,
+                    }
+                  : undefined
+              }
             >
               {/* Colonna orario */}
               <div className="p-0 bg-gray-50 border-r border-gray-200 flex items-start h-[80px] relative">
@@ -741,51 +1022,151 @@ export default function CalendarGrid({
                   {timeSlot}
                 </span>
               </div>
-              
+
               {/* Colonne giorni (vista settimanale) o tecnici (vista giornaliera) */}
-              {viewMode === 'weekly' 
+              {viewMode === 'weekly'
                 ? weekDays.map((day) => {
-                    const dayInterventi = getInterventiForTimeSlot(day, timeSlot);
-                    const overlappingInterventi = getOverlappingInterventions(day, timeSlot);
-                    
+                    const dayInterventi = getInterventiForTimeSlot(
+                      day,
+                      timeSlot
+                    );
+                    const overlappingInterventi = getOverlappingInterventions(
+                      day,
+                      timeSlot
+                    );
+
                     return (
-                      <div key={`${day.toISOString()}-${timeSlot}`} className="relative p-2 border-r border-gray-200 last:border-r-0 min-h-[80px]">
+                      <div
+                        key={`${day.toISOString()}-${timeSlot}`}
+                        className="relative p-2 border-r border-gray-200 last:border-r-0 min-h-[80px]"
+                      >
+                        {/* Badge assenza approvata — solo nel primo time slot */}
+                        {timeSlot === '07:00' &&
+                          (() => {
+                            const dayStr = day.toISOString().split('T')[0];
+                            const dayAbsences = getAbsencesForDay(dayStr);
+                            if (dayAbsences.length === 0) return null;
+                            return dayAbsences.map((abs) => (
+                              <div
+                                key={`abs-${abs.id}`}
+                                className="mb-1 px-2 py-1 rounded text-[11px] font-medium bg-amber-100 text-amber-800 border border-amber-300 truncate"
+                                title={`Assenza: ${abs.name} ${abs.surname}${abs.note ? ` — ${abs.note}` : ''}`}
+                              >
+                                🏖 {abs.name} {abs.surname}
+                              </div>
+                            ));
+                          })()}
                         {/* Mostra solo gli interventi che iniziano in questo slot */}
                         {dayInterventi.map((intervento, index) => {
                           const blockHeight = getBlockHeight(intervento);
-                          const startTime = getTimeFromDatetime(intervento.from_datetime || '') || 
-                            (intervento.orario === 'mattina' ? '08:00' : 
-                             intervento.orario === 'pomeriggio' ? '14:00' : 
-                             intervento.orario === 'tutto_il_giorno' ? '08:00' : timeSlot);
-                          const endTime = getTimeFromDatetime(intervento.to_datetime || '') ||
-                            (intervento.orario === 'mattina' ? '13:00' : 
-                             intervento.orario === 'pomeriggio' ? '18:00' : 
-                             intervento.orario === 'tutto_il_giorno' ? '18:00' : '—');
-                          const duration = getInterventoDurationInHours(intervento);
-                          const isOverlapping = overlappingInterventi.some(ov => ov.id === intervento.id);
-                          const zIndex = getInterventionZIndex(intervento.id, index);
+                          const startTime =
+                            getTimeFromDatetime(
+                              intervento.from_datetime || ''
+                            ) ||
+                            (intervento.orario === 'mattina'
+                              ? '08:00'
+                              : intervento.orario === 'pomeriggio'
+                                ? '14:00'
+                                : intervento.orario === 'tutto_il_giorno'
+                                  ? '08:00'
+                                  : timeSlot);
+                          const endTime =
+                            getTimeFromDatetime(intervento.to_datetime || '') ||
+                            (intervento.orario === 'mattina'
+                              ? '13:00'
+                              : intervento.orario === 'pomeriggio'
+                                ? '18:00'
+                                : intervento.orario === 'tutto_il_giorno'
+                                  ? '18:00'
+                                  : '—');
+                          const duration =
+                            getInterventoDurationInHours(intervento);
+                          const isOverlapping = overlappingInterventi.some(
+                            (ov) => ov.id === intervento.id
+                          );
+                          const zIndex = getInterventionZIndex(
+                            intervento.id,
+                            index
+                          );
 
                           // Background OPACO per evitare trasparenze
-                          const statusKey = toStatusKey(intervento.statusLabel || intervento.status);
+                          const statusKey = toStatusKey(
+                            intervento.statusLabel || intervento.status
+                          );
                           const badgeClasses = getStatusColor(statusKey);
 
                           // Deriva colori base dalle classi Tailwind del badge
                           const uses = {
-                            'bg-orange-100 text-orange-800': { bg: 'rgba(254, 215, 170, 0.9)', border: '#fb923c', text: '#7c2d12' },
-                            'bg-yellow-100 text-yellow-800': { bg: 'rgba(254, 240, 138, 0.9)', border: '#facc15', text: '#713f12' },
-                            'bg-blue-100 text-blue-800': { bg: 'rgba(191, 219, 254, 0.9)', border: '#3b82f6', text: '#1e3a8a' },
-                            'bg-cyan-100 text-cyan-800': { bg: 'rgba(207, 250, 254, 0.9)', border: '#06b6d4', text: '#155e75' },
-                            'bg-teal-100 text-teal-800': { bg: 'rgba(204, 251, 241, 0.9)', border: '#14b8a6', text: '#134e4a' },
-                            'bg-purple-100 text-purple-800': { bg: 'rgba(221, 214, 254, 0.9)', border: '#8b5cf6', text: '#3b0764' },
-                            'bg-green-100 text-green-800': { bg: 'rgba(220, 252, 231, 0.9)', border: '#22c55e', text: '#14532d' },
-                            'bg-gray-100 text-gray-800': { bg: 'rgba(243, 244, 246, 0.9)', border: '#9ca3af', text: '#1f2937' },
-                            'bg-red-100 text-red-800': { bg: 'rgba(254, 202, 202, 0.9)', border: '#ef4444', text: '#7f1d1d' },
-                            'bg-lime-100 text-lime-800': { bg: 'rgba(236, 252, 203, 0.9)', border: '#84cc16', text: '#365314' },
-                            'bg-emerald-100 text-emerald-800': { bg: 'rgba(209, 250, 229, 0.9)', border: '#10b981', text: '#064e3b' },
-                            'bg-indigo-100 text-indigo-800': { bg: 'rgba(224, 231, 255, 0.9)', border: '#6366f1', text: '#312e81' },
-                          } as Record<string, { bg: string; border: string; text: string }>;
+                            'bg-orange-100 text-orange-800': {
+                              bg: 'rgba(254, 215, 170, 0.9)',
+                              border: '#fb923c',
+                              text: '#7c2d12',
+                            },
+                            'bg-yellow-100 text-yellow-800': {
+                              bg: 'rgba(254, 240, 138, 0.9)',
+                              border: '#facc15',
+                              text: '#713f12',
+                            },
+                            'bg-blue-100 text-blue-800': {
+                              bg: 'rgba(191, 219, 254, 0.9)',
+                              border: '#3b82f6',
+                              text: '#1e3a8a',
+                            },
+                            'bg-cyan-100 text-cyan-800': {
+                              bg: 'rgba(207, 250, 254, 0.9)',
+                              border: '#06b6d4',
+                              text: '#155e75',
+                            },
+                            'bg-teal-100 text-teal-800': {
+                              bg: 'rgba(204, 251, 241, 0.9)',
+                              border: '#14b8a6',
+                              text: '#134e4a',
+                            },
+                            'bg-purple-100 text-purple-800': {
+                              bg: 'rgba(221, 214, 254, 0.9)',
+                              border: '#8b5cf6',
+                              text: '#3b0764',
+                            },
+                            'bg-green-100 text-green-800': {
+                              bg: 'rgba(220, 252, 231, 0.9)',
+                              border: '#22c55e',
+                              text: '#14532d',
+                            },
+                            'bg-gray-100 text-gray-800': {
+                              bg: 'rgba(243, 244, 246, 0.9)',
+                              border: '#9ca3af',
+                              text: '#1f2937',
+                            },
+                            'bg-red-100 text-red-800': {
+                              bg: 'rgba(254, 202, 202, 0.9)',
+                              border: '#ef4444',
+                              text: '#7f1d1d',
+                            },
+                            'bg-lime-100 text-lime-800': {
+                              bg: 'rgba(236, 252, 203, 0.9)',
+                              border: '#84cc16',
+                              text: '#365314',
+                            },
+                            'bg-emerald-100 text-emerald-800': {
+                              bg: 'rgba(209, 250, 229, 0.9)',
+                              border: '#10b981',
+                              text: '#064e3b',
+                            },
+                            'bg-indigo-100 text-indigo-800': {
+                              bg: 'rgba(224, 231, 255, 0.9)',
+                              border: '#6366f1',
+                              text: '#312e81',
+                            },
+                          } as Record<
+                            string,
+                            { bg: string; border: string; text: string }
+                          >;
 
-                          const color = uses[badgeClasses] || { bg: 'rgba(243, 244, 246, 0.9)', border: '#e5e7eb', text: '#374151' };
+                          const color = uses[badgeClasses] || {
+                            bg: 'rgba(243, 244, 246, 0.9)',
+                            border: '#e5e7eb',
+                            text: '#374151',
+                          };
                           const backgroundColor = color.bg;
                           const borderColor = color.border;
                           const textColor = color.text;
@@ -796,7 +1177,7 @@ export default function CalendarGrid({
                               className="absolute left-2 right-2 rounded text-xs shadow-lg group"
                               style={{
                                 height: blockHeight,
-                                top: `${8 + (index * 4)}px`,
+                                top: `${8 + index * 4}px`,
                                 zIndex: zIndex,
                                 border: `2px solid ${borderColor}`,
                                 backgroundColor: backgroundColor,
@@ -818,14 +1199,17 @@ export default function CalendarGrid({
                                   ↓
                                 </button>
                               )}
-                              
+
                               {/* Indicatore sovrapposizione */}
                               {isOverlapping && (
-                                <div className="absolute top-1 left-1 w-2 h-2 bg-orange-400 rounded-full shadow-sm" title="Intervento sovrapposto"></div>
+                                <div
+                                  className="absolute top-1 left-1 w-2 h-2 bg-orange-400 rounded-full shadow-sm"
+                                  title="Intervento sovrapposto"
+                                ></div>
                               )}
-                              
+
                               {/* Contenuto cliccabile */}
-                              <div 
+                              <div
                                 className="p-2 h-full cursor-pointer hover:opacity-90"
                                 onClick={() => {
                                   bringInterventionToFront(intervento.id);
@@ -834,11 +1218,17 @@ export default function CalendarGrid({
                               >
                                 {/* Tecnico in grande e grassetto */}
                                 <div className="font-bold text-base leading-tight break-words">
-                                  {intervento.tecnico !== '-' ? intervento.tecnico : 'Non assegnato'}
+                                  {intervento.tecnico !== '-'
+                                    ? intervento.tecnico
+                                    : 'Non assegnato'}
                                 </div>
                                 {/* Data e Orario */}
                                 <div className="text-sm font-semibold mt-1 mb-1">
-                                  {day.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} {startTime}-{endTime}
+                                  {day.toLocaleDateString('it-IT', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                  })}{' '}
+                                  {startTime}-{endTime}
                                 </div>
                                 {/* Cliente piccolo dopo orario */}
                                 <div className="text-xs font-medium break-words opacity-90 mb-1">
@@ -880,144 +1270,252 @@ export default function CalendarGrid({
                 : /* Vista giornaliera - colonne tecnici */
                   getUniqueTechnicians().map((technician, techIndex) => {
                     // Costruisce il layout a colonne per TUTTI gli interventi della giornata di questo tecnico
-                    const currentDayString = currentDate.toISOString().split('T')[0];
+                    const currentDayString = currentDate
+                      .toISOString()
+                      .split('T')[0];
                     const techDayInterventi = interventions.filter((i) => {
                       if (i.tecnico !== technician) return false;
                       if (i.from_datetime) {
-                        return i.from_datetime.substring(0, 10) === currentDayString;
+                        return (
+                          i.from_datetime.substring(0, 10) === currentDayString
+                        );
                       }
                       try {
                         const d = new Date(i.data);
                         if (isNaN(d.getTime())) return false;
-                        return d.toISOString().split('T')[0] === currentDayString;
+                        return (
+                          d.toISOString().split('T')[0] === currentDayString
+                        );
                       } catch {
                         return false;
                       }
                     });
-                    const techLayout = calculateInterventionLayout(techDayInterventi);
+                    const techLayout =
+                      calculateInterventionLayout(techDayInterventi);
                     // In questa cella mostriamo SOLO gli interventi che iniziano in questo timeSlot,
                     // ma usando le colonne calcolate sull'intera giornata per gestire gli accavallamenti
                     const layoutData = techLayout.filter(({ intervention }) => {
                       const startTime = intervention.from_datetime
                         ? intervention.from_datetime.substring(11, 16)
-                        : (intervention.orario === 'mattina'
+                        : intervention.orario === 'mattina'
                           ? '08:00'
                           : intervention.orario === 'pomeriggio'
                             ? '14:00'
                             : intervention.orario === 'tutto_il_giorno'
                               ? '08:00'
-                              : timeSlot);
+                              : timeSlot;
                       return startTime === timeSlot;
                     });
-                    
+
                     return (
-                      <div key={`${technician}-${timeSlot}-${techIndex}`} className="relative p-2 border-r border-gray-200 last:border-r-0 min-h-[80px] min-w-[120px]">
+                      <div
+                        key={`${technician}-${timeSlot}-${techIndex}`}
+                        className="relative p-2 border-r border-gray-200 last:border-r-0 min-h-[80px] min-w-[120px]"
+                      >
                         {/* Mostra gli interventi con layout a colonne stile Google Calendar */}
-                        {layoutData.map(({ intervention: intervento, column, totalColumns }) => {
-                          const blockHeight = getBlockHeight(intervento);
-                          const startTime = getTimeFromDatetime(intervento.from_datetime || '') || 
-                            (intervento.orario === 'mattina' ? '08:00' : 
-                             intervento.orario === 'pomeriggio' ? '14:00' : 
-                             intervento.orario === 'tutto_il_giorno' ? '08:00' : timeSlot);
-                          const endTime = getTimeFromDatetime(intervento.to_datetime || '') ||
-                            (intervento.orario === 'mattina' ? '13:00' : 
-                             intervento.orario === 'pomeriggio' ? '18:00' : 
-                             intervento.orario === 'tutto_il_giorno' ? '18:00' : '—');
-                          const duration = getInterventoDurationInHours(intervento);
+                        {layoutData.map(
+                          ({
+                            intervention: intervento,
+                            column,
+                            totalColumns,
+                          }) => {
+                            const blockHeight = getBlockHeight(intervento);
+                            const startTime =
+                              getTimeFromDatetime(
+                                intervento.from_datetime || ''
+                              ) ||
+                              (intervento.orario === 'mattina'
+                                ? '08:00'
+                                : intervento.orario === 'pomeriggio'
+                                  ? '14:00'
+                                  : intervento.orario === 'tutto_il_giorno'
+                                    ? '08:00'
+                                    : timeSlot);
+                            const endTime =
+                              getTimeFromDatetime(
+                                intervento.to_datetime || ''
+                              ) ||
+                              (intervento.orario === 'mattina'
+                                ? '13:00'
+                                : intervento.orario === 'pomeriggio'
+                                  ? '18:00'
+                                  : intervento.orario === 'tutto_il_giorno'
+                                    ? '18:00'
+                                    : '—');
+                            const duration =
+                              getInterventoDurationInHours(intervento);
 
-                          // Calcola posizione e larghezza per il layout a colonne
-                          const columnWidth = totalColumns > 1 ? `${(100 / totalColumns) - 1}%` : 'calc(100% - 16px)';
-                          const leftPosition = totalColumns > 1 ? `${(column * 100 / totalColumns) + 1}%` : '8px';
+                            // Calcola posizione e larghezza per il layout a colonne
+                            const columnWidth =
+                              totalColumns > 1
+                                ? `${100 / totalColumns - 1}%`
+                                : 'calc(100% - 16px)';
+                            const leftPosition =
+                              totalColumns > 1
+                                ? `${(column * 100) / totalColumns + 1}%`
+                                : '8px';
 
-                          // Background OPACO per vista giornaliera
-                          const statusKey = toStatusKey(intervento.statusLabel || intervento.status);
-                          const badgeClasses = getStatusColor(statusKey);
-                          const uses = {
-                            'bg-orange-100 text-orange-800': { bg: 'rgba(254, 215, 170, 0.9)', border: '#fb923c', text: '#7c2d12' },
-                            'bg-yellow-100 text-yellow-800': { bg: 'rgba(254, 240, 138, 0.9)', border: '#facc15', text: '#713f12' },
-                            'bg-blue-100 text-blue-800': { bg: 'rgba(191, 219, 254, 0.9)', border: '#3b82f6', text: '#1e3a8a' },
-                            'bg-cyan-100 text-cyan-800': { bg: 'rgba(207, 250, 254, 0.9)', border: '#06b6d4', text: '#155e75' },
-                            'bg-teal-100 text-teal-800': { bg: 'rgba(204, 251, 241, 0.9)', border: '#14b8a6', text: '#134e4a' },
-                            'bg-purple-100 text-purple-800': { bg: 'rgba(221, 214, 254, 0.9)', border: '#8b5cf6', text: '#3b0764' },
-                            'bg-green-100 text-green-800': { bg: 'rgba(220, 252, 231, 0.9)', border: '#22c55e', text: '#14532d' },
-                            'bg-gray-100 text-gray-800': { bg: 'rgba(243, 244, 246, 0.9)', border: '#9ca3af', text: '#1f2937' },
-                            'bg-red-100 text-red-800': { bg: 'rgba(254, 202, 202, 0.9)', border: '#ef4444', text: '#7f1d1d' },
-                            'bg-lime-100 text-lime-800': { bg: 'rgba(236, 252, 203, 0.9)', border: '#84cc16', text: '#365314' },
-                            'bg-emerald-100 text-emerald-800': { bg: 'rgba(209, 250, 229, 0.9)', border: '#10b981', text: '#064e3b' },
-                            'bg-indigo-100 text-indigo-800': { bg: 'rgba(224, 231, 255, 0.9)', border: '#6366f1', text: '#312e81' },
-                          } as Record<string, { bg: string; border: string; text: string }>;
-                          const color = uses[badgeClasses] || { bg: 'rgba(243, 244, 246, 0.9)', border: '#e5e7eb', text: '#374151' };
-                          const backgroundColor = color.bg;
-                          const borderColor = color.border;
-                          const textColor = color.text;
+                            // Background OPACO per vista giornaliera
+                            const statusKey = toStatusKey(
+                              intervento.statusLabel || intervento.status
+                            );
+                            const badgeClasses = getStatusColor(statusKey);
+                            const uses = {
+                              'bg-orange-100 text-orange-800': {
+                                bg: 'rgba(254, 215, 170, 0.9)',
+                                border: '#fb923c',
+                                text: '#7c2d12',
+                              },
+                              'bg-yellow-100 text-yellow-800': {
+                                bg: 'rgba(254, 240, 138, 0.9)',
+                                border: '#facc15',
+                                text: '#713f12',
+                              },
+                              'bg-blue-100 text-blue-800': {
+                                bg: 'rgba(191, 219, 254, 0.9)',
+                                border: '#3b82f6',
+                                text: '#1e3a8a',
+                              },
+                              'bg-cyan-100 text-cyan-800': {
+                                bg: 'rgba(207, 250, 254, 0.9)',
+                                border: '#06b6d4',
+                                text: '#155e75',
+                              },
+                              'bg-teal-100 text-teal-800': {
+                                bg: 'rgba(204, 251, 241, 0.9)',
+                                border: '#14b8a6',
+                                text: '#134e4a',
+                              },
+                              'bg-purple-100 text-purple-800': {
+                                bg: 'rgba(221, 214, 254, 0.9)',
+                                border: '#8b5cf6',
+                                text: '#3b0764',
+                              },
+                              'bg-green-100 text-green-800': {
+                                bg: 'rgba(220, 252, 231, 0.9)',
+                                border: '#22c55e',
+                                text: '#14532d',
+                              },
+                              'bg-gray-100 text-gray-800': {
+                                bg: 'rgba(243, 244, 246, 0.9)',
+                                border: '#9ca3af',
+                                text: '#1f2937',
+                              },
+                              'bg-red-100 text-red-800': {
+                                bg: 'rgba(254, 202, 202, 0.9)',
+                                border: '#ef4444',
+                                text: '#7f1d1d',
+                              },
+                              'bg-lime-100 text-lime-800': {
+                                bg: 'rgba(236, 252, 203, 0.9)',
+                                border: '#84cc16',
+                                text: '#365314',
+                              },
+                              'bg-emerald-100 text-emerald-800': {
+                                bg: 'rgba(209, 250, 229, 0.9)',
+                                border: '#10b981',
+                                text: '#064e3b',
+                              },
+                              'bg-indigo-100 text-indigo-800': {
+                                bg: 'rgba(224, 231, 255, 0.9)',
+                                border: '#6366f1',
+                                text: '#312e81',
+                              },
+                            } as Record<
+                              string,
+                              { bg: string; border: string; text: string }
+                            >;
+                            const color = uses[badgeClasses] || {
+                              bg: 'rgba(243, 244, 246, 0.9)',
+                              border: '#e5e7eb',
+                              text: '#374151',
+                            };
+                            const backgroundColor = color.bg;
+                            const borderColor = color.border;
+                            const textColor = color.text;
 
-                          return (
-                            <div
-                              key={intervento.id}
-                              className="absolute rounded text-xs shadow-lg group"
-                              style={{
-                                height: blockHeight,
-                                top: '8px',
-                                left: leftPosition,
-                                width: columnWidth,
-                                zIndex: 20 + column,
-                                border: `2px solid ${borderColor}`,
-                                backgroundColor: backgroundColor,
-                                color: textColor,
-                                fontWeight: 500,
-                              }}
-                              title={`${intervento.ragioneSociale} - ${startTime} alle ${endTime} (${duration}h)`}
-                            >
-                              {/* Contenuto cliccabile */}
-                              <div 
-                                className="p-1.5 h-full cursor-pointer hover:opacity-90"
-                                onClick={() => {
-                                  bringInterventionToFront(intervento.id);
-                                  onInterventionClick(intervento);
+                            return (
+                              <div
+                                key={intervento.id}
+                                className="absolute rounded text-xs shadow-lg group"
+                                style={{
+                                  height: blockHeight,
+                                  top: '8px',
+                                  left: leftPosition,
+                                  width: columnWidth,
+                                  zIndex: 20 + column,
+                                  border: `2px solid ${borderColor}`,
+                                  backgroundColor: backgroundColor,
+                                  color: textColor,
+                                  fontWeight: 500,
                                 }}
+                                title={`${intervento.ragioneSociale} - ${startTime} alle ${endTime} (${duration}h)`}
                               >
-                                {/* Cliente in grassetto - più compatto */}
-                                <div className="text-sm font-light leading-tight break-words mb-1" title={intervento.ragioneSociale}>
-                                  {intervento.ragioneSociale}
-                                </div>
-                                {/* Orario più compatto */}
-                                <div className="text-sm mb-1">
-                                  {startTime}-{endTime}
-                                </div>
-                                {/* Stato intervento compatto */}
-                                <div className="text-sm font-light truncate" title={intervento.statusLabel || intervento.status}>
-                                  {intervento.statusLabel || intervento.status}
-                                </div>
-                                {/* Badge manual_check */}
-                                {intervento.manual_check === false && (
-                                  <span className="inline-flex px-2 py-0.5 mt-1 text-[10px] font-semibold rounded-full bg-red-100 text-red-800">
-                                    non verificato!
-                                  </span>
-                                )}
-                                {intervento.manual_check === true && (
-                                  <span className="inline-flex px-2 py-0.5 mt-1 text-[10px] font-semibold rounded-full bg-green-100 text-green-800">
-                                    Verificato.
-                                  </span>
-                                )}
-                                {/* Note calendario - solo se c'è spazio e una sola colonna */}
-                                {intervento.calendar_notes && totalColumns === 1 && blockHeight > 80 && (
-                                  <div className="text-[8px] mt-1 opacity-80 break-words line-clamp-1" title={intervento.calendar_notes}>
-                                    {intervento.calendar_notes}
+                                {/* Contenuto cliccabile */}
+                                <div
+                                  className="p-1.5 h-full cursor-pointer hover:opacity-90"
+                                  onClick={() => {
+                                    bringInterventionToFront(intervento.id);
+                                    onInterventionClick(intervento);
+                                  }}
+                                >
+                                  {/* Cliente in grassetto - più compatto */}
+                                  <div
+                                    className="text-sm font-light leading-tight break-words mb-1"
+                                    title={intervento.ragioneSociale}
+                                  >
+                                    {intervento.ragioneSociale}
                                   </div>
-                                )}
-                                {duration > 1 && (
-                                  <div className="absolute bottom-0.5 right-0.5 text-[8px] opacity-75 bg-black bg-opacity-40 px-1 rounded text-white">
-                                    {duration}h
+                                  {/* Orario più compatto */}
+                                  <div className="text-sm mb-1">
+                                    {startTime}-{endTime}
                                   </div>
-                                )}
+                                  {/* Stato intervento compatto */}
+                                  <div
+                                    className="text-sm font-light truncate"
+                                    title={
+                                      intervento.statusLabel ||
+                                      intervento.status
+                                    }
+                                  >
+                                    {intervento.statusLabel ||
+                                      intervento.status}
+                                  </div>
+                                  {/* Badge manual_check */}
+                                  {intervento.manual_check === false && (
+                                    <span className="inline-flex px-2 py-0.5 mt-1 text-[10px] font-semibold rounded-full bg-red-100 text-red-800">
+                                      non verificato!
+                                    </span>
+                                  )}
+                                  {intervento.manual_check === true && (
+                                    <span className="inline-flex px-2 py-0.5 mt-1 text-[10px] font-semibold rounded-full bg-green-100 text-green-800">
+                                      Verificato.
+                                    </span>
+                                  )}
+                                  {/* Note calendario - solo se c'è spazio e una sola colonna */}
+                                  {intervento.calendar_notes &&
+                                    totalColumns === 1 &&
+                                    blockHeight > 80 && (
+                                      <div
+                                        className="text-[8px] mt-1 opacity-80 break-words line-clamp-1"
+                                        title={intervento.calendar_notes}
+                                      >
+                                        {intervento.calendar_notes}
+                                      </div>
+                                    )}
+                                  {duration > 1 && (
+                                    <div className="absolute bottom-0.5 right-0.5 text-[8px] opacity-75 bg-black bg-opacity-40 px-1 rounded text-white">
+                                      {duration}h
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          }
+                        )}
                       </div>
                     );
-                  })
-              }
+                  })}
             </div>
           ))}
         </div>
@@ -1035,4 +1533,3 @@ export default function CalendarGrid({
     </div>
   );
 }
-

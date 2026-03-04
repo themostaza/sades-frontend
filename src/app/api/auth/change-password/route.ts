@@ -25,11 +25,18 @@ export async function POST(request: NextRequest) {
     console.log('📡 Backend response status:', response.status);
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Backend error:', errorText);
+      let errorMessage = 'Change password failed';
+      try {
+        const errorData = await response.json();
+        console.error('❌ Backend error:', errorData);
+        errorMessage = errorData.message || errorData.error || errorMessage;
+      } catch {
+        const errorText = await response.text();
+        console.error('❌ Backend error (text):', errorText);
+      }
 
       return NextResponse.json(
-        { error: 'Change password failed' },
+        { error: errorMessage },
         { status: response.status }
       );
     }

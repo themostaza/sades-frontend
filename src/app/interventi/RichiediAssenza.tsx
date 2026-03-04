@@ -14,12 +14,16 @@ interface RichiediAssenzaProps {
   };
 }
 
-export default function RichiediAssenza({ isOpen, onClose, userInfo }: RichiediAssenzaProps) {
+export default function RichiediAssenza({
+  isOpen,
+  onClose,
+  userInfo,
+}: RichiediAssenzaProps) {
   const [loading, setLoading] = useState(false);
   const [absenceData, setAbsenceData] = useState({
     from_date: '',
     to_date: '',
-    note: ''
+    note: '',
   });
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -29,7 +33,7 @@ export default function RichiediAssenza({ isOpen, onClose, userInfo }: RichiediA
     setAbsenceData({
       from_date: '',
       to_date: '',
-      note: ''
+      note: '',
     });
     onClose();
   };
@@ -42,7 +46,7 @@ export default function RichiediAssenza({ isOpen, onClose, userInfo }: RichiediA
 
     try {
       setLoading(true);
-      
+
       const token = auth.token;
       if (!token) {
         console.error('Token non trovato, effettuando logout');
@@ -56,12 +60,12 @@ export default function RichiediAssenza({ isOpen, onClose, userInfo }: RichiediA
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           from_date: absenceData.from_date,
           to_date: absenceData.to_date,
-          note: absenceData.note || 'Richiesta di assenza'
+          note: absenceData.note || 'Richiesta di assenza',
         }),
       });
 
@@ -81,13 +85,12 @@ export default function RichiediAssenza({ isOpen, onClose, userInfo }: RichiediA
       setAbsenceData({
         from_date: '',
         to_date: '',
-        note: ''
+        note: '',
       });
       setTimeout(() => {
         setSuccessMessage('');
         handleClose();
       }, 2000);
-      
     } catch (error) {
       console.error('Errore durante la richiesta di assenza:', error);
     } finally {
@@ -103,7 +106,9 @@ export default function RichiediAssenza({ isOpen, onClose, userInfo }: RichiediA
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Plus className="text-teal-600" size={20} />
-            <h3 className="text-lg font-medium text-gray-900">Richiedi assenza</h3>
+            <h3 className="text-lg font-medium text-gray-900">
+              Richiedi assenza
+            </h3>
           </div>
           <button
             onClick={handleClose}
@@ -140,7 +145,12 @@ export default function RichiediAssenza({ isOpen, onClose, userInfo }: RichiediA
             <input
               type="date"
               value={absenceData.from_date}
-              onChange={(e) => setAbsenceData(prev => ({ ...prev, from_date: e.target.value }))}
+              onChange={(e) =>
+                setAbsenceData((prev) => ({
+                  ...prev,
+                  from_date: e.target.value,
+                }))
+              }
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900"
               disabled={loading}
             />
@@ -154,15 +164,19 @@ export default function RichiediAssenza({ isOpen, onClose, userInfo }: RichiediA
               type="date"
               value={absenceData.to_date}
               min={absenceData.from_date || undefined}
-              onChange={(e) => setAbsenceData(prev => ({ ...prev, to_date: e.target.value }))}
+              onChange={(e) =>
+                setAbsenceData((prev) => ({ ...prev, to_date: e.target.value }))
+              }
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900"
               disabled={loading}
             />
-            {absenceData.from_date && absenceData.to_date && absenceData.to_date < absenceData.from_date && (
-              <p className="mt-1 text-sm text-red-600">
-                La data di fine non può essere antecedente alla data di inizio
-              </p>
-            )}
+            {absenceData.from_date &&
+              absenceData.to_date &&
+              absenceData.to_date < absenceData.from_date && (
+                <p className="mt-1 text-sm text-red-600">
+                  La data di fine non può essere antecedente alla data di inizio
+                </p>
+              )}
           </div>
 
           <div>
@@ -171,7 +185,9 @@ export default function RichiediAssenza({ isOpen, onClose, userInfo }: RichiediA
             </label>
             <textarea
               value={absenceData.note}
-              onChange={(e) => setAbsenceData(prev => ({ ...prev, note: e.target.value }))}
+              onChange={(e) =>
+                setAbsenceData((prev) => ({ ...prev, note: e.target.value }))
+              }
               placeholder="Motivo dell'assenza (es. corso di formazione, ferie, malattia)..."
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900 resize-none"
@@ -191,8 +207,8 @@ export default function RichiediAssenza({ isOpen, onClose, userInfo }: RichiediA
           <button
             onClick={handleSubmit}
             disabled={
-              loading || 
-              !absenceData.from_date || 
+              loading ||
+              !absenceData.from_date ||
               !absenceData.to_date ||
               absenceData.to_date < absenceData.from_date
             }
@@ -204,4 +220,4 @@ export default function RichiediAssenza({ isOpen, onClose, userInfo }: RichiediA
       </div>
     </div>
   );
-} 
+}
