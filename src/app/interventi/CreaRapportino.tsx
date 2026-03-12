@@ -1008,10 +1008,10 @@ export default function CreaRapportino({
           </div>
         </div>
 
-        {/* Note intervento per cliente */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Note intervento per cliente
+        {/* Lavoro eseguito */}
+        <div className="bg-white rounded-lg border border-blue-600 p-4 md:p-6 mb-6">
+          <label className="block text-lg font-medium text-gray-700 mb-2">
+            Lavoro eseguito
           </label>
           <textarea
             value={noteCliente}
