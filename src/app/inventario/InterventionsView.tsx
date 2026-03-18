@@ -224,15 +224,7 @@ export default function InterventionsView({
     return '';
   });
 
-  const [selectedStatus, setSelectedStatus] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = sessionStorage.getItem(
-        'inventario_interventions_selectedStatus'
-      );
-      return saved || 'in_carico';
-    }
-    return 'in_carico';
-  });
+  const [selectedStatus, setSelectedStatus] = useState('da_confermare');
 
   const [selectedTechnician, setSelectedTechnician] = useState(() => {
     if (typeof window !== 'undefined') {
