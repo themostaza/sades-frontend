@@ -1025,6 +1025,10 @@ export default function DettaglioRapportino({
 
       // 3. Costruisci payload completo
       const payload = buildCompletePayload(uploadedSignatureUrl);
+      // Assicura che i valori locali dell'editor siano inclusi anche se non ancora salvati
+      payload.customer_notes = editableCustomerNotes;
+      payload.work_hours = parseDecimalValue(editableWorkHours);
+      payload.travel_hours = parseDecimalValue(editableTravelHours);
       console.log('📤 Updating intervention report with signature...');
 
       // 4. Chiama PUT per aggiornare il rapportino
@@ -1069,6 +1073,10 @@ export default function DettaglioRapportino({
 
       // 1. Costruisci payload completo con l'URL del file caricato
       const payload = buildCompletePayload(fileInfo.cdnUrl);
+      // Assicura che i valori locali dell'editor siano inclusi anche se non ancora salvati
+      payload.customer_notes = editableCustomerNotes;
+      payload.work_hours = parseDecimalValue(editableWorkHours);
+      payload.travel_hours = parseDecimalValue(editableTravelHours);
       console.log('📤 Updating intervention report with uploaded file...');
 
       // 2. Chiama PUT per aggiornare il rapportino

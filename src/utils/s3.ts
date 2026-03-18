@@ -32,7 +32,7 @@ export async function generatePresignedUrl(
     hasAccessKey: !!config.AWS_ACCESS_KEY_ID,
     hasSecretKey: !!config.AWS_SECRET_ACCESS_KEY,
   });
-  
+
   // Genera un nome file univoco usando timestamp
   const timestamp = Date.now();
   const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -48,7 +48,7 @@ export async function generatePresignedUrl(
     });
 
     console.log('🔄 [S3 Utils] Getting signed URL...');
-    
+
     // Genera presigned URL valido per 15 minuti
     const presignedUrl = await getSignedUrl(s3Client, command, {
       expiresIn: 900, // 15 minuti
@@ -69,12 +69,17 @@ export async function generatePresignedUrl(
     };
   } catch (error) {
     console.error('💥 [S3 Utils] Error generating presigned URL:', error);
-    console.error('💥 [S3 Utils] Error type:', error instanceof Error ? 'Error' : typeof error);
-    console.error('💥 [S3 Utils] Error message:', error instanceof Error ? error.message : String(error));
+    console.error(
+      '💥 [S3 Utils] Error type:',
+      error instanceof Error ? 'Error' : typeof error
+    );
+    console.error(
+      '💥 [S3 Utils] Error message:',
+      error instanceof Error ? error.message : String(error)
+    );
     console.log('========================================');
     throw error;
   }
 }
 
 export { s3Client };
-
