@@ -86,15 +86,37 @@ export default function EquipmentItemEditable({
                 {item.selectedEquipment.description}
               </div>
               <div className="text-sm text-gray-500">
-                Modello: {item.selectedEquipment.model} | S/N:{' '}
-                {item.selectedEquipment.serial_number} | PNC:{' '}
-                {item.selectedEquipment.pnc_code || 'N/A'} | Data vendita:{' '}
-                {item.selectedEquipment.sale_date
-                  ? new Date(
+                {item.selectedEquipment.model && (
+                  <span>
+                    <span className="font-semibold">Modello:</span>{' '}
+                    {item.selectedEquipment.model} |{' '}
+                  </span>
+                )}
+                {item.selectedEquipment.serial_number && (
+                  <span>
+                    <span className="font-semibold">S/N:</span>{' '}
+                    {item.selectedEquipment.serial_number} |{' '}
+                  </span>
+                )}
+                {item.selectedEquipment.pnc_code && (
+                  <span>
+                    <span className="font-semibold">PNC:</span>{' '}
+                    {item.selectedEquipment.pnc_code} |{' '}
+                  </span>
+                )}
+                {item.selectedEquipment.sale_date && (
+                  <span>
+                    <span className="font-semibold">Vendita:</span>{' '}
+                    {new Date(
                       item.selectedEquipment.sale_date
-                    ).toLocaleDateString('it-IT')
-                  : 'N/A'}{' '}
-                | ID: {item.selectedEquipment.id}
+                    ).toLocaleDateString('it-IT')}{' '}
+                    |{' '}
+                  </span>
+                )}
+                <span>
+                  <span className="font-semibold">ID:</span>{' '}
+                  {item.selectedEquipment.id}
+                </span>
               </div>
             </div>
             <button

@@ -614,11 +614,23 @@ export default function InterventionDetailsSectionDetail({
                     {eq.description}
                   </div>
                   <div className="text-sm text-gray-500">
-                    {eq.brand_name} {eq.model} (S/N: {eq.serial_number}) | PNC:{' '}
-                    {eq.pnc_code || 'N/A'} | Data vendita:{' '}
-                    {eq.sale_date
-                      ? new Date(eq.sale_date).toLocaleDateString('it-IT')
-                      : 'N/A'}
+                    {eq.brand_name} {eq.model} (
+                    <span className="font-semibold">S/N:</span>{' '}
+                    {eq.serial_number})
+                    {eq.pnc_code && (
+                      <>
+                        {' '}
+                        | <span className="font-semibold">PNC:</span>{' '}
+                        {eq.pnc_code}
+                      </>
+                    )}
+                    {eq.sale_date && (
+                      <>
+                        {' '}
+                        | <span className="font-semibold">Vendita:</span>{' '}
+                        {new Date(eq.sale_date).toLocaleDateString('it-IT')}
+                      </>
+                    )}
                   </div>
                   <div className="text-xs text-gray-500">
                     <span className="mr-2">{eq.subfamily_name}</span>
@@ -659,12 +671,29 @@ export default function InterventionDetailsSectionDetail({
                     {eq.description}
                   </div>
                   <div className="text-sm text-gray-500">
-                    Modello: {eq.model} | S/N: {eq.serial_number} | PNC:{' '}
-                    {eq.pnc_code || 'N/A'} | Data vendita:{' '}
-                    {eq.sale_date
-                      ? new Date(eq.sale_date).toLocaleDateString('it-IT')
-                      : 'N/A'}{' '}
-                    | ID: {eq.id}
+                    {eq.model && (
+                      <>
+                        <span className="font-semibold">Modello:</span>{' '}
+                        {eq.model} |{' '}
+                      </>
+                    )}
+                    <span className="font-semibold">S/N:</span>{' '}
+                    {eq.serial_number}
+                    {eq.pnc_code && (
+                      <>
+                        {' '}
+                        | <span className="font-semibold">PNC:</span>{' '}
+                        {eq.pnc_code}
+                      </>
+                    )}
+                    {eq.sale_date && (
+                      <>
+                        {' '}
+                        | <span className="font-semibold">Vendita:</span>{' '}
+                        {new Date(eq.sale_date).toLocaleDateString('it-IT')}
+                      </>
+                    )}{' '}
+                    | <span className="font-semibold">ID:</span> {eq.id}
                   </div>
                 </div>
                 {!isFieldsDisabled && (
@@ -740,8 +769,15 @@ export default function InterventionDetailsSectionDetail({
                       {art.short_description}
                     </div>
                     <div className="text-sm text-gray-500 flex items-center gap-2 flex-wrap">
-                      <span>PNC: {art.pnc_code || 'N/A'}</span>
-                      <span>•</span>
+                      {art.pnc_code && (
+                        <>
+                          <span>
+                            <span className="font-semibold">PNC:</span>{' '}
+                            {art.pnc_code}
+                          </span>
+                          <span>•</span>
+                        </>
+                      )}
                       <span
                         className={`font-medium ${totalStock > 0 ? 'text-green-600' : 'text-red-500'}`}
                       >
@@ -800,8 +836,15 @@ export default function InterventionDetailsSectionDetail({
                       {selArt.article.short_description}
                     </div>
                     <div className="text-sm text-gray-700 flex items-center gap-2 flex-wrap">
-                      <span>PNC: {selArt.article.pnc_code || 'N/A'}</span>
-                      <span>•</span>
+                      {selArt.article.pnc_code && (
+                        <>
+                          <span>
+                            <span className="font-semibold">PNC:</span>{' '}
+                            {selArt.article.pnc_code}
+                          </span>
+                          <span>•</span>
+                        </>
+                      )}
                       <span
                         className={`font-medium ${totalStock > 0 ? 'text-green-600' : 'text-red-500'}`}
                       >

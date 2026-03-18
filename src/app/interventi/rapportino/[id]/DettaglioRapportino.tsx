@@ -5,21 +5,31 @@ import { CheckCircle, XCircle, PenTool, Trash2, Plus } from 'lucide-react';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { InterventionReportDetail } from '../../../../types/intervention-reports';
 import { EquipmentDetail } from '../../../../types/equipment';
-import type { AssistanceInterventionDetail, ConnectedArticle, ConnectedEquipment } from '../../../../types/assistance-interventions';
+import type {
+  AssistanceInterventionDetail,
+  ConnectedArticle,
+  ConnectedEquipment,
+} from '../../../../types/assistance-interventions';
 import type { Article } from '../../../../types/article';
-import { 
-  EquipmentItemEditable, 
-  EquipmentItemReadOnly, 
-  EquipmentSelectorDialog, 
+import {
+  EquipmentItemEditable,
+  EquipmentItemReadOnly,
+  EquipmentSelectorDialog,
   ArticleSelectorDialog,
   BasicInfoSection,
   SignatureSection,
   SignatureDialog,
   DeleteConfirmDialog,
   ResultDialog,
-  Lightbox
+  Lightbox,
 } from './components';
-import type { EditableEquipmentItem, SelectedArticle, AttachedFile, GasCompressorType, RechargeableGasType } from './components/types';
+import type {
+  EditableEquipmentItem,
+  SelectedArticle,
+  AttachedFile,
+  GasCompressorType,
+  RechargeableGasType,
+} from './components/types';
 
 // Interfaccia per il tipo SignatureCanvas (per gestione stato locale)
 interface SignatureCanvasRef {
@@ -74,52 +84,92 @@ interface DettaglioRapportinoProps {
   interventionData: AssistanceInterventionDetail | null;
 }
 
-export default function DettaglioRapportino({ reportData, interventionData }: DettaglioRapportinoProps) {
-  const [signatureRef, setSignatureRef] = useState<SignatureCanvasRef | null>(null);
+export default function DettaglioRapportino({
+  reportData,
+  interventionData,
+}: DettaglioRapportinoProps) {
+  const [signatureRef, setSignatureRef] = useState<SignatureCanvasRef | null>(
+    null
+  );
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showResultDialog, setShowResultDialog] = useState(false);
-  const [resultDialogType, setResultDialogType] = useState<'success' | 'error'>('success');
+  const [resultDialogType, setResultDialogType] = useState<'success' | 'error'>(
+    'success'
+  );
   const [resultDialogMessage, setResultDialogMessage] = useState('');
   const [shouldRedirectOnClose, setShouldRedirectOnClose] = useState(false);
   const [isSavingSignature, setIsSavingSignature] = useState(false);
-  const [updatedReportData, setUpdatedReportData] = useState<InterventionReportDetail>(reportData);
+  const [updatedReportData, setUpdatedReportData] =
+    useState<InterventionReportDetail>(reportData);
   const { token, user } = useAuth();
 
   // Stati per la modifica del rapportino - ore gestite come string per supporto punto/virgola
-  const [editableWorkHours, setEditableWorkHours] = useState<string>(reportData.work_hours.toString().replace('.', ','));
-  const [editableTravelHours, setEditableTravelHours] = useState<string>(reportData.travel_hours.toString().replace('.', ','));
-  const [editableCustomerNotes, setEditableCustomerNotes] = useState<string>(reportData.customer_notes || '');
-  const [showNotesField, setShowNotesField] = useState<boolean>(!!reportData.customer_notes);
+  const [editableWorkHours, setEditableWorkHours] = useState<string>(
+    reportData.work_hours.toString().replace('.', ',')
+  );
+  const [editableTravelHours, setEditableTravelHours] = useState<string>(
+    reportData.travel_hours.toString().replace('.', ',')
+  );
+  const [editableCustomerNotes, setEditableCustomerNotes] = useState<string>(
+    reportData.customer_notes || ''
+  );
+  const [showNotesField, setShowNotesField] = useState<boolean>(
+    !!reportData.customer_notes
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Stati per la modifica degli items (apparecchiature, ricambi, gas, immagini)
-  const [editableItems, setEditableItems] = useState<EditableEquipmentItem[]>([]);
-  
+  const [editableItems, setEditableItems] = useState<EditableEquipmentItem[]>(
+    []
+  );
+
   // Stati per ricerca apparecchiature
-  const [equipmentSearchQueries, setEquipmentSearchQueries] = useState<{ [itemId: string]: string }>({});
-  const [equipmentsResults, setEquipmentsResults] = useState<{ [itemId: string]: ConnectedEquipment[] }>({});
-  const [isSearchingEquipments, setIsSearchingEquipments] = useState<{ [itemId: string]: boolean }>({});
-  const [showEquipmentSelectorDialogs, setShowEquipmentSelectorDialogs] = useState<{ [itemId: string]: boolean }>({});
-  
+  const [equipmentSearchQueries, setEquipmentSearchQueries] = useState<{
+    [itemId: string]: string;
+  }>({});
+  const [equipmentsResults, setEquipmentsResults] = useState<{
+    [itemId: string]: ConnectedEquipment[];
+  }>({});
+  const [isSearchingEquipments, setIsSearchingEquipments] = useState<{
+    [itemId: string]: boolean;
+  }>({});
+  const [showEquipmentSelectorDialogs, setShowEquipmentSelectorDialogs] =
+    useState<{ [itemId: string]: boolean }>({});
+
   // Stati per selezione ricambi
-  const [articleSearchQueries, setArticleSearchQueries] = useState<{ [itemId: string]: string }>({});
-  const [articleResults, setArticleResults] = useState<{ [itemId: string]: ConnectedArticle[] }>({});
-  const [isSearchingArticles, setIsSearchingArticles] = useState<{ [itemId: string]: boolean }>({});
-  const [showArticleSelectorDialogs, setShowArticleSelectorDialogs] = useState<{ [itemId: string]: boolean }>({});
+  const [articleSearchQueries, setArticleSearchQueries] = useState<{
+    [itemId: string]: string;
+  }>({});
+  const [articleResults, setArticleResults] = useState<{
+    [itemId: string]: ConnectedArticle[];
+  }>({});
+  const [isSearchingArticles, setIsSearchingArticles] = useState<{
+    [itemId: string]: boolean;
+  }>({});
+  const [showArticleSelectorDialogs, setShowArticleSelectorDialogs] = useState<{
+    [itemId: string]: boolean;
+  }>({});
 
   // Stati per tipi gas/compressori
-  const [gasCompressorTypes, setGasCompressorTypes] = useState<GasCompressorType[]>([]);
-  const [rechargeableGasTypes, setRechargeableGasTypes] = useState<RechargeableGasType[]>([]);
+  const [gasCompressorTypes, setGasCompressorTypes] = useState<
+    GasCompressorType[]
+  >([]);
+  const [rechargeableGasTypes, setRechargeableGasTypes] = useState<
+    RechargeableGasType[]
+  >([]);
   const [isLoadingTypes, setIsLoadingTypes] = useState(true); // Stato per tracciare caricamento tipi
 
   // Lookup cache per dettagli apparecchiature e articoli
-  const [equipmentById, setEquipmentById] = useState<Record<number, EquipmentDetail>>({});
+  const [equipmentById, setEquipmentById] = useState<
+    Record<number, EquipmentDetail>
+  >({});
   const [articleById, setArticleById] = useState<Record<string, Article>>({});
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const [interventionDetail, setInterventionDetail] = useState<AssistanceInterventionDetail | null>(null);
+  const [interventionDetail, setInterventionDetail] =
+    useState<AssistanceInterventionDetail | null>(null);
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
 
   // Helper function per convertire string con virgola/punto in number
@@ -138,67 +188,83 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
   // Helper function per formattare i servizi aggiuntivi
   const formatAdditionalServices = (services: string) => {
-    if (!services || services.trim() === '') return 'Nessun servizio aggiuntivo';
-    return services.split(',').map(s => s.trim()).filter(s => s).join(', ');
+    if (!services || services.trim() === '')
+      return 'Nessun servizio aggiuntivo';
+    return services
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s)
+      .join(', ');
   };
 
   // Helper function per convertire items del report in items editabili
-  const convertReportItemsToEditable = (items: InterventionReportDetail['items']): EditableEquipmentItem[] => {
+  const convertReportItemsToEditable = (
+    items: InterventionReportDetail['items']
+  ): EditableEquipmentItem[] => {
     if (!items || items.length === 0) return [];
-    
+
     return items.map((item, index) => {
       // Converti equipment_id in ConnectedEquipment se disponibile
-      const equipment = item.equipment_id ? equipmentById[item.equipment_id] : null;
-      const connectedEquipment: ConnectedEquipment | null = equipment ? {
-        id: equipment.id,
-        description: equipment.description,
-        model: equipment.model,
-        serial_number: equipment.serial_number,
-        brand_name: equipment.brand_label || '',
-        subfamily_name: equipment.subfamily_label || '',
-        customer_name: '', // Non disponibile in EquipmentDetail
-        linked_serials: ''
-      } : null;
+      const equipment = item.equipment_id
+        ? equipmentById[item.equipment_id]
+        : null;
+      const connectedEquipment: ConnectedEquipment | null = equipment
+        ? {
+            id: equipment.id,
+            description: equipment.description,
+            model: equipment.model,
+            serial_number: equipment.serial_number,
+            pnc_code: equipment.pnc_code ?? null,
+            brand_name: equipment.brand_label || '',
+            subfamily_name: equipment.subfamily_label || '',
+            customer_name: '', // Non disponibile in EquipmentDetail
+            linked_serials: '',
+          }
+        : null;
 
       // Converti articles in SelectedArticle[]
-      const selectedArticles: SelectedArticle[] = (item.articles || []).map(art => {
-        const articleData = articleById[art.article_id];
-        return {
-          article: {
-            id: art.article_id,
-            pnc_code: articleData?.pnc_code || null,
-            short_description: articleData?.short_description || art.article_name || '',
-            description: articleData?.description || art.article_description || '',
-            quantity: art.quantity
-          },
-          quantity: art.quantity,
-          relationId: typeof art.id === 'string' ? parseInt(art.id) : art.id // ✅ Salva l'ID della relazione dal DB (convertito a numero)
-        };
-      });
+      const selectedArticles: SelectedArticle[] = (item.articles || []).map(
+        (art) => {
+          const articleData = articleById[art.article_id];
+          return {
+            article: {
+              id: art.article_id,
+              pnc_code: articleData?.pnc_code || null,
+              short_description:
+                articleData?.short_description || art.article_name || '',
+              description:
+                articleData?.description || art.article_description || '',
+              quantity: art.quantity,
+            },
+            quantity: art.quantity,
+            relationId: typeof art.id === 'string' ? parseInt(art.id) : art.id, // ✅ Salva l'ID della relazione dal DB (convertito a numero)
+          };
+        }
+      );
 
       // Converti images
-      const images: AttachedFile[] = (item.images || []).map(img => ({
+      const images: AttachedFile[] = (item.images || []).map((img) => ({
         id: img.id?.toString() || Date.now().toString(),
         name: img.file_name,
         uploadDate: new Date().toLocaleDateString('it-IT'),
-        url: img.file_url
+        url: img.file_url,
       }));
 
       // Ottieni nomi dei tipi gas
-      const compressorTypeName = item.gas_compressor_types_id 
-        ? getCompressorTypeName(item.gas_compressor_types_id) 
+      const compressorTypeName = item.gas_compressor_types_id
+        ? getCompressorTypeName(item.gas_compressor_types_id)
         : '';
-      const gasTypeName = item.rechargeable_gas_types_id 
-        ? getRechargeableGasTypeName(item.rechargeable_gas_types_id) 
+      const gasTypeName = item.rechargeable_gas_types_id
+        ? getRechargeableGasTypeName(item.rechargeable_gas_types_id)
         : '';
-      const recoveredGasTypeName = item.recovered_rech_gas_types_id 
-        ? getRechargeableGasTypeName(item.recovered_rech_gas_types_id) 
+      const recoveredGasTypeName = item.recovered_rech_gas_types_id
+        ? getRechargeableGasTypeName(item.recovered_rech_gas_types_id)
         : '';
 
       return {
@@ -216,31 +282,44 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
         modelloCompressore: item.compressor_model || '',
         matricolaCompressore: item.compressor_serial_num || '',
         numeroUnivoco: item.compressor_unique_num || '',
-        serviziAggiuntivi: item.additional_services ? item.additional_services.split(',').map(s => s.trim()) : [],
+        serviziAggiuntivi: item.additional_services
+          ? item.additional_services.split(',').map((s) => s.trim())
+          : [],
         tipologiaGasRecuperato: recoveredGasTypeName,
         quantitaGasRecuperato: (item.qty_gas_recovered || 0).toString(),
         hasImages: images.length > 0,
-        images
+        images,
       };
     });
   };
 
   // Helper per mappare label compressore/gas al suo ID
   const getGasCompressorTypeId = (typeLabel: string): number => {
-    if (!gasCompressorTypes || gasCompressorTypes.length === 0 || !typeLabel) return 0;
-    const type = gasCompressorTypes.find(t => t && t.label && t.label.toLowerCase() === typeLabel.toLowerCase());
+    if (!gasCompressorTypes || gasCompressorTypes.length === 0 || !typeLabel)
+      return 0;
+    const type = gasCompressorTypes.find(
+      (t) => t && t.label && t.label.toLowerCase() === typeLabel.toLowerCase()
+    );
     return type ? type.id : 0;
   };
 
   const getRechargeableGasTypeId = (gasLabel: string): number => {
-    if (!rechargeableGasTypes || rechargeableGasTypes.length === 0 || !gasLabel) return 0;
-    const type = rechargeableGasTypes.find(t => t && t.label && t.label.toLowerCase() === gasLabel.toLowerCase());
+    if (!rechargeableGasTypes || rechargeableGasTypes.length === 0 || !gasLabel)
+      return 0;
+    const type = rechargeableGasTypes.find(
+      (t) => t && t.label && t.label.toLowerCase() === gasLabel.toLowerCase()
+    );
     return type ? type.id : 0;
   };
 
   // Helper per determinare se mostrare campi recupero gas
-  const shouldShowRecuperoGasFields = (item: EditableEquipmentItem): boolean => {
-    return !(item.serviziAggiuntivi.length === 1 && item.serviziAggiuntivi[0] === 'Ricerca perdite');
+  const shouldShowRecuperoGasFields = (
+    item: EditableEquipmentItem
+  ): boolean => {
+    return !(
+      item.serviziAggiuntivi.length === 1 &&
+      item.serviziAggiuntivi[0] === 'Ricerca perdite'
+    );
   };
 
   // Helper per controllare se un testo è placeholder
@@ -259,13 +338,15 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
         setIsLoadingTypes(false);
         return;
       }
-      
+
       setIsLoadingTypes(true);
       try {
-        const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
+        const headers: Record<string, string> = {
+          Authorization: `Bearer ${token}`,
+        };
         const [gcRes, rgRes] = await Promise.all([
           fetch('/api/gas-compressor-types', { headers }),
-          fetch('/api/rechargeable-gas-types', { headers })
+          fetch('/api/rechargeable-gas-types', { headers }),
         ]);
         if (gcRes.ok) {
           const data = await gcRes.json();
@@ -286,18 +367,22 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
 
   const getCompressorTypeName = (id?: number) => {
     if (!id) return '';
-    return gasCompressorTypes.find(t => t.id === id)?.label || `ID: ${id}`;
+    return gasCompressorTypes.find((t) => t.id === id)?.label || `ID: ${id}`;
   };
 
   const getRechargeableGasTypeName = (id?: number) => {
     if (!id) return '';
-    return rechargeableGasTypes.find(t => t.id === id)?.label || `ID: ${id}`;
+    return rechargeableGasTypes.find((t) => t.id === id)?.label || `ID: ${id}`;
   };
 
   // Sincronizza gli stati editabili quando updatedReportData cambia
   useEffect(() => {
-    setEditableWorkHours(updatedReportData.work_hours.toString().replace('.', ','));
-    setEditableTravelHours(updatedReportData.travel_hours.toString().replace('.', ','));
+    setEditableWorkHours(
+      updatedReportData.work_hours.toString().replace('.', ',')
+    );
+    setEditableTravelHours(
+      updatedReportData.travel_hours.toString().replace('.', ',')
+    );
     setEditableCustomerNotes(updatedReportData.customer_notes || '');
     setShowNotesField(!!updatedReportData.customer_notes);
   }, [updatedReportData]);
@@ -310,30 +395,57 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       const converted = convertReportItemsToEditable(updatedReportData.items);
       setEditableItems(converted);
     }
-  }, [updatedReportData.items, equipmentById, articleById, gasCompressorTypes, rechargeableGasTypes, isFetchingDetails, isLoadingTypes]);
+  }, [
+    updatedReportData.items,
+    equipmentById,
+    articleById,
+    gasCompressorTypes,
+    rechargeableGasTypes,
+    isFetchingDetails,
+    isLoadingTypes,
+  ]);
 
   // Detecta modifiche non salvate
   useEffect(() => {
-    const workHoursChanged = parseDecimalValue(editableWorkHours) !== updatedReportData.work_hours;
-    const travelHoursChanged = parseDecimalValue(editableTravelHours) !== updatedReportData.travel_hours;
-    const notesChanged = editableCustomerNotes !== (updatedReportData.customer_notes || '');
-    
-    // Controlla se gli items sono stati modificati (solo se canDeleteReport è true)
-    const itemsChanged = canDeleteReport() && JSON.stringify(editableItems) !== JSON.stringify(convertReportItemsToEditable(updatedReportData.items || []));
-    
-    setHasUnsavedChanges(workHoursChanged || travelHoursChanged || notesChanged || itemsChanged);
-  }, [editableWorkHours, editableTravelHours, editableCustomerNotes, editableItems, updatedReportData]);
+    const workHoursChanged =
+      parseDecimalValue(editableWorkHours) !== updatedReportData.work_hours;
+    const travelHoursChanged =
+      parseDecimalValue(editableTravelHours) !== updatedReportData.travel_hours;
+    const notesChanged =
+      editableCustomerNotes !== (updatedReportData.customer_notes || '');
 
- 
+    // Controlla se gli items sono stati modificati (solo se canDeleteReport è true)
+    const itemsChanged =
+      canDeleteReport() &&
+      JSON.stringify(editableItems) !==
+        JSON.stringify(
+          convertReportItemsToEditable(updatedReportData.items || [])
+        );
+
+    setHasUnsavedChanges(
+      workHoursChanged || travelHoursChanged || notesChanged || itemsChanged
+    );
+  }, [
+    editableWorkHours,
+    editableTravelHours,
+    editableCustomerNotes,
+    editableItems,
+    updatedReportData,
+  ]);
 
   // Carica dettagli dell'intervento associato per controlli UI (es. eliminazione)
   useEffect(() => {
     const loadIntervention = async () => {
       if (!token || !updatedReportData?.intervention_id) return;
-      
+
       try {
-        const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
-        const res = await fetch(`/api/assistance-interventions/${updatedReportData.intervention_id}`, { headers });
+        const headers: Record<string, string> = {
+          Authorization: `Bearer ${token}`,
+        };
+        const res = await fetch(
+          `/api/assistance-interventions/${updatedReportData.intervention_id}`,
+          { headers }
+        );
         if (res.ok) {
           const data: AssistanceInterventionDetail = await res.json();
           setInterventionDetail(data);
@@ -348,22 +460,25 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
     // Se non abbiamo info, lascia abilitato per retrocompatibilità
     if (!interventionDetail) return true;
     const label = (interventionDetail.status_label || '').toLowerCase();
-    
+
     // Se admin e stato è "completato" o "fatturato", permetti
     const isAdmin = user?.role === 'amministrazione';
-    if (isAdmin && (label.includes('completato') || label.includes('fatturato'))) {
+    if (
+      isAdmin &&
+      (label.includes('completato') || label.includes('fatturato'))
+    ) {
       return true;
     }
-    
+
     // Blocca per stati non cancellabili
     const blocked = [
       'completato',
       'non completato',
       'annullato',
       'fatturato',
-      'collocamento'
+      'collocamento',
     ];
-    return !blocked.some(b => label.includes(b));
+    return !blocked.some((b) => label.includes(b));
   };
 
   // Determina se i campi base (ore e note) sono modificabili
@@ -371,22 +486,25 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   const canEditBasicFields = (): boolean => {
     if (!interventionDetail) return true;
     const label = (interventionDetail.status_label || '').toLowerCase();
-    
+
     // Se admin e stato è "completato" o "fatturato", permetti
     const isAdmin = user?.role === 'amministrazione';
-    if (isAdmin && (label.includes('completato') || label.includes('fatturato'))) {
+    if (
+      isAdmin &&
+      (label.includes('completato') || label.includes('fatturato'))
+    ) {
       return true;
     }
-    
+
     // Blocca per stati definitivi (incluso "completato" e "fatturato" per non-admin)
     const blocked = [
       'completato',
       'non completato',
       'annullato',
       'fatturato',
-      'collocamento'
+      'collocamento',
     ];
-    return !blocked.some(b => label.includes(b));
+    return !blocked.some((b) => label.includes(b));
   };
 
   // Carica dettagli apparecchiature e articoli usati nel report
@@ -396,18 +514,24 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     // Equipments
-    const equipmentIds = Array.from(new Set(
-      updatedReportData.items
-        .map(i => i.equipment_id)
-        .filter((v): v is number => typeof v === 'number' && v > 0)
-    ));
-    const missingEquipments = equipmentIds.filter(id => !equipmentById[id]);
+    const equipmentIds = Array.from(
+      new Set(
+        updatedReportData.items
+          .map((i) => i.equipment_id)
+          .filter((v): v is number => typeof v === 'number' && v > 0)
+      )
+    );
+    const missingEquipments = equipmentIds.filter((id) => !equipmentById[id]);
 
     // Articles
-    const articleIds = Array.from(new Set(
-      updatedReportData.items.flatMap(i => (i.articles || []).map(a => a.article_id)).filter(Boolean)
-    ));
-    const missingArticles = articleIds.filter(id => !articleById[id]);
+    const articleIds = Array.from(
+      new Set(
+        updatedReportData.items
+          .flatMap((i) => (i.articles || []).map((a) => a.article_id))
+          .filter(Boolean)
+      )
+    );
+    const missingArticles = articleIds.filter((id) => !articleById[id]);
 
     const fetchAll = async () => {
       setIsFetchingDetails(true);
@@ -422,7 +546,9 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
 
         // Poi fetcha tutti gli articles
         const articlePromises = missingArticles.map(async (id) => {
-          const res = await fetch(`/api/articles/${encodeURIComponent(id)}`, { headers });
+          const res = await fetch(`/api/articles/${encodeURIComponent(id)}`, {
+            headers,
+          });
           if (!res.ok) return null;
           const data: Article = await res.json();
           return { id, data };
@@ -431,24 +557,24 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
         // Aspetta che TUTTI i fetch siano completati
         const [equipmentResults, articleResults] = await Promise.all([
           Promise.all(equipmentPromises),
-          Promise.all(articlePromises)
+          Promise.all(articlePromises),
         ]);
 
         // Aggiorna lo stato UNA VOLTA SOLA con tutti i dati
         const newEquipments: Record<number, EquipmentDetail> = {};
-        equipmentResults.forEach(result => {
+        equipmentResults.forEach((result) => {
           if (result) newEquipments[result.id] = result.data;
         });
         if (Object.keys(newEquipments).length > 0) {
-          setEquipmentById(prev => ({ ...prev, ...newEquipments }));
+          setEquipmentById((prev) => ({ ...prev, ...newEquipments }));
         }
 
         const newArticles: Record<string, Article> = {};
-        articleResults.forEach(result => {
+        articleResults.forEach((result) => {
           if (result) newArticles[result.id] = result.data;
         });
         if (Object.keys(newArticles).length > 0) {
-          setArticleById(prev => ({ ...prev, ...newArticles }));
+          setArticleById((prev) => ({ ...prev, ...newArticles }));
         }
       } catch (error) {
         console.error('❌ Error fetching equipment/article details:', error);
@@ -484,49 +610,66 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       tipologiaGasRecuperato: '',
       quantitaGasRecuperato: '0',
       hasImages: false,
-      images: []
+      images: [],
     };
     setEditableItems([...editableItems, newItem]);
   };
 
   const removeEquipmentItem = (id: string) => {
-    setEditableItems(editableItems.filter(item => item.id !== id));
+    setEditableItems(editableItems.filter((item) => item.id !== id));
   };
 
-  const updateEquipmentItem = (id: string, field: keyof EditableEquipmentItem, value: unknown) => {
-    setEditableItems(editableItems.map(item => 
-      item.id === id ? { ...item, [field]: value } : item
-    ));
-  };
-
-  const removeArticleFromItem = (itemId: string, articleId: string) => {
-    const item = editableItems.find(item => item.id === itemId)!;
-    updateEquipmentItem(itemId, 'selectedArticles', 
-      item.selectedArticles.filter(art => art.article.id !== articleId)
+  const updateEquipmentItem = (
+    id: string,
+    field: keyof EditableEquipmentItem,
+    value: unknown
+  ) => {
+    setEditableItems(
+      editableItems.map((item) =>
+        item.id === id ? { ...item, [field]: value } : item
+      )
     );
   };
 
-  const updateArticleQuantity = (itemId: string, articleId: string, quantity: number) => {
-    const item = editableItems.find(item => item.id === itemId)!;
-    updateEquipmentItem(itemId, 'selectedArticles',
-      item.selectedArticles.map(art => 
+  const removeArticleFromItem = (itemId: string, articleId: string) => {
+    const item = editableItems.find((item) => item.id === itemId)!;
+    updateEquipmentItem(
+      itemId,
+      'selectedArticles',
+      item.selectedArticles.filter((art) => art.article.id !== articleId)
+    );
+  };
+
+  const updateArticleQuantity = (
+    itemId: string,
+    articleId: string,
+    quantity: number
+  ) => {
+    const item = editableItems.find((item) => item.id === itemId)!;
+    updateEquipmentItem(
+      itemId,
+      'selectedArticles',
+      item.selectedArticles.map((art) =>
         art.article.id === articleId ? { ...art, quantity } : art
       )
     );
   };
 
-  const handleImageUpload = (itemId: string, fileInfo: { cdnUrl?: string; name?: string }) => {
+  const handleImageUpload = (
+    itemId: string,
+    fileInfo: { cdnUrl?: string; name?: string }
+  ) => {
     console.log('Uploadcare success for item:', itemId, fileInfo);
     if (fileInfo && fileInfo.cdnUrl) {
-      const item = editableItems.find(item => item.id === itemId);
+      const item = editableItems.find((item) => item.id === itemId);
       if (item) {
         const newImage: AttachedFile = {
           id: Date.now().toString(),
           name: fileInfo.name || `image_${Date.now()}.jpg`,
           uploadDate: new Date().toLocaleDateString('it-IT'),
-          url: fileInfo.cdnUrl
+          url: fileInfo.cdnUrl,
         };
-        
+
         const updatedImages = [...item.images, newImage];
         updateEquipmentItem(itemId, 'images', updatedImages);
       }
@@ -534,21 +677,21 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   };
 
   const removeImageFromItem = (itemId: string, imageId: string) => {
-    const item = editableItems.find(item => item.id === itemId);
+    const item = editableItems.find((item) => item.id === itemId);
     if (item) {
-      const updatedImages = item.images.filter(img => img.id !== imageId);
+      const updatedImages = item.images.filter((img) => img.id !== imageId);
       updateEquipmentItem(itemId, 'images', updatedImages);
     }
   };
 
   const handleServiziAggiuntiviToggle = (itemId: string, servizio: string) => {
-    const item = editableItems.find(item => item.id === itemId);
+    const item = editableItems.find((item) => item.id === itemId);
     if (item) {
       const currentServizi = item.serviziAggiuntivi;
       const updatedServizi = currentServizi.includes(servizio)
-        ? currentServizi.filter(s => s !== servizio)
+        ? currentServizi.filter((s) => s !== servizio)
         : [...currentServizi, servizio];
-      
+
       updateEquipmentItem(itemId, 'serviziAggiuntivi', updatedServizi);
     }
   };
@@ -556,11 +699,11 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   // Funzione di ricerca live per apparecchiature
   const searchEquipments = async (itemId: string, query: string = '') => {
     if (!interventionData?.customer_id) {
-      setEquipmentsResults(prev => ({ ...prev, [itemId]: [] }));
+      setEquipmentsResults((prev) => ({ ...prev, [itemId]: [] }));
       return;
     }
     try {
-      setIsSearchingEquipments(prev => ({ ...prev, [itemId]: true }));
+      setIsSearchingEquipments((prev) => ({ ...prev, [itemId]: true }));
       let apiUrl = `/api/equipments?customer_id=${interventionData.customer_id}`;
       if (interventionData.customer_location_id) {
         apiUrl += `&customer_location_id=${encodeURIComponent(interventionData.customer_location_id)}`;
@@ -568,36 +711,49 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       if (query.trim()) {
         apiUrl += `&query=${encodeURIComponent(query)}`;
       }
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
       if (token) headers['Authorization'] = `Bearer ${token}`;
       const response = await fetch(apiUrl, { headers });
       if (response.ok) {
         const data = await response.json();
         // Escludi già selezionati in altri items
-        const alreadySelectedIds = editableItems.map(item => item.selectedEquipment?.id).filter(Boolean);
-        const filtered = (data.data || []).filter((eq: ConnectedEquipment) => !alreadySelectedIds.includes(eq.id));
-        setEquipmentsResults(prev => ({ ...prev, [itemId]: filtered }));
+        const alreadySelectedIds = editableItems
+          .map((item) => item.selectedEquipment?.id)
+          .filter(Boolean);
+        const filtered = (data.data || []).filter(
+          (eq: ConnectedEquipment) => !alreadySelectedIds.includes(eq.id)
+        );
+        setEquipmentsResults((prev) => ({ ...prev, [itemId]: filtered }));
       } else {
-        setEquipmentsResults(prev => ({ ...prev, [itemId]: [] }));
+        setEquipmentsResults((prev) => ({ ...prev, [itemId]: [] }));
       }
     } catch {
-      setEquipmentsResults(prev => ({ ...prev, [itemId]: [] }));
+      setEquipmentsResults((prev) => ({ ...prev, [itemId]: [] }));
     } finally {
-      setIsSearchingEquipments(prev => ({ ...prev, [itemId]: false }));
+      setIsSearchingEquipments((prev) => ({ ...prev, [itemId]: false }));
     }
   };
 
   // Ricerca ricambi
   const searchArticles = async (itemId: string, query: string = '') => {
     try {
-      setIsSearchingArticles(prev => ({ ...prev, [itemId]: true }));
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      setIsSearchingArticles((prev) => ({ ...prev, [itemId]: true }));
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const response = await fetch(`/api/articles?query=${encodeURIComponent(query)}`, { headers });
+      const response = await fetch(
+        `/api/articles?query=${encodeURIComponent(query)}`,
+        { headers }
+      );
       if (response.ok) {
         const data = await response.json();
-        const currentItem = editableItems.find(ei => ei.id === itemId);
-        const excludeIds = (currentItem?.selectedArticles || []).map(a => a.article.id);
+        const currentItem = editableItems.find((ei) => ei.id === itemId);
+        const excludeIds = (currentItem?.selectedArticles || []).map(
+          (a) => a.article.id
+        );
         const mapped: ConnectedArticle[] = (data.data || [])
           .filter((art: ConnectedArticle) => !excludeIds.includes(art.id))
           .map((art: ConnectedArticle) => ({
@@ -607,19 +763,21 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
             description: art.description ?? '',
             quantity: 0,
           }));
-        setArticleResults(prev => ({ ...prev, [itemId]: mapped }));
+        setArticleResults((prev) => ({ ...prev, [itemId]: mapped }));
       } else {
-        setArticleResults(prev => ({ ...prev, [itemId]: [] }));
+        setArticleResults((prev) => ({ ...prev, [itemId]: [] }));
       }
     } catch {
-      setArticleResults(prev => ({ ...prev, [itemId]: [] }));
+      setArticleResults((prev) => ({ ...prev, [itemId]: [] }));
     } finally {
-      setIsSearchingArticles(prev => ({ ...prev, [itemId]: false }));
+      setIsSearchingArticles((prev) => ({ ...prev, [itemId]: false }));
     }
   };
 
   const getPlannedArticleQty = (articleId: string): number => {
-    const planned = interventionData?.connected_articles?.find(a => a.id === articleId);
+    const planned = interventionData?.connected_articles?.find(
+      (a) => a.id === articleId
+    );
     return planned?.quantity ?? 0;
   };
 
@@ -668,73 +826,85 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   };
 
   // Funzione per costruire il payload completo della PUT
-  const buildCompletePayload = (signatureUrl: string): UpdateInterventionReportRequest => {
+  const buildCompletePayload = (
+    signatureUrl: string
+  ): UpdateInterventionReportRequest => {
     // Usa editableItems se canDeleteReport() è true, altrimenti usa i dati originali
-    const itemsToSave = canDeleteReport() && editableItems.length > 0 
-      ? editableItems.map(item => ({
-          id: item.originalId || 0, // 0 per nuovi items
-          equipment_id: item.selectedEquipment?.id ?? 0,
-          note: item.notes,
-          fl_gas: item.hasGas,
-          gas_compressor_types_id: getGasCompressorTypeId(item.tipologiaCompressore) || 0,
-          is_new_installation: item.nuovaInstallazione === 'Sì',
-          rechargeable_gas_types_id: getRechargeableGasTypeId(item.tipologiaGasCaricato) || 0,
-          qty_gas_recharged: parseInt(item.quantitaGasCaricato) || 0,
-          max_charge: parseInt(item.caricaMax) || 0,
-          compressor_model: item.modelloCompressore || '',
-          compressor_model_img_url: '', // TODO: implementare upload immagini
-          compressor_serial_num: item.matricolaCompressore || '',
-          compressor_serial_num_img_url: '', // TODO: implementare upload immagini
-          compressor_unique_num: item.numeroUnivoco || '',
-          compressor_unique_num_img_url: '', // TODO: implementare upload immagini
-          additional_services: item.serviziAggiuntivi.length > 0 ? item.serviziAggiuntivi.join(', ') : '',
-          recovered_rech_gas_types_id: shouldShowRecuperoGasFields(item) 
-            ? (getRechargeableGasTypeId(item.tipologiaGasRecuperato) || 0)
-            : 0,
-          qty_gas_recovered: shouldShowRecuperoGasFields(item) 
-            ? (parseInt(item.quantitaGasRecuperato) || 0)
-            : 0,
-          images: item.images.map(file => ({
-            id: parseInt(file.id) || 0,
-            file_name: file.name,
-            file_url: file.url
-          })),
-          articles: item.selectedArticles.map(article => ({
-            id: article.relationId || 0, // ✅ Usa l'ID esistente se disponibile, 0 per nuovi articoli
-            article_id: article.article.id,
-            quantity: article.quantity
+    const itemsToSave =
+      canDeleteReport() && editableItems.length > 0
+        ? editableItems.map((item) => ({
+            id: item.originalId || 0, // 0 per nuovi items
+            equipment_id: item.selectedEquipment?.id ?? 0,
+            note: item.notes,
+            fl_gas: item.hasGas,
+            gas_compressor_types_id:
+              getGasCompressorTypeId(item.tipologiaCompressore) || 0,
+            is_new_installation: item.nuovaInstallazione === 'Sì',
+            rechargeable_gas_types_id:
+              getRechargeableGasTypeId(item.tipologiaGasCaricato) || 0,
+            qty_gas_recharged: parseInt(item.quantitaGasCaricato) || 0,
+            max_charge: parseInt(item.caricaMax) || 0,
+            compressor_model: item.modelloCompressore || '',
+            compressor_model_img_url: '', // TODO: implementare upload immagini
+            compressor_serial_num: item.matricolaCompressore || '',
+            compressor_serial_num_img_url: '', // TODO: implementare upload immagini
+            compressor_unique_num: item.numeroUnivoco || '',
+            compressor_unique_num_img_url: '', // TODO: implementare upload immagini
+            additional_services:
+              item.serviziAggiuntivi.length > 0
+                ? item.serviziAggiuntivi.join(', ')
+                : '',
+            recovered_rech_gas_types_id: shouldShowRecuperoGasFields(item)
+              ? getRechargeableGasTypeId(item.tipologiaGasRecuperato) || 0
+              : 0,
+            qty_gas_recovered: shouldShowRecuperoGasFields(item)
+              ? parseInt(item.quantitaGasRecuperato) || 0
+              : 0,
+            images: item.images.map((file) => ({
+              id: parseInt(file.id) || 0,
+              file_name: file.name,
+              file_url: file.url,
+            })),
+            articles: item.selectedArticles.map((article) => ({
+              id: article.relationId || 0, // ✅ Usa l'ID esistente se disponibile, 0 per nuovi articoli
+              article_id: article.article.id,
+              quantity: article.quantity,
+            })),
           }))
-        }))
-      : updatedReportData.items?.map(item => ({
-        id: item.id,
-        equipment_id: item.equipment_id,
-        note: item.note || '',
-        fl_gas: item.fl_gas,
-        gas_compressor_types_id: item.gas_compressor_types_id || 0,
-        is_new_installation: item.is_new_installation,
-        rechargeable_gas_types_id: item.rechargeable_gas_types_id || 0,
-        qty_gas_recharged: item.qty_gas_recharged || 0,
-        max_charge: item.max_charge || 0,
-        compressor_model: item.compressor_model || '',
-        compressor_model_img_url: item.compressor_model_img_url || '',
-        compressor_serial_num: item.compressor_serial_num || '',
-        compressor_serial_num_img_url: item.compressor_serial_num_img_url || '',
-        compressor_unique_num: item.compressor_unique_num || '',
-        compressor_unique_num_img_url: item.compressor_unique_num_img_url || '',
-        additional_services: item.additional_services || '',
-        recovered_rech_gas_types_id: item.recovered_rech_gas_types_id || 0,
-        qty_gas_recovered: item.qty_gas_recovered || 0,
-        images: item.images?.map(img => ({
-          id: img.id || 0,
-          file_name: img.file_name,
-          file_url: img.file_url
-        })) || [],
-        articles: item.articles?.map(art => ({
-          id: parseInt(art.id) || 0,
-          article_id: art.article_id,
-          quantity: art.quantity
-        })) || []
-        })) || [];
+        : updatedReportData.items?.map((item) => ({
+            id: item.id,
+            equipment_id: item.equipment_id,
+            note: item.note || '',
+            fl_gas: item.fl_gas,
+            gas_compressor_types_id: item.gas_compressor_types_id || 0,
+            is_new_installation: item.is_new_installation,
+            rechargeable_gas_types_id: item.rechargeable_gas_types_id || 0,
+            qty_gas_recharged: item.qty_gas_recharged || 0,
+            max_charge: item.max_charge || 0,
+            compressor_model: item.compressor_model || '',
+            compressor_model_img_url: item.compressor_model_img_url || '',
+            compressor_serial_num: item.compressor_serial_num || '',
+            compressor_serial_num_img_url:
+              item.compressor_serial_num_img_url || '',
+            compressor_unique_num: item.compressor_unique_num || '',
+            compressor_unique_num_img_url:
+              item.compressor_unique_num_img_url || '',
+            additional_services: item.additional_services || '',
+            recovered_rech_gas_types_id: item.recovered_rech_gas_types_id || 0,
+            qty_gas_recovered: item.qty_gas_recovered || 0,
+            images:
+              item.images?.map((img) => ({
+                id: img.id || 0,
+                file_name: img.file_name,
+                file_url: img.file_url,
+              })) || [],
+            articles:
+              item.articles?.map((art) => ({
+                id: parseInt(art.id) || 0,
+                article_id: art.article_id,
+                quantity: art.quantity,
+              })) || [],
+          })) || [];
 
     return {
       work_hours: updatedReportData.work_hours,
@@ -744,28 +914,35 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       failure_reason: updatedReportData.failure_reason || '',
       status: updatedReportData.status,
       signature_url: signatureUrl,
-      items: itemsToSave
+      items: itemsToSave,
     };
   };
 
   // Funzione per aggiornare il rapportino tramite PUT
-  const updateInterventionReport = async (payload: UpdateInterventionReportRequest) => {
+  const updateInterventionReport = async (
+    payload: UpdateInterventionReportRequest
+  ) => {
     if (!token) {
       throw new Error('Token di autenticazione non disponibile');
     }
 
-    const response = await fetch(`/api/intervention-reports/${updatedReportData.id}`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    const response = await fetch(
+      `/api/intervention-reports/${updatedReportData.id}`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || 'Errore durante l\'aggiornamento del rapportino');
+      throw new Error(
+        errorData.error || "Errore durante l'aggiornamento del rapportino"
+      );
     }
 
     return await response.json();
@@ -777,17 +954,22 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       throw new Error('Token di autenticazione non disponibile');
     }
 
-    const response = await fetch(`/api/intervention-reports/${updatedReportData.id}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'accept': 'application/json',
-      },
-    });
+    const response = await fetch(
+      `/api/intervention-reports/${updatedReportData.id}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          accept: 'application/json',
+        },
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || 'Errore durante il ricaricamento dei dati');
+      throw new Error(
+        errorData.error || 'Errore durante il ricaricamento dei dati'
+      );
     }
 
     return await response.json();
@@ -803,7 +985,9 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   const saveSignature = async () => {
     if (!signatureRef || signatureRef.isEmpty()) {
       setResultDialogType('error');
-      setResultDialogMessage('Per favore, inserisci una firma prima di salvare.');
+      setResultDialogMessage(
+        'Per favore, inserisci una firma prima di salvare.'
+      );
       setShowResultDialog(true);
       return;
     }
@@ -815,13 +999,13 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       const signatureDataURL = signatureRef.toDataURL();
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      
+
       if (!ctx) {
         throw new Error('Impossibile ottenere il context del canvas');
       }
-      
+
       const img = document.createElement('img');
-      
+
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
         img.onerror = () => reject(new Error('Errore caricamento immagine'));
@@ -831,7 +1015,7 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       canvas.width = img.width;
       canvas.height = img.height;
       ctx.drawImage(img, 0, 0);
-      
+
       const signatureBlob = await canvasToBlob(canvas);
 
       // 2. Upload automatico tramite S3
@@ -851,7 +1035,7 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       console.log('🔄 Reloading fresh data from server...');
       const freshReportData = await reloadReportData();
       console.log('✅ Fresh data loaded:', freshReportData);
-      
+
       // 6. Aggiorna lo stato locale con i dati freschi
       setUpdatedReportData(freshReportData);
       setShowSignatureDialog(false);
@@ -859,11 +1043,14 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       setResultDialogType('success');
       setResultDialogMessage('Firma o documento salvato con successo!');
       setShowResultDialog(true);
-
     } catch (error) {
       console.error('❌ Error saving signature:', error);
       setResultDialogType('error');
-      setResultDialogMessage(error instanceof Error ? error.message : 'Errore durante il salvataggio della firma o documento.');
+      setResultDialogMessage(
+        error instanceof Error
+          ? error.message
+          : 'Errore durante il salvataggio della firma o documento.'
+      );
       setShowResultDialog(true);
     } finally {
       setIsSavingSignature(false);
@@ -871,7 +1058,11 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   };
 
   // Funzione per gestire l'upload diretto di file (immagini o PDF)
-  const handleFileUpload = async (fileInfo: { cdnUrl: string; name: string; type: string }) => {
+  const handleFileUpload = async (fileInfo: {
+    cdnUrl: string;
+    name: string;
+    type: string;
+  }) => {
     try {
       setIsSavingSignature(true);
       console.log('🔄 Saving uploaded file as signature:', fileInfo);
@@ -888,18 +1079,21 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       console.log('🔄 Reloading fresh data from server...');
       const freshReportData = await reloadReportData();
       console.log('✅ Fresh data loaded:', freshReportData);
-      
+
       // 4. Aggiorna lo stato locale con i dati freschi
       setUpdatedReportData(freshReportData);
 
       setResultDialogType('success');
       setResultDialogMessage('Documento caricato e salvato con successo!');
       setShowResultDialog(true);
-
     } catch (error) {
       console.error('❌ Error saving uploaded file:', error);
       setResultDialogType('error');
-      setResultDialogMessage(error instanceof Error ? error.message : 'Errore durante il salvataggio del documento.');
+      setResultDialogMessage(
+        error instanceof Error
+          ? error.message
+          : 'Errore durante il salvataggio del documento.'
+      );
       setShowResultDialog(true);
     } finally {
       setIsSavingSignature(false);
@@ -919,8 +1113,10 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       console.log('💾 Salvataggio modifiche rapportino...');
 
       // Costruisci il payload aggiornato con i nuovi valori
-      const payload = buildCompletePayload(updatedReportData.signature_url || '');
-      
+      const payload = buildCompletePayload(
+        updatedReportData.signature_url || ''
+      );
+
       // Sovrascrivi con i valori modificati (converti stringhe con virgola in numeri)
       payload.work_hours = parseDecimalValue(editableWorkHours);
       payload.travel_hours = parseDecimalValue(editableTravelHours);
@@ -936,19 +1132,22 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       console.log('🔄 Ricaricamento dati aggiornati...');
       const freshReportData = await reloadReportData();
       console.log('✅ Dati ricaricati:', freshReportData);
-      
+
       // Aggiorna lo stato locale
       setUpdatedReportData(freshReportData);
-      
+
       // Mostra notifica di successo
       setResultDialogType('success');
       setResultDialogMessage('Modifiche salvate con successo!');
       setShowResultDialog(true);
-
     } catch (error) {
       console.error('❌ Errore durante il salvataggio:', error);
       setResultDialogType('error');
-      setResultDialogMessage(error instanceof Error ? error.message : 'Errore durante il salvataggio delle modifiche.');
+      setResultDialogMessage(
+        error instanceof Error
+          ? error.message
+          : 'Errore durante il salvataggio delle modifiche.'
+      );
       setShowResultDialog(true);
     } finally {
       setIsSaving(false);
@@ -958,32 +1157,40 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
   const handleDelete = async () => {
     try {
       setIsDeleting(true);
-      
+
       // Verifica che il token sia disponibile
       if (!token) {
         setResultDialogType('error');
-        setResultDialogMessage('Errore di autenticazione. Effettuare il login.');
+        setResultDialogMessage(
+          'Errore di autenticazione. Effettuare il login.'
+        );
         setShowResultDialog(true);
         return;
       }
 
-      const response = await fetch(`/api/intervention-reports/${updatedReportData.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'accept': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `/api/intervention-reports/${updatedReportData.id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            accept: 'application/json',
+          },
+        }
+      );
 
       if (response.ok) {
         setResultDialogType('success');
         setResultDialogMessage('Rapportino eliminato con successo!');
         setShowResultDialog(true);
         setShouldRedirectOnClose(true);
-        console.log('✅ Eliminazione riuscita - flag redirect impostato a true');
+        console.log(
+          '✅ Eliminazione riuscita - flag redirect impostato a true'
+        );
       } else {
         const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.error || 'Errore durante l\'eliminazione del rapportino.';
+        const errorMessage =
+          errorData.error || "Errore durante l'eliminazione del rapportino.";
         setResultDialogType('error');
         setResultDialogMessage(errorMessage);
         setShowResultDialog(true);
@@ -1023,7 +1230,7 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
                 </p>
               )}
             </div>
-            
+
             <div className="flex items-center gap-3">
               {/* Pulsante Salva - visibile se i campi base sono modificabili */}
               {canEditBasicFields() && (
@@ -1045,12 +1252,14 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
                   )}
                 </button>
               )}
-              
+
               {/* Badge Intervento Fallito */}
               {updatedReportData.is_failed && (
                 <div className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg border-2 border-red-400 shadow-lg">
                   <XCircle size={20} className="text-red-200" />
-                  <span className="font-bold text-sm md:text-base">INTERVENTO FALLITO</span>
+                  <span className="font-bold text-sm md:text-base">
+                    INTERVENTO FALLITO
+                  </span>
                 </div>
               )}
             </div>
@@ -1092,82 +1301,112 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
 
         {/* Apparecchiature e ricambi */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">Apparecchiature e Ricambi</h2>
-          
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">
+            Apparecchiature e Ricambi
+          </h2>
+
           {/* Mostra spinner durante il caricamento dei dettagli o dei tipi */}
           {isFetchingDetails || isLoadingTypes ? (
             <div className="flex flex-col items-center justify-center py-12">
               <div className="w-12 h-12 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-              <p className="text-gray-600 text-sm">Caricamento dati apparecchiature e ricambi...</p>
+              <p className="text-gray-600 text-sm">
+                Caricamento dati apparecchiature e ricambi...
+              </p>
             </div>
           ) : (
             <>
               {/* Rendering condizionale: editabile se canDeleteReport() è true */}
               {canDeleteReport() ? (
-            /* VERSIONE EDITABILE */
-            <div className="space-y-6">
-              {editableItems.map((item, index) => (
-                <EquipmentItemEditable
-                  key={item.id}
-                  item={item}
-                  index={index}
-                  equipmentSearchQueries={equipmentSearchQueries}
-                  articleSearchQueries={articleSearchQueries}
-                  onOpenEquipmentDialog={(itemId) => {
-                    setShowEquipmentSelectorDialogs(prev => ({ ...prev, [itemId]: true }));
-                    searchEquipments(itemId, equipmentSearchQueries[itemId] || '');
-                  }}
-                  onOpenArticleDialog={(itemId) => {
-                    setShowArticleSelectorDialogs(prev => ({ ...prev, [itemId]: true }));
-                    searchArticles(itemId, articleSearchQueries[itemId] || '');
-                  }}
-                  onRemoveEquipment={() => removeEquipmentItem(item.id)}
-                  onUpdateItem={(field, value) => updateEquipmentItem(item.id, field, value)}
-                  onRemoveArticle={(articleId) => removeArticleFromItem(item.id, articleId)}
-                  onUpdateArticleQuantity={(articleId, quantity) => updateArticleQuantity(item.id, articleId, quantity)}
-                  onImageUpload={(fileInfo) => handleImageUpload(item.id, fileInfo)}
-                  onRemoveImage={(imageId) => removeImageFromItem(item.id, imageId)}
-                  onToggleServizio={(servizio) => handleServiziAggiuntiviToggle(item.id, servizio)}
-                  getPlannedArticleQty={getPlannedArticleQty}
-                  shouldShowRecuperoGasFields={() => shouldShowRecuperoGasFields(item)}
-                  getTextColorClass={getTextColorClass}
-                  lightboxUrl={lightboxUrl}
-                  setLightboxUrl={setLightboxUrl}
-                  allItems={editableItems}
-                  gasCompressorTypes={gasCompressorTypes}
-                  rechargeableGasTypes={rechargeableGasTypes}
-                />
-              ))}
-              
-              <button
-                onClick={addEquipmentItem}
-                className="bg-teal-100 hover:bg-teal-200 text-teal-700 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors mb-6"
-              >
-                <Plus size={16} />
-                Aggiungi apparecchiatura
-              </button>
-                        </div>
-          ) : (
-            /* VERSIONE READ-ONLY */
-            updatedReportData.items && updatedReportData.items.length > 0 ? (
-              <div className="space-y-6">
-                {updatedReportData.items.map((item) => (
-                  <EquipmentItemReadOnly
-                    key={item.id}
-                    item={item}
-                    equipmentById={equipmentById}
-                    articleById={articleById}
-                    getCompressorTypeName={getCompressorTypeName}
-                    getRechargeableGasTypeName={getRechargeableGasTypeName}
-                    formatAdditionalServices={formatAdditionalServices}
-                    setLightboxUrl={setLightboxUrl}
-                  />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">Nessuna apparecchiatura registrata per questo rapportino</div>
-            )
-          )}
+                /* VERSIONE EDITABILE */
+                <div className="space-y-6">
+                  {editableItems.map((item, index) => (
+                    <EquipmentItemEditable
+                      key={item.id}
+                      item={item}
+                      index={index}
+                      equipmentSearchQueries={equipmentSearchQueries}
+                      articleSearchQueries={articleSearchQueries}
+                      onOpenEquipmentDialog={(itemId) => {
+                        setShowEquipmentSelectorDialogs((prev) => ({
+                          ...prev,
+                          [itemId]: true,
+                        }));
+                        searchEquipments(
+                          itemId,
+                          equipmentSearchQueries[itemId] || ''
+                        );
+                      }}
+                      onOpenArticleDialog={(itemId) => {
+                        setShowArticleSelectorDialogs((prev) => ({
+                          ...prev,
+                          [itemId]: true,
+                        }));
+                        searchArticles(
+                          itemId,
+                          articleSearchQueries[itemId] || ''
+                        );
+                      }}
+                      onRemoveEquipment={() => removeEquipmentItem(item.id)}
+                      onUpdateItem={(field, value) =>
+                        updateEquipmentItem(item.id, field, value)
+                      }
+                      onRemoveArticle={(articleId) =>
+                        removeArticleFromItem(item.id, articleId)
+                      }
+                      onUpdateArticleQuantity={(articleId, quantity) =>
+                        updateArticleQuantity(item.id, articleId, quantity)
+                      }
+                      onImageUpload={(fileInfo) =>
+                        handleImageUpload(item.id, fileInfo)
+                      }
+                      onRemoveImage={(imageId) =>
+                        removeImageFromItem(item.id, imageId)
+                      }
+                      onToggleServizio={(servizio) =>
+                        handleServiziAggiuntiviToggle(item.id, servizio)
+                      }
+                      getPlannedArticleQty={getPlannedArticleQty}
+                      shouldShowRecuperoGasFields={() =>
+                        shouldShowRecuperoGasFields(item)
+                      }
+                      getTextColorClass={getTextColorClass}
+                      lightboxUrl={lightboxUrl}
+                      setLightboxUrl={setLightboxUrl}
+                      allItems={editableItems}
+                      gasCompressorTypes={gasCompressorTypes}
+                      rechargeableGasTypes={rechargeableGasTypes}
+                    />
+                  ))}
+
+                  <button
+                    onClick={addEquipmentItem}
+                    className="bg-teal-100 hover:bg-teal-200 text-teal-700 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors mb-6"
+                  >
+                    <Plus size={16} />
+                    Aggiungi apparecchiatura
+                  </button>
+                </div>
+              ) : /* VERSIONE READ-ONLY */
+              updatedReportData.items && updatedReportData.items.length > 0 ? (
+                <div className="space-y-6">
+                  {updatedReportData.items.map((item) => (
+                    <EquipmentItemReadOnly
+                      key={item.id}
+                      item={item}
+                      equipmentById={equipmentById}
+                      articleById={articleById}
+                      getCompressorTypeName={getCompressorTypeName}
+                      getRechargeableGasTypeName={getRechargeableGasTypeName}
+                      formatAdditionalServices={formatAdditionalServices}
+                      setLightboxUrl={setLightboxUrl}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  Nessuna apparecchiatura registrata per questo rapportino
+                </div>
+              )}
             </>
           )}
         </div>
@@ -1188,7 +1427,9 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
               ) : (
                 <>
                   <PenTool size={16} />
-                  {updatedReportData.signature_url ? 'Modifica Firma o Documento' : 'Firma o importa documento'}
+                  {updatedReportData.signature_url
+                    ? 'Modifica Firma o Documento'
+                    : 'Firma o importa documento'}
                 </>
               )}
             </button>
@@ -1206,51 +1447,87 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       </div>
 
       {/* Dialog selezione apparecchiature e ricambi */}
-      {canDeleteReport() && editableItems.map((item) => (
-        <React.Fragment key={`dialogs-${item.id}`}>
-          {showEquipmentSelectorDialogs[item.id] && (
-            <EquipmentSelectorDialog
-              itemId={item.id}
-              interventionData={interventionData}
-              equipmentSearchQuery={equipmentSearchQueries[item.id] || ''}
-              setEquipmentSearchQuery={(query) => setEquipmentSearchQueries(prev => ({ ...prev, [item.id]: query }))}
-              equipmentsResults={equipmentsResults[item.id] || []}
-              isSearching={isSearchingEquipments[item.id] || false}
-              onSearch={(query) => searchEquipments(item.id, query)}
-              onSelect={(equipment) => {
-                updateEquipmentItem(item.id, 'selectedEquipment', equipment);
-                setEquipmentSearchQueries(prev => ({ ...prev, [item.id]: '' }));
-                setShowEquipmentSelectorDialogs(prev => ({ ...prev, [item.id]: false }));
-              }}
-              onClose={() => setShowEquipmentSelectorDialogs(prev => ({ ...prev, [item.id]: false }))}
-              alreadySelectedEquipmentIds={editableItems
-                .filter(ei => ei.id !== item.id)
-                .map(ei => ei.selectedEquipment?.id)
-                .filter((id): id is number => typeof id === 'number')
-              }
-            />
-          )}
+      {canDeleteReport() &&
+        editableItems.map((item) => (
+          <React.Fragment key={`dialogs-${item.id}`}>
+            {showEquipmentSelectorDialogs[item.id] && (
+              <EquipmentSelectorDialog
+                itemId={item.id}
+                interventionData={interventionData}
+                equipmentSearchQuery={equipmentSearchQueries[item.id] || ''}
+                setEquipmentSearchQuery={(query) =>
+                  setEquipmentSearchQueries((prev) => ({
+                    ...prev,
+                    [item.id]: query,
+                  }))
+                }
+                equipmentsResults={equipmentsResults[item.id] || []}
+                isSearching={isSearchingEquipments[item.id] || false}
+                onSearch={(query) => searchEquipments(item.id, query)}
+                onSelect={(equipment) => {
+                  updateEquipmentItem(item.id, 'selectedEquipment', equipment);
+                  setEquipmentSearchQueries((prev) => ({
+                    ...prev,
+                    [item.id]: '',
+                  }));
+                  setShowEquipmentSelectorDialogs((prev) => ({
+                    ...prev,
+                    [item.id]: false,
+                  }));
+                }}
+                onClose={() =>
+                  setShowEquipmentSelectorDialogs((prev) => ({
+                    ...prev,
+                    [item.id]: false,
+                  }))
+                }
+                alreadySelectedEquipmentIds={editableItems
+                  .filter((ei) => ei.id !== item.id)
+                  .map((ei) => ei.selectedEquipment?.id)
+                  .filter((id): id is number => typeof id === 'number')}
+              />
+            )}
 
-          {showArticleSelectorDialogs[item.id] && (
-            <ArticleSelectorDialog
-              itemId={item.id}
-              interventionData={interventionData}
-              articleSearchQuery={articleSearchQueries[item.id] || ''}
-              setArticleSearchQuery={(query) => setArticleSearchQueries(prev => ({ ...prev, [item.id]: query }))}
-              articleResults={articleResults[item.id] || []}
-              isSearching={isSearchingArticles[item.id] || false}
-              onSearch={(query) => searchArticles(item.id, query)}
-              onSelect={(article) => {
-                const newSelectedArticles = [...item.selectedArticles, { article, quantity: 1 }];
-                updateEquipmentItem(item.id, 'selectedArticles', newSelectedArticles);
-                setShowArticleSelectorDialogs(prev => ({ ...prev, [item.id]: false }));
-              }}
-              onClose={() => setShowArticleSelectorDialogs(prev => ({ ...prev, [item.id]: false }))}
-              selectedArticles={item.selectedArticles}
-            />
-          )}
-        </React.Fragment>
-      ))}
+            {showArticleSelectorDialogs[item.id] && (
+              <ArticleSelectorDialog
+                itemId={item.id}
+                interventionData={interventionData}
+                articleSearchQuery={articleSearchQueries[item.id] || ''}
+                setArticleSearchQuery={(query) =>
+                  setArticleSearchQueries((prev) => ({
+                    ...prev,
+                    [item.id]: query,
+                  }))
+                }
+                articleResults={articleResults[item.id] || []}
+                isSearching={isSearchingArticles[item.id] || false}
+                onSearch={(query) => searchArticles(item.id, query)}
+                onSelect={(article) => {
+                  const newSelectedArticles = [
+                    ...item.selectedArticles,
+                    { article, quantity: 1 },
+                  ];
+                  updateEquipmentItem(
+                    item.id,
+                    'selectedArticles',
+                    newSelectedArticles
+                  );
+                  setShowArticleSelectorDialogs((prev) => ({
+                    ...prev,
+                    [item.id]: false,
+                  }));
+                }}
+                onClose={() =>
+                  setShowArticleSelectorDialogs((prev) => ({
+                    ...prev,
+                    [item.id]: false,
+                  }))
+                }
+                selectedArticles={item.selectedArticles}
+              />
+            )}
+          </React.Fragment>
+        ))}
 
       {/* Dialog Firma */}
       <SignatureDialog
@@ -1286,4 +1563,4 @@ export default function DettaglioRapportino({ reportData, interventionData }: De
       <Lightbox imageUrl={lightboxUrl} onClose={() => setLightboxUrl(null)} />
     </div>
   );
-} 
+}

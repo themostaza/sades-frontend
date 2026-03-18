@@ -20,6 +20,7 @@ export interface EquipmentDetail {
   brand_id: number;
   model: string | null;
   serial_number: string | null;
+  pnc_code: string | null;
   sale_date: string | null;
   flg_not_sold_by_saded: boolean;
   group_id: string | null;
@@ -199,4 +200,4 @@ export interface EquipmentFormData {
   compr_unique_num?: string;
   fgas_check_date?: string;
   periodic_checks?: string;
-} 
+}
