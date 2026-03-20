@@ -25,6 +25,36 @@ import {
 } from '../../utils/assistance-interventions-api';
 import MainPageTable from './components/MainPageTable';
 
+// Chiave sessionStorage per i filtri della lista interventi
+const INTERVENTIONS_FILTERS_KEY = 'interventi_filters';
+
+interface StoredInterventionFilters {
+  dateRange: { from: string; to: string };
+  selectedZone: string;
+  selectedStatus: string;
+  selectedTechnician: string;
+  selectedManualCheck: string;
+  selectedInterventionType: string;
+}
+
+function getStoredInterventionFilters(): StoredInterventionFilters | null {
+  try {
+    const raw = sessionStorage.getItem(INTERVENTIONS_FILTERS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as StoredInterventionFilters;
+  } catch {
+    return null;
+  }
+}
+
+function saveInterventionFilters(filters: StoredInterventionFilters): void {
+  try {
+    sessionStorage.setItem(INTERVENTIONS_FILTERS_KEY, JSON.stringify(filters));
+  } catch {
+    // sessionStorage non disponibile (es. private browsing con restrizioni)
+  }
+}
+
 // Interfaccia per le informazioni utente
 interface UserInfo {
   id: string;
@@ -65,16 +95,25 @@ export default function InterventiPage() {
     totalPages: 1,
   });
 
-  // Stati per i filtri
-  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({
-    from: '',
-    to: '',
-  });
-  const [selectedZone, setSelectedZone] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
-  const [selectedTechnician, setSelectedTechnician] = useState('');
-  const [selectedManualCheck, setSelectedManualCheck] = useState('');
-  const [selectedInterventionType, setSelectedInterventionType] = useState('');
+  // Stati per i filtri (inizializzati da sessionStorage se disponibile)
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>(
+    () => getStoredInterventionFilters()?.dateRange ?? { from: '', to: '' }
+  );
+  const [selectedZone, setSelectedZone] = useState(
+    () => getStoredInterventionFilters()?.selectedZone ?? ''
+  );
+  const [selectedStatus, setSelectedStatus] = useState(
+    () => getStoredInterventionFilters()?.selectedStatus ?? ''
+  );
+  const [selectedTechnician, setSelectedTechnician] = useState(
+    () => getStoredInterventionFilters()?.selectedTechnician ?? ''
+  );
+  const [selectedManualCheck, setSelectedManualCheck] = useState(
+    () => getStoredInterventionFilters()?.selectedManualCheck ?? ''
+  );
+  const [selectedInterventionType, setSelectedInterventionType] = useState(
+    () => getStoredInterventionFilters()?.selectedInterventionType ?? ''
+  );
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const [viewMode, setViewMode] = useState<'lista' | 'calendario'>('lista');
@@ -175,13 +214,36 @@ export default function InterventiPage() {
     }
   }, [auth.token]);
 
+  // Effect per salvare i filtri in sessionStorage ad ogni cambio
+  useEffect(() => {
+    saveInterventionFilters({
+      dateRange,
+      selectedZone,
+      selectedStatus,
+      selectedTechnician,
+      selectedManualCheck,
+      selectedInterventionType,
+    });
+  }, [
+    dateRange,
+    selectedZone,
+    selectedStatus,
+    selectedTechnician,
+    selectedManualCheck,
+    selectedInterventionType,
+  ]);
+
   // Effect per impostare i filtri di default per i tecnici
+  // I default vengono applicati solo se non ci sono filtri salvati in sessione
   useEffect(() => {
     if (userInfo && !defaultFiltersSet && !isAdmin()) {
-      // Solo per i tecnici: imposta filtro "in_carico" e data odierna
-      const today = new Date().toISOString().split('T')[0]; // formato YYYY-MM-DD
-      setSelectedStatus('in_carico');
-      setDateRange({ from: today, to: '' });
+      const stored = getStoredInterventionFilters();
+      if (!stored) {
+        // Prima visita della sessione: applica filtri default per tecnici
+        const today = new Date().toISOString().split('T')[0]; // formato YYYY-MM-DD
+        setSelectedStatus('in_carico');
+        setDateRange({ from: today, to: '' });
+      }
       setDefaultFiltersSet(true);
     }
   }, [userInfo, defaultFiltersSet]);

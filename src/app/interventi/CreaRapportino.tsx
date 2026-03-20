@@ -1136,7 +1136,17 @@ export default function CreaRapportino({
                                     </div>
                                     <div className="text-sm text-gray-500">
                                       {eq.brand_name || ''} {eq.model} (S/N:{' '}
-                                      {eq.serial_number}) | ID: {eq.id}
+                                      {eq.serial_number})
+                                      {eq.pnc_code && (
+                                        <>
+                                          {' '}
+                                          |{' '}
+                                          <span className="font-semibold">
+                                            PNC:
+                                          </span>{' '}
+                                          {eq.pnc_code}
+                                        </>
+                                      )}
                                     </div>
                                     <div className="text-xs text-gray-500">
                                       {eq.subfamily_name && (
@@ -1233,7 +1243,17 @@ export default function CreaRapportino({
                                 </div>
                                 <div className="text-sm text-gray-500">
                                   {eq.brand_name || ''} {eq.model} (S/N:{' '}
-                                  {eq.serial_number}) | ID: {eq.id}
+                                  {eq.serial_number})
+                                  {eq.pnc_code && (
+                                    <>
+                                      {' '}
+                                      |{' '}
+                                      <span className="font-semibold">
+                                        PNC:
+                                      </span>{' '}
+                                      {eq.pnc_code}
+                                    </>
+                                  )}
                                 </div>
                                 <div className="text-xs text-gray-500">
                                   {eq.subfamily_name && (
@@ -1267,8 +1287,14 @@ export default function CreaRapportino({
                       </div>
                       <div className="text-sm text-gray-500">
                         Modello: {item.selectedEquipment.model} | S/N:{' '}
-                        {item.selectedEquipment.serial_number} | ID:{' '}
-                        {item.selectedEquipment.id}
+                        {item.selectedEquipment.serial_number}
+                        {item.selectedEquipment.pnc_code && (
+                          <>
+                            {' '}
+                            | <span className="font-semibold">PNC:</span>{' '}
+                            {item.selectedEquipment.pnc_code}
+                          </>
+                        )}
                       </div>
                     </div>
                     <button
@@ -1388,10 +1414,7 @@ export default function CreaRapportino({
                                   </div>
                                   <div className="text-sm text-gray-500">
                                     PNC: {article.pnc_code} | Prev:{' '}
-                                    {article.quantity} |{' '}
-                                    <span className="text-gray-600 ml-1">
-                                      ID: {article.id}
-                                    </span>
+                                    {article.quantity}
                                   </div>
                                 </div>
                               ))
@@ -1457,10 +1480,7 @@ export default function CreaRapportino({
                                   {art.short_description}
                                 </div>
                                 <div className="text-sm text-gray-500">
-                                  PNC: {art.pnc_code} |{' '}
-                                  <span className="text-gray-600 ml-1">
-                                    ID: {art.id}
-                                  </span>
+                                  PNC: {art.pnc_code}
                                 </div>
                               </div>
                             ))}
@@ -1503,8 +1523,7 @@ export default function CreaRapportino({
                               {selectedArticle.article.description}
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
-                              PNC: {selectedArticle.article.pnc_code || 'N/A'} |
-                              ID: {selectedArticle.article.id}
+                              PNC: {selectedArticle.article.pnc_code || 'N/A'}
                             </div>
                           </div>
                           <div className="flex items-center gap-3 ml-3">

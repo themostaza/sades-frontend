@@ -634,7 +634,6 @@ export default function InterventionDetailsSectionDetail({
                   </div>
                   <div className="text-xs text-gray-500">
                     <span className="mr-2">{eq.subfamily_name}</span>
-                    <span className="mr-2">• ID: {eq.id}</span>
                     <span className="mr-2">• Cliente: {eq.customer_name}</span>
                     {eq.linked_serials && (
                       <span>• Linked: {eq.linked_serials}</span>
@@ -692,8 +691,7 @@ export default function InterventionDetailsSectionDetail({
                         | <span className="font-semibold">Vendita:</span>{' '}
                         {new Date(eq.sale_date).toLocaleDateString('it-IT')}
                       </>
-                    )}{' '}
-                    | <span className="font-semibold">ID:</span> {eq.id}
+                    )}
                   </div>
                 </div>
                 {!isFieldsDisabled && (
@@ -792,8 +790,6 @@ export default function InterventionDetailsSectionDetail({
                           </span>
                         </>
                       )}
-                      <span>•</span>
-                      <span className="text-gray-600">ID: {art.id}</span>
                     </div>
                     {warehouseCount > 1 && (
                       <div className="text-xs text-gray-400 mt-1">
@@ -859,10 +855,6 @@ export default function InterventionDetailsSectionDetail({
                           </span>
                         </>
                       )}
-                      <span>•</span>
-                      <span className="text-gray-600">
-                        ID: {selArt.article.id}
-                      </span>
                     </div>
                     {selArt.allocations && selArt.allocations.length > 0 && (
                       <div className="mt-1 text-xs text-gray-600">
@@ -945,8 +937,7 @@ export default function InterventionDetailsSectionDetail({
                 {allocationArticle.short_description}
               </div>
               <div className="text-sm text-gray-500 mt-1">
-                Codice PNC: {allocationArticle.pnc_code} | ID:{' '}
-                {allocationArticle.id}
+                Codice PNC: {allocationArticle.pnc_code}
               </div>
             </div>
 
