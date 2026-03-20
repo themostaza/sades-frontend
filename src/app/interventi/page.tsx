@@ -369,6 +369,7 @@ export default function InterventiPage() {
   useEffect(() => {
     if (!urlParamsRead) return;
     if (!isAdmin() && !userInfo) return;
+    if (!isAdmin() && !defaultFiltersSet) return;
 
     fetchInterventionsData();
   }, [
@@ -383,6 +384,7 @@ export default function InterventiPage() {
     auth.token,
     urlParamsRead,
     userInfo,
+    defaultFiltersSet,
   ]);
 
   // Effetto per pulire la selezione quando cambiano i filtri o la pagina
