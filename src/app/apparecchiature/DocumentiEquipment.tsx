@@ -19,27 +19,40 @@ interface DocumentiEquipmentProps {
   onDocumentsUpdated: () => void;
 }
 
-export default function DocumentiEquipment({ 
-  equipmentId, 
-  documents, 
-  onDocumentsUpdated 
+export default function DocumentiEquipment({
+  equipmentId,
+  documents,
+  onDocumentsUpdated,
 }: DocumentiEquipmentProps) {
   // Stati per la gestione documenti
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [documentName, setDocumentName] = useState('');
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [deletingDocumentId, setDeletingDocumentId] = useState<number | null>(null);
+  const [deletingDocumentId, setDeletingDocumentId] = useState<number | null>(
+    null
+  );
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadInProgressRef = useRef(false);
 
   const auth = useAuth();
 
   // Funzione per gestire la selezione del file
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    // Reset immediato dell'input per evitare doppi eventi onChange
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+
+    // Guard contro invocazioni concorrenti
+    if (uploadInProgressRef.current) return;
 
     if (!documentName.trim()) {
       alert('Inserisci il nome del documento prima di caricarlo');
@@ -47,6 +60,7 @@ export default function DocumentiEquipment({
     }
 
     try {
+      uploadInProgressRef.current = true;
       setUploadingDocument(true);
       setUploadProgress(0);
 
@@ -92,14 +106,17 @@ export default function DocumentiEquipment({
         headers['Authorization'] = `Bearer ${auth.token}`;
       }
 
-      const saveResponse = await fetch(`/api/equipments/${equipmentId}/documents`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ 
-          document_url: fileUrl,
-          name: documentName.trim()
-        }),
-      });
+      const saveResponse = await fetch(
+        `/api/equipments/${equipmentId}/documents`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            document_url: fileUrl,
+            name: documentName.trim(),
+          }),
+        }
+      );
 
       if (!saveResponse.ok) {
         if (saveResponse.status === 401) {
@@ -113,20 +130,15 @@ export default function DocumentiEquipment({
 
       // Notifica il componente padre per aggiornare i documenti
       onDocumentsUpdated();
-      
+
       // Reset stato
       setShowUploadDialog(false);
       setDocumentName('');
-      
-      // Reset input file
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      
     } catch (err) {
       console.error('Error uploading document:', err);
       alert('Errore durante il caricamento del documento');
     } finally {
+      uploadInProgressRef.current = false;
       setUploadingDocument(false);
       setUploadProgress(0);
     }
@@ -145,25 +157,27 @@ export default function DocumentiEquipment({
         headers['Authorization'] = `Bearer ${auth.token}`;
       }
 
-      const response = await fetch(`/api/equipments/${equipmentId}/documents/${documentId}`, {
-        method: 'DELETE',
-        headers,
-      });
+      const response = await fetch(
+        `/api/equipments/${equipmentId}/documents/${documentId}`,
+        {
+          method: 'DELETE',
+          headers,
+        }
+      );
 
       if (!response.ok) {
         if (response.status === 401) {
           auth.logout();
           return;
         }
-        throw new Error('Errore durante l\'eliminazione del documento');
+        throw new Error("Errore durante l'eliminazione del documento");
       }
 
       // Notifica il componente padre per aggiornare i documenti
       onDocumentsUpdated();
-      
     } catch (err) {
       console.error('Error deleting document:', err);
-      alert('Errore durante l\'eliminazione del documento');
+      alert("Errore durante l'eliminazione del documento");
     } finally {
       setDeletingDocumentId(null);
       setShowDeleteConfirm(false);
@@ -211,18 +225,32 @@ export default function DocumentiEquipment({
             Aggiungi documento
           </button>
         </div>
-        
+
         <div className="p-6">
           <div className="space-y-4">
             {documents.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
                 <div className="mb-4">
-                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  <svg
+                    className="mx-auto h-12 w-12 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
                   </svg>
                 </div>
-                <p className="text-lg font-medium text-gray-900 mb-2">Nessun documento</p>
-                <p className="text-gray-500 mb-4">Aggiungi il primo documento per questa apparecchiatura</p>
+                <p className="text-lg font-medium text-gray-900 mb-2">
+                  Nessun documento
+                </p>
+                <p className="text-gray-500 mb-4">
+                  Aggiungi il primo documento per questa apparecchiatura
+                </p>
                 <button
                   onClick={handleOpenUploadDialog}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
@@ -233,53 +261,61 @@ export default function DocumentiEquipment({
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
-                {[...documents].sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })).map((document) => (
-                  <div 
-                    key={document.id}
-                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
-                  >
-                    <div className="w-fit">
-                      <span className="text-sm font-medium text-gray-900">{document.name}</span>
-                    </div>
+                {[...documents]
+                  .sort((a, b) =>
+                    a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })
+                  )
+                  .map((document) => (
+                    <div
+                      key={document.id}
+                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      <div className="w-fit">
+                        <span className="text-sm font-medium text-gray-900">
+                          {document.name}
+                        </span>
+                      </div>
 
-                    <div className="ml-4 flex items-center gap-2">
-                      <button 
-                        className="text-blue-600 hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50" 
-                        title="Visualizza documento"
-                        onClick={() => window.open(document.document_url, '_blank')}
-                      >
-                        <Eye size={16} />
-                      </button>
-                      <button 
-                        className="text-green-600 hover:text-green-700 p-2 rounded-lg hover:bg-green-50"
-                        onClick={() => {
-                          const link = window.document.createElement('a');
-                          link.href = document.document_url;
-                          link.download = document.name;
-                          link.click();
-                        }}
-                        title="Scarica documento"
-                      >
-                        <Download size={16} />
-                      </button>
-                      <button 
-                        className="text-red-600 hover:text-red-700 p-2 rounded-lg hover:bg-red-50"
-                        onClick={() => {
-                          setShowDeleteConfirm(true);
-                          setDocumentToDelete(document.id);
-                        }}
-                        disabled={deletingDocumentId === document.id}
-                        title="Elimina documento"
-                      >
-                        {deletingDocumentId === document.id ? (
-                          <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-                        ) : (
-                          <Trash2 size={16} />
-                        )}
-                      </button>
+                      <div className="ml-4 flex items-center gap-2">
+                        <button
+                          className="text-blue-600 hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50"
+                          title="Visualizza documento"
+                          onClick={() =>
+                            window.open(document.document_url, '_blank')
+                          }
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button
+                          className="text-green-600 hover:text-green-700 p-2 rounded-lg hover:bg-green-50"
+                          onClick={() => {
+                            const link = window.document.createElement('a');
+                            link.href = document.document_url;
+                            link.download = document.name;
+                            link.click();
+                          }}
+                          title="Scarica documento"
+                        >
+                          <Download size={16} />
+                        </button>
+                        <button
+                          className="text-red-600 hover:text-red-700 p-2 rounded-lg hover:bg-red-50"
+                          onClick={() => {
+                            setShowDeleteConfirm(true);
+                            setDocumentToDelete(document.id);
+                          }}
+                          disabled={deletingDocumentId === document.id}
+                          title="Elimina documento"
+                        >
+                          {deletingDocumentId === document.id ? (
+                            <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <Trash2 size={16} />
+                          )}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
           </div>
@@ -291,7 +327,9 @@ export default function DocumentiEquipment({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Aggiungi documento</h3>
+              <h3 className="text-lg font-medium text-gray-900">
+                Aggiungi documento
+              </h3>
               <button
                 onClick={handleCloseUploadDialog}
                 className="text-gray-400 hover:text-gray-600"
@@ -300,7 +338,7 @@ export default function DocumentiEquipment({
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Tipo documento
@@ -354,13 +392,15 @@ export default function DocumentiEquipment({
               >
                 <Upload size={20} className="text-gray-600" />
                 <span className="text-gray-700">
-                  {uploadingDocument ? `Caricamento... ${uploadProgress}%` : 'Clicca per selezionare un file'}
+                  {uploadingDocument
+                    ? `Caricamento... ${uploadProgress}%`
+                    : 'Clicca per selezionare un file'}
                 </span>
               </label>
               {uploadingDocument && (
                 <div className="mt-2">
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
+                    <div
                       className="bg-teal-600 h-2 rounded-full transition-all duration-300"
                       style={{ width: `${uploadProgress}%` }}
                     ></div>
@@ -377,7 +417,9 @@ export default function DocumentiEquipment({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Conferma eliminazione</h3>
+              <h3 className="text-lg font-medium text-gray-900">
+                Conferma eliminazione
+              </h3>
               <button
                 onClick={handleCancelDelete}
                 className="text-gray-400 hover:text-gray-600"
@@ -385,15 +427,17 @@ export default function DocumentiEquipment({
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="mb-6">
               <p className="text-gray-600">
-                Sei sicuro di voler eliminare questo documento? 
+                Sei sicuro di voler eliminare questo documento?
                 <br />
-                <span className="text-sm text-gray-500">Questa azione non può essere annullata.</span>
+                <span className="text-sm text-gray-500">
+                  Questa azione non può essere annullata.
+                </span>
               </p>
             </div>
-            
+
             <div className="flex gap-3">
               <button
                 onClick={handleCancelDelete}
@@ -421,4 +465,4 @@ export default function DocumentiEquipment({
       )}
     </>
   );
-} 
+}

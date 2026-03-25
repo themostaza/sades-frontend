@@ -4,7 +4,11 @@ import React, { useState, useRef } from 'react';
 import { Upload, FileText } from 'lucide-react';
 
 interface S3FileUploaderProps {
-  onUploadSuccess: (fileInfo: { cdnUrl: string; name: string; type: string }) => void;
+  onUploadSuccess: (fileInfo: {
+    cdnUrl: string;
+    name: string;
+    type: string;
+  }) => void;
   onUploadFailed?: (error: Error) => void;
   disabled?: boolean;
   folder?: string;
@@ -12,24 +16,35 @@ interface S3FileUploaderProps {
   label?: string;
 }
 
-export default function S3FileUploader({ 
-  onUploadSuccess, 
-  onUploadFailed, 
+export default function S3FileUploader({
+  onUploadSuccess,
+  onUploadFailed,
   disabled = false,
   folder = 'uploads',
   acceptedTypes = 'image/*,application/pdf',
-  label = 'Clicca per caricare un file'
+  label = 'Clicca per caricare un file',
 }: S3FileUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputId = useRef(`s3-file-upload-${Math.random()}`);
+  const uploadInProgressRef = useRef(false);
 
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
     const file = files[0];
+
+    // Reset immediato dell'input per evitare doppi eventi onChange
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+
+    // Guard contro invocazioni concorrenti
+    if (uploadInProgressRef.current) return;
 
     // Verifica il tipo di file
     const isImage = file.type.startsWith('image/');
@@ -41,6 +56,7 @@ export default function S3FileUploader({
     }
 
     try {
+      uploadInProgressRef.current = true;
       setUploading(true);
       setUploadProgress(0);
 
@@ -83,11 +99,6 @@ export default function S3FileUploader({
         name: file.name,
         type: file.type,
       });
-
-      // Reset input file
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     } catch (err) {
       console.error('Error uploading file:', err);
       if (onUploadFailed) {
@@ -96,6 +107,7 @@ export default function S3FileUploader({
         alert('Errore durante il caricamento del file');
       }
     } finally {
+      uploadInProgressRef.current = false;
       setUploading(false);
       setUploadProgress(0);
     }
@@ -119,7 +131,7 @@ export default function S3FileUploader({
           border-2 border-dashed border-gray-300 rounded-lg
           cursor-pointer hover:border-teal-500 hover:bg-teal-50
           transition-colors
-          ${(uploading || disabled) ? 'opacity-50 cursor-not-allowed' : ''}
+          ${uploading || disabled ? 'opacity-50 cursor-not-allowed' : ''}
         `}
       >
         {uploading ? (
@@ -139,7 +151,7 @@ export default function S3FileUploader({
       {uploading && (
         <div className="mt-2">
           <div className="w-full bg-gray-200 rounded-full h-2">
-            <div 
+            <div
               className="bg-teal-600 h-2 rounded-full transition-all duration-300"
               style={{ width: `${uploadProgress}%` }}
             ></div>
@@ -149,4 +161,3 @@ export default function S3FileUploader({
     </div>
   );
 }
-
