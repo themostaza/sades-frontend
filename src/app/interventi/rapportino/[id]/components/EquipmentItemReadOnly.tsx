@@ -62,9 +62,8 @@ export default function EquipmentItemReadOnly({
                 </span>
               )}
               {equipmentById[item.equipment_id].pnc_code && (
-                <span className="text-gray-500 ml-2">
-                  <span className="font-semibold">PNC:</span>{' '}
-                  {equipmentById[item.equipment_id].pnc_code}
+                <span className="text-gray-700 ml-2 font-semibold">
+                  PNC: {equipmentById[item.equipment_id].pnc_code}
                 </span>
               )}
               {equipmentById[item.equipment_id].sale_date && (
@@ -110,9 +109,9 @@ export default function EquipmentItemReadOnly({
                           {desc && (
                             <div className="text-sm text-gray-600">{desc}</div>
                           )}
-                          <div className="text-sm text-gray-600 mt-0.5">
+                          <div className="mt-0.5">
                             {ad?.pnc_code && (
-                              <span className="font-medium">
+                              <span className="text-gray-900 font-semibold text-sm">
                                 PNC: {ad.pnc_code}
                               </span>
                             )}
