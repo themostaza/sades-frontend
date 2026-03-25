@@ -40,7 +40,7 @@ export default function TeamPage() {
   const [selectedRole, setSelectedRole] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(20);
-  
+
   // Stati per i dati API
   const [teamData, setTeamData] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +49,7 @@ export default function TeamPage() {
     total: 0,
     page: 1,
     skip: 20,
-    totalPages: 1
+    totalPages: 1,
   });
 
   // Stati per la gestione delle viste
@@ -60,7 +60,8 @@ export default function TeamPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
   const [userToDelete, setUserToDelete] = useState<TeamMember | null>(null);
-  const [userForPasswordReset, setUserForPasswordReset] = useState<TeamMember | null>(null);
+  const [userForPasswordReset, setUserForPasswordReset] =
+    useState<TeamMember | null>(null);
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
 
   // Stati per i ruoli
@@ -68,7 +69,9 @@ export default function TeamPage() {
   const [rolesLoading, setRolesLoading] = useState(true);
 
   const auth = useAuth();
-  const [userInfo, setUserInfo] = useState<{ id: string; role: string } | null>(null);
+  const [userInfo, setUserInfo] = useState<{ id: string; role: string } | null>(
+    null
+  );
   const [userLoading, setUserLoading] = useState(true);
 
   // Debouncing per la ricerca
@@ -83,7 +86,11 @@ export default function TeamPage() {
   // Carica i ruoli all'avvio del componente
   useEffect(() => {
     if (userLoading || !userInfo) return;
-    if (userInfo.role?.toLowerCase() === 'tecnico' || userInfo.role?.toLowerCase() === 'ufficio_tecnico') return;
+    if (
+      userInfo.role?.toLowerCase() === 'tecnico' ||
+      userInfo.role?.toLowerCase() === 'ufficio_tecnico'
+    )
+      return;
     const fetchRoles = async () => {
       try {
         setRolesLoading(true);
@@ -115,7 +122,9 @@ export default function TeamPage() {
     const fetchUserInfo = async () => {
       try {
         setUserLoading(true);
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
         if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
         const response = await fetch('/api/auth/me', {
           method: 'POST',
@@ -125,7 +134,7 @@ export default function TeamPage() {
         if (!response.ok) throw new Error('Failed to fetch user info');
         const data = await response.json();
         setUserInfo(data);
-      } catch  {
+      } catch {
         setUserInfo(null);
       } finally {
         setUserLoading(false);
@@ -140,16 +149,16 @@ export default function TeamPage() {
     try {
       setLoading(true);
       setError(null);
-      
+
       const params = new URLSearchParams({
         page: currentPage.toString(),
         skip: pageSize.toString(),
       });
-      
+
       if (debouncedSearchTerm.trim()) {
         params.append('query', debouncedSearchTerm.trim());
       }
-      
+
       if (selectedRole) {
         params.append('role_id', selectedRole);
       }
@@ -165,11 +174,11 @@ export default function TeamPage() {
       const response = await fetch(`/api/users?${params.toString()}`, {
         headers,
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch team data');
       }
-      
+
       const data: ApiResponse = await response.json();
       setTeamData(data.data);
       setMeta(data.meta);
@@ -235,7 +244,6 @@ export default function TeamPage() {
     return member.status === 'active' ? 'Attivo' : member.status;
   };
 
-
   const handleEditUser = (user: TeamMember) => {
     setSelectedUser(user);
     setCurrentView('edit');
@@ -273,7 +281,7 @@ export default function TeamPage() {
       const response = await fetch(`/api/users/${userToDelete.id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -283,19 +291,20 @@ export default function TeamPage() {
           auth.logout();
           return;
         }
-        throw new Error('Errore durante l\'eliminazione');
+        throw new Error("Errore durante l'eliminazione");
       }
 
       console.log('✅ Utente eliminato con successo');
-      
+
       // Rimuovi l'utente dalla lista locale
-      setTeamData(prevData => prevData.filter(user => user.id !== userToDelete.id));
-      
+      setTeamData((prevData) =>
+        prevData.filter((user) => user.id !== userToDelete.id)
+      );
+
       setShowDeleteDialog(false);
       setUserToDelete(null);
-      
     } catch (error) {
-      console.error('Errore durante l\'eliminazione:', error);
+      console.error("Errore durante l'eliminazione:", error);
     }
   };
 
@@ -321,33 +330,39 @@ export default function TeamPage() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('Errore API:', errorData);
-        throw new Error(errorData.message || 'Errore durante l\'invio della mail');
+        throw new Error(
+          errorData.message || "Errore durante l'invio della mail"
+        );
       }
 
       console.log('✅ Email di reset password inviata con successo');
       setShowResetPasswordDialog(false);
       setUserForPasswordReset(null);
-      
     } catch (error) {
-      console.error('Errore durante l\'invio della mail:', error);
+      console.error("Errore durante l'invio della mail:", error);
     } finally {
       setResetPasswordLoading(false);
     }
   };
 
   if (userLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div></div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
+      </div>
+    );
   }
 
-  if (userInfo?.role?.toLowerCase() === 'tecnico' || userInfo?.role?.toLowerCase() === 'ufficio_tecnico') {
+  if (
+    userInfo?.role?.toLowerCase() === 'tecnico' ||
+    userInfo?.role?.toLowerCase() === 'ufficio_tecnico'
+  ) {
     return (
       <div className="p-6 bg-white min-h-screen">
         <AbsencesTable userId={userInfo.id} viewOnly={true} />
       </div>
     );
   }
-
-
 
   if (currentView === 'edit' && selectedUser) {
     return (
@@ -368,49 +383,56 @@ export default function TeamPage() {
   return (
     <div className="p-6 bg-white min-h-screen">
       {/* Header */}
-      {auth.user?.role !== 'tecnico' && auth.user?.role !== 'ufficio_tecnico' && (
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Team</h1>
-
-        </div>
-      )}
+      {auth.user?.role !== 'tecnico' &&
+        auth.user?.role !== 'ufficio_tecnico' && (
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-semibold text-gray-900">Team</h1>
+          </div>
+        )}
 
       {/* Search and filters */}
-      {auth.user?.role !== 'tecnico' && auth.user?.role !== 'ufficio_tecnico' && (
-        <div className="mb-6">
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="text"
-                placeholder="Cerca nome, cognome"
-                value={searchTerm}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="w-full pl-10 text-gray-800 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-              />
-            </div>
-            
-            <div className="relative">
-              <select
-                value={selectedRole}
-                onChange={(e) => handleRoleFilter(e.target.value)}
-                className="flex items-center gap-2 px-4 py-2 border text-gray-800 border-gray-300 rounded-lg hover:bg-gray-50 bg-white appearance-none pr-8"
-                disabled={rolesLoading}
-              >
-                <option value="">
-                  {rolesLoading ? 'Caricamento...' : 'Filtra per ruolo'}
-                </option>
-                {roles.map((role) => (
-                  <option key={role.id} value={role.id.toString()}>
-                    {role.label}
+      {auth.user?.role !== 'tecnico' &&
+        auth.user?.role !== 'ufficio_tecnico' && (
+          <div className="mb-6">
+            <div className="flex items-center gap-4">
+              <div className="relative flex-1 max-w-md">
+                <Search
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                  size={20}
+                />
+                <input
+                  type="text"
+                  placeholder="Cerca nome, cognome"
+                  value={searchTerm}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="w-full pl-10 text-gray-800 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                />
+              </div>
+
+              <div className="relative">
+                <select
+                  value={selectedRole}
+                  onChange={(e) => handleRoleFilter(e.target.value)}
+                  className="flex items-center gap-2 px-4 py-2 border text-gray-800 border-gray-300 rounded-lg hover:bg-gray-50 bg-white appearance-none pr-8"
+                  disabled={rolesLoading}
+                >
+                  <option value="">
+                    {rolesLoading ? 'Caricamento...' : 'Filtra per ruolo'}
                   </option>
-                ))}
-              </select>
-              <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.id.toString()}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+                <Filter
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
+                  size={16}
+                />
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Loading state */}
       {loading && (
@@ -423,7 +445,7 @@ export default function TeamPage() {
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
           <div className="text-red-800">Errore: {error}</div>
-          <button 
+          <button
             onClick={fetchTeamData}
             className="mt-2 text-red-600 hover:text-red-800 underline"
           >
@@ -469,8 +491,8 @@ export default function TeamPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {teamData.map((member) => (
-                  <tr 
-                    key={member.id} 
+                  <tr
+                    key={member.id}
                     className="hover:bg-gray-50 cursor-pointer transition-colors"
                     onClick={() => handleEditUser(member)}
                   >
@@ -500,7 +522,7 @@ export default function TeamPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div 
+                      <div
                         className="flex items-center gap-2"
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -532,21 +554,22 @@ export default function TeamPage() {
               </tbody>
             </table>
           </div>
-          
+
           {/* Pagination */}
           <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
             <div className="text-sm text-gray-700">
-              Pagina {meta.page} di {meta.totalPages} (Totale: {meta.total} utenti)
+              Pagina {meta.page} di {meta.totalPages} (Totale: {meta.total}{' '}
+              utenti)
             </div>
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 onClick={() => handlePageChange(meta.page - 1)}
                 disabled={meta.page <= 1}
                 className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Indietro
               </button>
-              <button 
+              <button
                 onClick={() => handlePageChange(meta.page + 1)}
                 disabled={meta.page >= meta.totalPages}
                 className="px-3 py-1 text-sm text-teal-600 hover:text-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -567,13 +590,18 @@ export default function TeamPage() {
                 <Trash2 className="text-red-600" size={20} />
               </div>
               <div>
-                <h3 className="text-lg font-medium text-gray-900">Elimina utente</h3>
-                <p className="text-sm text-gray-500">Questa azione non può essere annullata.</p>
+                <h3 className="text-lg font-medium text-gray-900">
+                  Elimina utente
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Questa azione non può essere annullata.
+                </p>
               </div>
             </div>
 
             <p className="text-gray-700 mb-6">
-              Sei sicuro di voler eliminare l&apos;utente <strong>{formatNominativo(userToDelete)}</strong>?
+              Sei sicuro di voler eliminare l&apos;utente{' '}
+              <strong>{formatNominativo(userToDelete)}</strong>?
             </p>
 
             <div className="flex gap-3">
@@ -606,13 +634,18 @@ export default function TeamPage() {
                 <Mail className="text-blue-600" size={20} />
               </div>
               <div>
-                <h3 className="text-lg font-medium text-gray-900">Reset password</h3>
-                <p className="text-sm text-gray-500">Invia email di reset password</p>
+                <h3 className="text-lg font-medium text-gray-900">
+                  Reset password
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Invia email di reset password
+                </p>
               </div>
             </div>
 
             <p className="text-gray-700 mb-6">
-              Vuoi inviare un&apos;email di reset password a <strong>{userForPasswordReset.email}</strong>?
+              Vuoi inviare un&apos;email di reset password a{' '}
+              <strong>{userForPasswordReset.email}</strong>?
             </p>
 
             <div className="flex gap-3">
