@@ -115,8 +115,8 @@ export default function EquipmentItemReadOnly({
                                 PNC: {ad.pnc_code}
                               </span>
                             )}
-                            <span className="text-gray-400 text-xs ml-2">
-                              ID: {article.article_id}
+                            <span className="text-gray-700  text-sm">
+                              Codice: {article.article_id}
                             </span>
                           </div>
                         </>
