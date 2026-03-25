@@ -664,6 +664,8 @@ export default function CreaRapportino({
             short_description: art.short_description ?? '',
             description: art.description ?? '',
             quantity: 0,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            inventory: (art as any).inventory || [],
           }));
         setArticleResults((prev) => ({ ...prev, [itemId]: mapped }));
       } else {
@@ -806,20 +808,17 @@ export default function CreaRapportino({
 
       onClose();
 
-      // Apri il rapportino in una nuova tab
+      // Naviga al rapportino nello stesso tab (mantiene history per browser back)
       if (reportData.id) {
         const reportUrl = `/interventi/rapportino/${reportData.id}`;
-        window.open(reportUrl, '_blank');
-        console.log('🔗 Rapportino aperto in nuova tab:', reportUrl);
+        console.log('🔗 Navigazione al rapportino:', reportUrl);
+        window.location.href = reportUrl;
+      } else {
+        // Fallback: torna alla pagina dell'intervento
+        const interventionUrl = `/interventi?ai=${interventionData.id}`;
+        console.log('🔄 Redirect alla pagina intervento:', interventionUrl);
+        window.location.href = interventionUrl;
       }
-
-      // Reindirizza con refresh alla pagina dell'intervento con deep link
-      const interventionUrl = `/interventi?ai=${interventionData.id}`;
-      console.log(
-        '🔄 Refresh e redirect alla pagina intervento:',
-        interventionUrl
-      );
-      window.location.href = interventionUrl;
     } catch (error) {
       console.error('💥 Errore durante la creazione del rapportino:', error);
       alert(
@@ -1389,35 +1388,48 @@ export default function CreaRapportino({
                                     (sel) => sel.article.id === article.id
                                   )
                               )
-                              .map((article) => (
-                                <div
-                                  key={article.id}
-                                  onClick={() => {
-                                    const newSelectedArticles = [
-                                      ...item.selectedArticles,
-                                      { article, quantity: 1 },
-                                    ];
-                                    updateEquipmentItem(
-                                      item.id,
-                                      'selectedArticles',
-                                      newSelectedArticles
-                                    );
-                                    setShowArticleSelectorDialogs((prev) => ({
-                                      ...prev,
-                                      [item.id]: false,
-                                    }));
-                                  }}
-                                  className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700"
-                                >
-                                  <div className="font-medium text-gray-700">
-                                    {article.short_description}
+                              .map((article) => {
+                                const deposito = article.movements?.length
+                                  ? article.movements
+                                      .map((m) => m.from_warehouse_name)
+                                      .filter(Boolean)
+                                      .join(', ') || 'N/A'
+                                  : 'N/A';
+                                return (
+                                  <div
+                                    key={article.id}
+                                    onClick={() => {
+                                      const newSelectedArticles = [
+                                        ...item.selectedArticles,
+                                        { article, quantity: 1 },
+                                      ];
+                                      updateEquipmentItem(
+                                        item.id,
+                                        'selectedArticles',
+                                        newSelectedArticles
+                                      );
+                                      setShowArticleSelectorDialogs((prev) => ({
+                                        ...prev,
+                                        [item.id]: false,
+                                      }));
+                                    }}
+                                    className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700"
+                                  >
+                                    <div className="font-medium text-gray-700">
+                                      {article.short_description}
+                                    </div>
+                                    <div className="text-sm text-gray-500">
+                                      {article.pnc_code
+                                        ? `PNC: ${article.pnc_code}`
+                                        : `ID: ${article.id}`}{' '}
+                                      | Prev: {article.quantity}
+                                    </div>
+                                    <div className="text-xs text-gray-400">
+                                      Deposito: {deposito}
+                                    </div>
                                   </div>
-                                  <div className="text-sm text-gray-500">
-                                    PNC: {article.pnc_code} | Prev:{' '}
-                                    {article.quantity}
-                                  </div>
-                                </div>
-                              ))
+                                );
+                              })
                           )}
                         </div>
                       </div>
@@ -1452,38 +1464,54 @@ export default function CreaRapportino({
                         </div>
                         {(articleResults[item.id]?.length || 0) > 0 && (
                           <div className="mt-2 border rounded-lg max-h-96 overflow-y-auto">
-                            {articleResults[item.id].map((art) => (
-                              <div
-                                key={art.id}
-                                onClick={() => {
-                                  const newSelectedArticles = [
-                                    ...item.selectedArticles,
-                                    { article: art, quantity: 1 },
-                                  ];
-                                  updateEquipmentItem(
-                                    item.id,
-                                    'selectedArticles',
-                                    newSelectedArticles
-                                  );
-                                  setArticleSearchQueries((prev) => ({
-                                    ...prev,
-                                    [item.id]: '',
-                                  }));
-                                  setShowArticleSelectorDialogs((prev) => ({
-                                    ...prev,
-                                    [item.id]: false,
-                                  }));
-                                }}
-                                className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700"
-                              >
-                                <div className="font-medium text-gray-700">
-                                  {art.short_description}
+                            {articleResults[item.id].map((art) => {
+                              const depositi =
+                                art.inventory
+                                  ?.filter(
+                                    (inv) => (inv.quantity_stock ?? 0) > 0
+                                  )
+                                  .map(
+                                    (inv) => inv.warehouse_description || 'N/A'
+                                  )
+                                  .join(', ') || 'N/A';
+                              return (
+                                <div
+                                  key={art.id}
+                                  onClick={() => {
+                                    const newSelectedArticles = [
+                                      ...item.selectedArticles,
+                                      { article: art, quantity: 1 },
+                                    ];
+                                    updateEquipmentItem(
+                                      item.id,
+                                      'selectedArticles',
+                                      newSelectedArticles
+                                    );
+                                    setArticleSearchQueries((prev) => ({
+                                      ...prev,
+                                      [item.id]: '',
+                                    }));
+                                    setShowArticleSelectorDialogs((prev) => ({
+                                      ...prev,
+                                      [item.id]: false,
+                                    }));
+                                  }}
+                                  className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700"
+                                >
+                                  <div className="font-medium text-gray-700">
+                                    {art.short_description}
+                                  </div>
+                                  <div className="text-sm text-gray-500">
+                                    {art.pnc_code
+                                      ? `PNC: ${art.pnc_code}`
+                                      : `ID: ${art.id}`}
+                                  </div>
+                                  <div className="text-xs text-gray-400">
+                                    Deposito: {depositi}
+                                  </div>
                                 </div>
-                                <div className="text-sm text-gray-500">
-                                  PNC: {art.pnc_code}
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -1523,7 +1551,24 @@ export default function CreaRapportino({
                               {selectedArticle.article.description}
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
-                              PNC: {selectedArticle.article.pnc_code || 'N/A'}
+                              {selectedArticle.article.pnc_code
+                                ? `PNC: ${selectedArticle.article.pnc_code}`
+                                : `ID: ${selectedArticle.article.id}`}
+                              {' | Deposito: '}
+                              {selectedArticle.article.movements?.length
+                                ? selectedArticle.article.movements
+                                    .map((m) => m.from_warehouse_name)
+                                    .filter(Boolean)
+                                    .join(', ') || 'N/A'
+                                : selectedArticle.article.inventory
+                                    ?.filter(
+                                      (inv) => (inv.quantity_stock ?? 0) > 0
+                                    )
+                                    .map(
+                                      (inv) =>
+                                        inv.warehouse_description || 'N/A'
+                                    )
+                                    .join(', ') || 'N/A'}
                             </div>
                           </div>
                           <div className="flex items-center gap-3 ml-3">

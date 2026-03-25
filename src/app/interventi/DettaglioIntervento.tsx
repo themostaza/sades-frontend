@@ -934,7 +934,7 @@ export default function DettaglioIntervento({
 
       if (reportId) {
         const url = `/interventi/rapportino/${reportId}`;
-        window.open(url, '_blank');
+        window.location.href = url;
       } else {
         setDialog({
           isOpen: true,

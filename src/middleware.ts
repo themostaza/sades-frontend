@@ -107,6 +107,24 @@ export async function middleware(request: NextRequest) {
   // Pagine pubbliche che non richiedono autenticazione
   const publicPages = ['/', '/login', '/change-password'];
 
+  // Se l'utente è già autenticato e sta accedendo a /login, reindirizza a /interventi
+  if (pathname === '/login') {
+    const token = request.cookies.get('auth_token')?.value;
+    if (token) {
+      const validationResult = await validateTokenWithRetry(
+        request.nextUrl.origin,
+        token
+      );
+      if (validationResult.success) {
+        console.log(
+          '✅ Utente già autenticato su /login, redirect a /interventi'
+        );
+        return NextResponse.redirect(new URL('/interventi', request.url));
+      }
+    }
+    return NextResponse.next();
+  }
+
   // Se la pagina è pubblica, permetti l'accesso
   if (publicPages.includes(pathname)) {
     return NextResponse.next();

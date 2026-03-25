@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CheckCircle, XCircle } from 'lucide-react';
+import { CheckCircle, XCircle, ArrowLeft } from 'lucide-react';
 
 interface ResultDialogProps {
   isOpen: boolean;
@@ -18,9 +18,14 @@ export default function ResultDialog({
   message,
   shouldRedirectOnClose,
   interventionId,
-  onClose
+  onClose,
 }: ResultDialogProps) {
   if (!isOpen) return null;
+
+  const handleGoToInterventi = () => {
+    const interventionUrl = `/interventi?ai=${interventionId}`;
+    window.location.href = interventionUrl;
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -36,23 +41,27 @@ export default function ResultDialog({
               {message}
             </h2>
           </div>
-          
+
           <div className="flex gap-3 justify-end">
+            {type === 'success' && !shouldRedirectOnClose && (
+              <button
+                onClick={handleGoToInterventi}
+                className="px-4 py-2 text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors flex items-center gap-2"
+              >
+                <ArrowLeft size={16} />
+                Torna agli interventi
+              </button>
+            )}
             <button
               onClick={() => {
-                console.log('🔄 Chiusura dialog risultato - shouldRedirectOnClose:', shouldRedirectOnClose);
                 onClose();
                 if (shouldRedirectOnClose) {
-                  const interventionUrl = `/interventi?ai=${interventionId}`;
-                  console.log('✅ Refresh e redirect alla pagina intervento:', interventionUrl);
-                  window.location.href = interventionUrl;
-                } else {
-                  console.log('⏸️ Nessun redirect necessario');
+                  handleGoToInterventi();
                 }
               }}
               className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
             >
-              Chiudi
+              {shouldRedirectOnClose ? 'Chiudi' : 'Continua a modificare'}
             </button>
           </div>
         </div>
@@ -60,4 +69,3 @@ export default function ResultDialog({
     </div>
   );
 }
-

@@ -432,6 +432,11 @@ export default function TeamPage() {
         </div>
       )}
 
+      {/* Componente Assenze tecnici */}
+      <div className="mb-8">
+        <AbsencesTable />
+      </div>
+
       {/* Table */}
       {!loading && !error && (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden mb-6">
@@ -552,9 +557,6 @@ export default function TeamPage() {
           </div>
         </div>
       )}
-
-      {/* Componente Assenze tecnici */}
-      <AbsencesTable />
 
       {/* Dialog di conferma eliminazione */}
       {showDeleteDialog && userToDelete && (

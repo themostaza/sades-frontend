@@ -234,12 +234,23 @@ export default function InterventiPage() {
   ]);
 
   // Effect per impostare i filtri di default per i tecnici
-  // I default vengono applicati solo se non ci sono filtri salvati in sessione
+  // I default vengono applicati solo se non ci sono filtri salvati in sessione con valori significativi
   useEffect(() => {
     if (userInfo && !defaultFiltersSet && !isAdmin()) {
       const stored = getStoredInterventionFilters();
-      if (!stored) {
-        // Prima visita della sessione: applica filtri default per tecnici
+      // Controlla se ci sono valori significativi salvati (il save effect scrive subito valori vuoti,
+      // quindi !stored non basta: bisogna verificare che ci sia almeno un filtro non vuoto)
+      const hasStoredFilters =
+        stored &&
+        (stored.selectedStatus !== '' ||
+          stored.dateRange.from !== '' ||
+          stored.dateRange.to !== '' ||
+          stored.selectedZone !== '' ||
+          stored.selectedTechnician !== '' ||
+          stored.selectedManualCheck !== '' ||
+          stored.selectedInterventionType !== '');
+      if (!hasStoredFilters) {
+        // Prima visita della sessione (o filtri tutti svuotati): applica filtri default per tecnici
         const today = new Date().toISOString().split('T')[0]; // formato YYYY-MM-DD
         setSelectedStatus('in_carico');
         setDateRange({ from: today, to: '' });

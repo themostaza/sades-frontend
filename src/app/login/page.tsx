@@ -1,7 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, X, CheckCircle, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  X,
+  CheckCircle,
+  AlertCircle,
+} from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 
@@ -11,29 +19,40 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  
+
   // Forgot password dialog states
-  const [showForgotPasswordDialog, setShowForgotPasswordDialog] = useState(false);
+  const [showForgotPasswordDialog, setShowForgotPasswordDialog] =
+    useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [isResetLoading, setIsResetLoading] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
 
-  const { login } = useAuth();
+  const { login, token } = useAuth();
   const router = useRouter();
+
+  // Se l'utente è già autenticato, redirect a /interventi
+  useEffect(() => {
+    if (token) {
+      router.replace('/interventi');
+    }
+  }, [token, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-    
+
     try {
       const result = await login(email, password);
-      
+
       if (result.success) {
         // Redirect semplice - il middleware gestirà la validazione
-        router.push('/interventi');
+        router.replace('/interventi');
       } else {
-        setError(result.error || 'Credenziali non valide. Verifica email e password e riprova.');
+        setError(
+          result.error ||
+            'Credenziali non valide. Verifica email e password e riprova.'
+        );
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -47,7 +66,7 @@ export default function LoginPage() {
     e.preventDefault();
     setIsResetLoading(true);
     setError(''); // Reset eventuali errori precedenti
-    
+
     try {
       const response = await fetch('/api/auth/forgot-password', {
         method: 'POST',
@@ -63,11 +82,16 @@ export default function LoginPage() {
         setResetEmailSent(true);
       } else {
         // Mostra l'errore specifico dall'API
-        setError(data.error || 'Errore durante l\'invio della richiesta di recupero password');
+        setError(
+          data.error ||
+            "Errore durante l'invio della richiesta di recupero password"
+        );
       }
     } catch (error) {
       console.error('Forgot password error:', error);
-      setError('Errore di connessione. Verifica la tua connessione internet e riprova.');
+      setError(
+        'Errore di connessione. Verifica la tua connessione internet e riprova.'
+      );
     } finally {
       setIsResetLoading(false);
     }
@@ -84,9 +108,12 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       {/* Background pattern */}
       <div className="absolute inset-0 bg-gradient-to-br from-teal-50 to-gray-100 opacity-50">
-        <div className="absolute inset-0" style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23059669' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-        }} />
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23059669' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          }}
+        />
       </div>
 
       <div className="relative sm:mx-auto sm:w-full sm:max-w-md">
@@ -112,7 +139,10 @@ export default function LoginPage() {
 
             {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
                 Email
               </label>
               <div className="relative">
@@ -135,7 +165,10 @@ export default function LoginPage() {
 
             {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
                 Password
               </label>
               <div className="relative">
@@ -204,8 +237,8 @@ export default function LoginPage() {
         <div className="mt-8 text-center">
           <p className="text-xs text-gray-500 flex items-center justify-between">
             <span>© Sades Impianti srl - 2025</span>
-            <a 
-              href="mailto:sades@sades.it" 
+            <a
+              href="mailto:sades@sades.it"
               className="text-teal-600 hover:text-teal-500 transition-colors flex items-center gap-1"
             >
               <Mail size={12} />
@@ -242,7 +275,10 @@ export default function LoginPage() {
                 )}
 
                 <div>
-                  <label htmlFor="forgot-email" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label
+                    htmlFor="forgot-email"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
                     Email
                   </label>
                   <div className="relative">
@@ -288,12 +324,16 @@ export default function LoginPage() {
               </form>
             ) : (
               <div className="text-center py-4">
-                <CheckCircle className="mx-auto text-green-500 mb-4" size={48} />
+                <CheckCircle
+                  className="mx-auto text-green-500 mb-4"
+                  size={48}
+                />
                 <h4 className="text-lg font-medium text-gray-900 mb-2">
                   Email inviata!
                 </h4>
                 <p className="text-sm text-gray-600 mb-6">
-                  Ti abbiamo inviato un link per reimpostare la password all&apos;indirizzo{' '}
+                  Ti abbiamo inviato un link per reimpostare la password
+                  all&apos;indirizzo{' '}
                   <span className="font-medium">{forgotPasswordEmail}</span>
                 </p>
                 <button

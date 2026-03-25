@@ -728,8 +728,8 @@ const MainPageTable: React.FC<MainPageTableProps> = ({
                   </td>
                 </tr>
               ) : (
-                interventionsData.map((intervention) => (
-                  <React.Fragment key={intervention.id}>
+                interventionsData.map((intervention, index) => (
+                  <React.Fragment key={`${intervention.id}-${index}`}>
                     <tr
                       className={`hover:bg-gray-50 transition-colors ${intervention.internal_notes ? '[&>td]:border-b-0' : ''}`}
                     >

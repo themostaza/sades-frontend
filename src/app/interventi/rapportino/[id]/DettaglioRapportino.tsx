@@ -1,7 +1,14 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { CheckCircle, XCircle, PenTool, Trash2, Plus } from 'lucide-react';
+import {
+  CheckCircle,
+  XCircle,
+  PenTool,
+  Trash2,
+  Plus,
+  ArrowLeft,
+} from 'lucide-react';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { InterventionReportDetail } from '../../../../types/intervention-reports';
 import { EquipmentDetail } from '../../../../types/equipment';
@@ -762,6 +769,8 @@ export default function DettaglioRapportino({
             short_description: art.short_description ?? '',
             description: art.description ?? '',
             quantity: 0,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            inventory: (art as any).inventory || [],
           }));
         setArticleResults((prev) => ({ ...prev, [itemId]: mapped }));
       } else {
@@ -1220,6 +1229,15 @@ export default function DettaglioRapportino({
       {/* Header */}
       <div className="bg-teal-600 text-white px-4 md:px-6 py-6">
         <div className="max-w-4xl mx-auto">
+          <button
+            onClick={() => {
+              window.location.href = `/interventi?ai=${updatedReportData.intervention_id}`;
+            }}
+            className="flex items-center gap-1 text-teal-100 hover:text-white text-sm mb-3 transition-colors"
+          >
+            <ArrowLeft size={16} />
+            Torna al dettaglio intervento
+          </button>
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div className="flex-1">
               <h1 className="text-xl md:text-2xl">

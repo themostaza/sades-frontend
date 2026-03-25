@@ -33,20 +33,25 @@ interface AbsencesApiResponse {
 }
 
 export default function DashboardPage() {
-  
-  const [interventions, setInterventions] = useState<AssistanceIntervention[]>([]);
+  const [interventions, setInterventions] = useState<AssistanceIntervention[]>(
+    []
+  );
   const [absences, setAbsences] = useState<Absence[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const auth = useAuth();
   const router = useRouter();
-  const [unreadNotifications, setUnreadNotifications] = useState<number | null>(null);
+  const [unreadNotifications, setUnreadNotifications] = useState<number | null>(
+    null
+  );
 
   // Get today's date in CET timezone
   const getTodayInCET = React.useCallback(() => {
     const now = new Date();
     // Convert to CET (UTC+1) or CEST (UTC+2) depending on DST
-    const cetDate = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Rome"}));
+    const cetDate = new Date(
+      now.toLocaleString('en-US', { timeZone: 'Europe/Rome' })
+    );
     return cetDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
   }, []);
 
@@ -54,7 +59,10 @@ export default function DashboardPage() {
   const fetchInterventions = React.useCallback(async () => {
     try {
       // Usa l'helper centralizzato e una pagina ampia per la dashboard
-      const data = await fetchAssistanceInterventions({ page: 1, skip: 1000 }, auth.token || undefined);
+      const data = await fetchAssistanceInterventions(
+        { page: 1, skip: 1000 },
+        auth.token || undefined
+      );
       setInterventions(data.data || []);
     } catch (err) {
       console.error('Error fetching interventions:', err);
@@ -81,7 +89,7 @@ export default function DashboardPage() {
       const params = new URLSearchParams({
         page: '1',
         limit: '100', // Get enough data to cover all possible absences
-        status: 'approved' // Only count approved absences
+        status: 'approved', // Only count approved absences
       });
       const response = await fetch(`/api/absences?${params.toString()}`, {
         headers,
@@ -95,7 +103,7 @@ export default function DashboardPage() {
       }
       const data: AbsencesApiResponse = await response.json();
       // Filter absences that include today's date
-      const todayAbsences = data.data.filter(absence => {
+      const todayAbsences = data.data.filter((absence) => {
         const fromDate = absence.from_date.split('T')[0];
         const toDate = absence.to_date.split('T')[0];
         return today >= fromDate && today <= toDate;
@@ -116,9 +124,12 @@ export default function DashboardPage() {
       if (auth.token) {
         headers['Authorization'] = `Bearer ${auth.token}`;
       }
-      const response = await fetch('/api/notifications?unread_only=true&limit=1', {
-        headers,
-      });
+      const response = await fetch(
+        '/api/notifications?unread_only=true&limit=1',
+        {
+          headers,
+        }
+      );
       if (!response.ok) {
         throw new Error('Failed to fetch unread notifications');
       }
@@ -134,10 +145,7 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       setError(null);
-      await Promise.all([
-        fetchInterventions(),
-        fetchAbsences()
-      ]);
+      await Promise.all([fetchInterventions(), fetchAbsences()]);
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Errore nel caricamento dei dati');
@@ -153,45 +161,106 @@ export default function DashboardPage() {
 
   // Calculate KPIs and filtered data
   const interventiInCarico = interventions.filter(
-    intervention => intervention.status_label.toLowerCase() === 'in carico'
+    (intervention) => intervention.status_label.toLowerCase() === 'in carico'
   ).length;
 
   const tecniciAssentiOggi = absences.length;
 
-  const interventiDaAssegnare = interventions.filter(
-    intervention => intervention.status_label.toLowerCase() === 'da assegnare'
-  ).slice(0, 6); // Limit to 6 for display
+  const interventiDaAssegnare = interventions
+    .filter(
+      (intervention) =>
+        intervention.status_label.toLowerCase() === 'da assegnare'
+    )
+    .slice(0, 6); // Limit to 6 for display
 
-  const interventiDaConfermare = interventions.filter(
-    intervention => intervention.status_label.toLowerCase() === 'da confermare'
-  ).slice(0, 6); // Limit to 6 for display
+  const interventiDaConfermare = interventions
+    .filter(
+      (intervention) =>
+        intervention.status_label.toLowerCase() === 'da confermare'
+    )
+    .slice(0, 6); // Limit to 6 for display
 
   // Calculate status counts for all intervention states
   const getStatusCounts = () => {
-    const statusCounts = interventions.reduce((acc, intervention) => {
-      const statusKey = toStatusKey(intervention.status_label);
-      acc[statusKey] = (acc[statusKey] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const statusCounts = interventions.reduce(
+      (acc, intervention) => {
+        const statusKey = toStatusKey(intervention.status_label);
+        acc[statusKey] = (acc[statusKey] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
 
     // Define status configurations with colors and labels
     const statusConfigs = [
-      { key: 'da_assegnare', label: 'Da assegnare', color: 'bg-orange-100 text-orange-800', borderColor: 'border-orange-200' },
-      { key: 'attesa_preventivo', label: 'Attesa preventivo', color: 'bg-yellow-100 text-yellow-800', borderColor: 'border-yellow-200' },
-      { key: 'attesa_ricambio', label: 'Attesa ricambio', color: 'bg-blue-100 text-blue-800', borderColor: 'border-blue-200' },
-      { key: 'in_carico', label: 'In carico', color: 'bg-teal-100 text-teal-800', borderColor: 'border-teal-200' },
-      { key: 'da_confermare', label: 'Da confermare', color: 'bg-purple-100 text-purple-800', borderColor: 'border-purple-200' },
-      { key: 'completato', label: 'Completato', color: 'bg-green-100 text-green-800', borderColor: 'border-green-200' },
-      { key: 'non_completato', label: 'Non completato', color: 'bg-gray-100 text-gray-800', borderColor: 'border-gray-200' },
-      { key: 'annullato', label: 'Annullato', color: 'bg-red-100 text-red-800', borderColor: 'border-red-200' },
-      { key: 'fatturato', label: 'Fatturato', color: 'bg-emerald-100 text-emerald-800', borderColor: 'border-emerald-200' },
-      { key: 'collocamento', label: 'Collocamento', color: 'bg-indigo-100 text-indigo-800', borderColor: 'border-indigo-200' },
+      {
+        key: 'da_assegnare',
+        label: 'Da assegnare',
+        color: 'bg-orange-100 text-orange-800',
+        borderColor: 'border-orange-200',
+      },
+      {
+        key: 'attesa_preventivo',
+        label: 'Attesa preventivo',
+        color: 'bg-yellow-100 text-yellow-800',
+        borderColor: 'border-yellow-200',
+      },
+      {
+        key: 'attesa_ricambio',
+        label: 'Attesa ricambio',
+        color: 'bg-blue-100 text-blue-800',
+        borderColor: 'border-blue-200',
+      },
+      {
+        key: 'in_carico',
+        label: 'In carico',
+        color: 'bg-teal-100 text-teal-800',
+        borderColor: 'border-teal-200',
+      },
+      {
+        key: 'da_confermare',
+        label: 'Da confermare',
+        color: 'bg-purple-100 text-purple-800',
+        borderColor: 'border-purple-200',
+      },
+      {
+        key: 'completato',
+        label: 'Completato',
+        color: 'bg-green-100 text-green-800',
+        borderColor: 'border-green-200',
+      },
+      {
+        key: 'non_completato',
+        label: 'Non completato',
+        color: 'bg-gray-100 text-gray-800',
+        borderColor: 'border-gray-200',
+      },
+      {
+        key: 'annullato',
+        label: 'Annullato',
+        color: 'bg-red-100 text-red-800',
+        borderColor: 'border-red-200',
+      },
+      {
+        key: 'fatturato',
+        label: 'Fatturato',
+        color: 'bg-emerald-100 text-emerald-800',
+        borderColor: 'border-emerald-200',
+      },
+      {
+        key: 'collocamento',
+        label: 'Collocamento',
+        color: 'bg-indigo-100 text-indigo-800',
+        borderColor: 'border-indigo-200',
+      },
     ];
 
-    return statusConfigs.map(config => ({
-      ...config,
-      count: statusCounts[config.key] || 0
-    })).filter(status => status.count > 0); // Only show statuses with count > 0
+    return statusConfigs
+      .map((config) => ({
+        ...config,
+        count: statusCounts[config.key] || 0,
+      }))
+      .filter((status) => status.count > 0); // Only show statuses with count > 0
   };
 
   const statusData = getStatusCounts();
@@ -208,19 +277,19 @@ export default function DashboardPage() {
     if (!dateString || dateString.trim() === '') {
       return '-';
     }
-    
+
     try {
       const date = new Date(dateString);
       // Verifica se la data è valida
       if (isNaN(date.getTime())) {
         return '-';
       }
-      
+
       // Verifica se è una data "epoch" (1970) che indica data non impostata
       if (date.getFullYear() <= 1970) {
         return '-';
       }
-      
+
       return date.toLocaleDateString('it-IT');
     } catch {
       return '-';
@@ -246,7 +315,7 @@ export default function DashboardPage() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <p className="text-red-600 mb-4">{error}</p>
-            <button 
+            <button
               onClick={fetchAllData}
               className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg"
             >
@@ -274,36 +343,46 @@ export default function DashboardPage() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {/* Interventi in carico */}
-        <button 
+        <button
           onClick={() => router.push('/interventi')}
           className="bg-white border border-gray-200 rounded-lg p-6 text-left hover:shadow-md transition-shadow cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-600">Interventi in carico</h3>
+            <h3 className="text-sm font-medium text-gray-600">
+              Interventi in carico
+            </h3>
             <ExternalLink size={16} className="text-gray-400" />
           </div>
-          <div className="text-3xl font-bold text-gray-900">{interventiInCarico}</div>
+          <div className="text-3xl font-bold text-gray-900">
+            {interventiInCarico}
+          </div>
         </button>
 
         {/* Tecnici assenti oggi */}
-        <button 
+        <button
           onClick={() => router.push('/team')}
           className="bg-white border border-gray-200 rounded-lg p-6 text-left hover:shadow-md transition-shadow cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-600">Tecnici assenti oggi</h3>
+            <h3 className="text-sm font-medium text-gray-600">
+              Tecnici assenti oggi
+            </h3>
             <ExternalLink size={16} className="text-gray-400" />
           </div>
-          <div className="text-3xl font-bold text-gray-900">{tecniciAssentiOggi}</div>
+          <div className="text-3xl font-bold text-gray-900">
+            {tecniciAssentiOggi}
+          </div>
         </button>
 
         {/* Notifiche non lette */}
-        <button 
+        <button
           onClick={() => router.push('/notifiche')}
           className="bg-white border border-gray-200 rounded-lg p-6 text-left hover:shadow-md transition-shadow cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-600">Notifiche non lette</h3>
+            <h3 className="text-sm font-medium text-gray-600">
+              Notifiche non lette
+            </h3>
             <ExternalLink size={16} className="text-gray-400" />
           </div>
           <div className="text-3xl font-bold text-gray-900">
@@ -315,8 +394,10 @@ export default function DashboardPage() {
       {/* Interventi per Stato */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-medium text-gray-900">Interventi per stato</h2>
-          <button 
+          <h2 className="text-lg font-medium text-gray-900">
+            Interventi per stato
+          </h2>
+          <button
             onClick={() => router.push('/interventi')}
             className="text-teal-600 hover:text-teal-700 text-sm font-medium flex items-center gap-1"
           >
@@ -324,7 +405,7 @@ export default function DashboardPage() {
             <ExternalLink size={14} />
           </button>
         </div>
-        
+
         {statusData.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {statusData.map((status) => (
@@ -334,12 +415,19 @@ export default function DashboardPage() {
                 className={`bg-white border ${status.borderColor} rounded-lg p-4 text-left hover:shadow-md transition-all duration-200 hover:scale-105 cursor-pointer group`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${status.color}`}>
+                  <span
+                    className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${status.color}`}
+                  >
                     {status.label}
                   </span>
-                  <ExternalLink size={14} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+                  <ExternalLink
+                    size={14}
+                    className="text-gray-400 group-hover:text-gray-600 transition-colors"
+                  />
                 </div>
-                <div className="text-2xl font-bold text-gray-900">{status.count}</div>
+                <div className="text-2xl font-bold text-gray-900">
+                  {status.count}
+                </div>
               </button>
             ))}
           </div>
@@ -356,11 +444,12 @@ export default function DashboardPage() {
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-medium text-gray-900">Interventi da assegnare</h2>
-
+              <h2 className="text-lg font-medium text-gray-900">
+                Interventi da assegnare
+              </h2>
             </div>
           </div>
-          
+
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
@@ -378,8 +467,11 @@ export default function DashboardPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {interventiDaAssegnare.length > 0 ? (
-                  interventiDaAssegnare.map((intervento) => (
-                    <tr key={intervento.id} className="hover:bg-gray-50">
+                  interventiDaAssegnare.map((intervento, index) => (
+                    <tr
+                      key={`${intervento.id}-${index}`}
+                      className="hover:bg-gray-50"
+                    >
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {intervento.company_name}
                       </td>
@@ -391,7 +483,10 @@ export default function DashboardPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            window.open(`/interventi?ai=${intervento.id}`, '_blank');
+                            window.open(
+                              `/interventi?ai=${intervento.id}`,
+                              '_blank'
+                            );
                           }}
                           title="Apri dettaglio intervento in nuova scheda"
                           className="ml-2 text-gray-400 hover:text-teal-600"
@@ -403,7 +498,10 @@ export default function DashboardPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
+                    <td
+                      colSpan={3}
+                      className="px-4 py-8 text-center text-gray-500"
+                    >
                       Nessun intervento da assegnare
                     </td>
                   </tr>
@@ -411,11 +509,16 @@ export default function DashboardPage() {
               </tbody>
             </table>
           </div>
-          
+
           {/* Pagination */}
           <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
             <div className="text-sm text-gray-700">
-              Mostrando {Math.min(6, interventiDaAssegnare.length)} di {interventions.filter(i => i.status_label.toLowerCase() === 'da assegnare').length}
+              Mostrando {Math.min(6, interventiDaAssegnare.length)} di{' '}
+              {
+                interventions.filter(
+                  (i) => i.status_label.toLowerCase() === 'da assegnare'
+                ).length
+              }
             </div>
             <div className="flex items-center gap-2">
               <button className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50">
@@ -432,11 +535,12 @@ export default function DashboardPage() {
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-medium text-gray-900">Interventi da confermare</h2>
-
+              <h2 className="text-lg font-medium text-gray-900">
+                Interventi da confermare
+              </h2>
             </div>
           </div>
-          
+
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
@@ -457,8 +561,11 @@ export default function DashboardPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {interventiDaConfermare.length > 0 ? (
-                  interventiDaConfermare.map((intervento) => (
-                    <tr key={intervento.id} className="hover:bg-gray-50">
+                  interventiDaConfermare.map((intervento, index) => (
+                    <tr
+                      key={`${intervento.id}-${index}`}
+                      className="hover:bg-gray-50"
+                    >
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {intervento.company_name}
                       </td>
@@ -469,11 +576,15 @@ export default function DashboardPage() {
                         {intervento.zone_label}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600 flex items-center gap-2">
-                        {intervento.assigned_to_name} {intervento.assigned_to_surname || ''}
+                        {intervento.assigned_to_name}{' '}
+                        {intervento.assigned_to_surname || ''}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            window.open(`/interventi?ai=${intervento.id}`, '_blank');
+                            window.open(
+                              `/interventi?ai=${intervento.id}`,
+                              '_blank'
+                            );
                           }}
                           title="Apri dettaglio intervento in nuova scheda"
                           className="ml-2 text-gray-400 hover:text-teal-600"
@@ -485,7 +596,10 @@ export default function DashboardPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                    <td
+                      colSpan={4}
+                      className="px-4 py-8 text-center text-gray-500"
+                    >
                       Nessun intervento da confermare
                     </td>
                   </tr>
@@ -493,11 +607,16 @@ export default function DashboardPage() {
               </tbody>
             </table>
           </div>
-          
+
           {/* Pagination */}
           <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
             <div className="text-sm text-gray-700">
-              Mostrando {Math.min(6, interventiDaConfermare.length)} di {interventions.filter(i => i.status_label.toLowerCase() === 'da confermare').length}
+              Mostrando {Math.min(6, interventiDaConfermare.length)} di{' '}
+              {
+                interventions.filter(
+                  (i) => i.status_label.toLowerCase() === 'da confermare'
+                ).length
+              }
             </div>
             <div className="flex items-center gap-2">
               <button className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50">
@@ -510,8 +629,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-
-      
     </div>
   );
 }

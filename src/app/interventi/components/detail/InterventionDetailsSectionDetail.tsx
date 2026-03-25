@@ -937,7 +937,9 @@ export default function InterventionDetailsSectionDetail({
                 {allocationArticle.short_description}
               </div>
               <div className="text-sm text-gray-500 mt-1">
-                Codice PNC: {allocationArticle.pnc_code}
+                {allocationArticle.pnc_code
+                  ? `Codice PNC: ${allocationArticle.pnc_code}`
+                  : `ID: ${allocationArticle.id}`}
               </div>
             </div>
 

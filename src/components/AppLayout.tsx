@@ -24,11 +24,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
       return false;
     }
 
-    // Pagine di dettaglio rapportino senza sidebar (esperienza fullscreen)
-    if (pathname.startsWith('/interventi/rapportino/')) {
-      return false;
-    }
-
     return true;
   };
 

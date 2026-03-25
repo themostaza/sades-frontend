@@ -19,6 +19,11 @@ export interface ConnectedArticle {
   short_description: string;
   description: string;
   quantity: number;
+  inventory?: Array<{
+    warehouse_id: string | number;
+    warehouse_description: string | null;
+    quantity_stock: number | null;
+  }>;
   movements?: Array<{
     id: string;
     article_id: string;
@@ -181,10 +186,26 @@ export interface UpdateAssistanceInterventionRequest {
     article_id: string;
     quantity: number;
     // opzionali per i movimenti di magazzino quando cambia la quantità
-    from_warehouses?: Array<{ warehouse_id?: string | number; id?: string | number; quantity: number }>;
-    warehouse_breakdown?: Array<{ warehouse_id?: string | number; id?: string | number; quantity: number }>;
-    to_warehouses?: Array<{ warehouse_id?: string | number; id?: string | number; quantity: number }>;
-    destination_warehouses?: Array<{ warehouse_id?: string | number; id?: string | number; quantity: number }>;
+    from_warehouses?: Array<{
+      warehouse_id?: string | number;
+      id?: string | number;
+      quantity: number;
+    }>;
+    warehouse_breakdown?: Array<{
+      warehouse_id?: string | number;
+      id?: string | number;
+      quantity: number;
+    }>;
+    to_warehouses?: Array<{
+      warehouse_id?: string | number;
+      id?: string | number;
+      quantity: number;
+    }>;
+    destination_warehouses?: Array<{
+      warehouse_id?: string | number;
+      id?: string | number;
+      quantity: number;
+    }>;
   }>;
   calendar_notes?: string;
   manual_check?: boolean;
@@ -222,4 +243,4 @@ export interface AssistanceInterventionsQueryParams {
   manual_check?: string | boolean;
   sort_by?: 'id' | 'date';
   sort_order?: 'asc' | 'desc';
-} 
+}

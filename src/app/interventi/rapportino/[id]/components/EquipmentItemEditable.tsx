@@ -181,8 +181,19 @@ export default function EquipmentItemEditable({
                       {selectedArticle.article.description}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      PNC: {selectedArticle.article.pnc_code || 'N/A'} | ID:{' '}
-                      {selectedArticle.article.id}
+                      {selectedArticle.article.pnc_code
+                        ? `PNC: ${selectedArticle.article.pnc_code}`
+                        : `ID: ${selectedArticle.article.id}`}
+                      {' | Deposito: '}
+                      {selectedArticle.article.movements?.length
+                        ? selectedArticle.article.movements
+                            .map((m) => m.from_warehouse_name)
+                            .filter(Boolean)
+                            .join(', ') || 'N/A'
+                        : selectedArticle.article.inventory
+                            ?.filter((inv) => (inv.quantity_stock ?? 0) > 0)
+                            .map((inv) => inv.warehouse_description || 'N/A')
+                            .join(', ') || 'N/A'}
                     </div>
                   </div>
                   <div className="flex items-center gap-3 ml-3">

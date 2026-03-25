@@ -1057,7 +1057,7 @@ export default function CalendarGrid({
                             ));
                           })()}
                         {/* Mostra solo gli interventi che iniziano in questo slot */}
-                        {dayInterventi.map((intervento, index) => {
+                        {dayInterventi.map((intervento, interventoIndex) => {
                           const blockHeight = getBlockHeight(intervento);
                           const startTime =
                             getTimeFromDatetime(
@@ -1086,7 +1086,7 @@ export default function CalendarGrid({
                           );
                           const zIndex = getInterventionZIndex(
                             intervento.id,
-                            index
+                            interventoIndex
                           );
 
                           // Background OPACO per evitare trasparenze
@@ -1173,11 +1173,11 @@ export default function CalendarGrid({
 
                           return (
                             <div
-                              key={intervento.id}
+                              key={`${intervento.id}-${interventoIndex}`}
                               className="absolute left-2 right-2 rounded text-xs shadow-lg group"
                               style={{
                                 height: blockHeight,
-                                top: `${8 + index * 4}px`,
+                                top: `${8 + interventoIndex * 4}px`,
                                 zIndex: zIndex,
                                 border: `2px solid ${borderColor}`,
                                 backgroundColor: backgroundColor,
@@ -1314,11 +1314,10 @@ export default function CalendarGrid({
                       >
                         {/* Mostra gli interventi con layout a colonne stile Google Calendar */}
                         {layoutData.map(
-                          ({
-                            intervention: intervento,
-                            column,
-                            totalColumns,
-                          }) => {
+                          (
+                            { intervention: intervento, column, totalColumns },
+                            layoutIndex
+                          ) => {
                             const blockHeight = getBlockHeight(intervento);
                             const startTime =
                               getTimeFromDatetime(
@@ -1436,7 +1435,7 @@ export default function CalendarGrid({
 
                             return (
                               <div
-                                key={intervento.id}
+                                key={`${intervento.id}-${layoutIndex}`}
                                 className="absolute rounded text-xs shadow-lg group"
                                 style={{
                                   height: blockHeight,

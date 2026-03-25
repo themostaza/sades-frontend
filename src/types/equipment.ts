@@ -52,7 +52,7 @@ export interface EquipmentDetail {
   design_position: string | null;
   family_id: string;
   subfamily_id: string;
-  customer_location_id: number | null;
+  customer_location_id: string | null;
   group_label: string;
   brand_label: string;
   subgroup_label: string | null;
