@@ -1233,9 +1233,9 @@ export default function DettaglioRapportino({
             onClick={() => {
               window.location.href = `/interventi?ai=${updatedReportData.intervention_id}`;
             }}
-            className="flex items-center gap-1 text-teal-100 hover:text-white text-sm mb-3 transition-colors"
+            className="flex items-center gap-2 text-teal-100 hover:text-white text-base font-medium mb-4 transition-colors"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={22} />
             Torna al dettaglio intervento
           </button>
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">

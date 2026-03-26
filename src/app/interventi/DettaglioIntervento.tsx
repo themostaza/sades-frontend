@@ -137,7 +137,10 @@ export default function DettaglioIntervento({
   const [selectedArticles, setSelectedArticles] = useState<SelectedArticle[]>(
     []
   );
-  //const [originalAllocationsByArticle, setOriginalAllocationsByArticle] = useState<Record<string, Array<{ warehouse_id: string; quantity: number }>>>({});
+  const [originalAllocationsByArticle, setOriginalAllocationsByArticle] =
+    useState<Record<string, Array<{ warehouse_id: string; quantity: number }>>>(
+      {}
+    );
   const [orarioApertura, setOrarioApertura] = useState('');
   const [noteInterne, setNoteInterne] = useState('');
   // Nuovi stati per CallDetailsSection
@@ -508,7 +511,7 @@ export default function DettaglioIntervento({
         } catch (e) {
           console.error('⚠️ Unable to enrich articles with inventory:', e);
         }
-        //setOriginalAllocationsByArticle(baseline);
+        setOriginalAllocationsByArticle(baseline);
       }
 
       // Il tecnico assegnato verrà gestito nei componenti figli
@@ -706,14 +709,33 @@ export default function DettaglioIntervento({
         );
         const sum = filtered.reduce((s, a) => s + (a.quantity || 0), 0);
         if (sum <= 0) return acc;
-        acc.push({
+
+        // Invia from_warehouses solo se le allocazioni sono cambiate rispetto alla baseline
+        // per evitare che il backend crei movimenti CL duplicati ad ogni auto-save
+        const currentAllocations = filtered.map((a) => ({
+          warehouse_id: a.warehouse_id,
+          quantity: a.quantity,
+        }));
+        const originalAllocations = originalAllocationsByArticle[strId] || [];
+        const allocationsChanged =
+          currentAllocations.length !== originalAllocations.length ||
+          currentAllocations.some((curr, i) => {
+            const orig = originalAllocations[i];
+            return (
+              !orig ||
+              curr.warehouse_id !== orig.warehouse_id ||
+              curr.quantity !== orig.quantity
+            );
+          });
+
+        const entry: UpdateAssistanceInterventionRequest['articles'][number] = {
           article_id: strId,
           quantity: sum,
-          from_warehouses: filtered.map((a) => ({
-            warehouse_id: a.warehouse_id,
-            quantity: a.quantity,
-          })),
-        });
+        };
+        if (allocationsChanged) {
+          entry.from_warehouses = currentAllocations;
+        }
+        acc.push(entry);
         return acc;
       }, []);
 
@@ -753,6 +775,27 @@ export default function DettaglioIntervento({
         requestData,
         auth.token || ''
       );
+
+      // Aggiorna la baseline delle allocazioni dopo salvataggio riuscito
+      // per evitare ri-invio di from_warehouses ai successivi auto-save
+      const newBaseline: Record<
+        string,
+        Array<{ warehouse_id: string; quantity: number }>
+      > = {};
+      for (const artPayload of articlesPayload) {
+        if (artPayload.from_warehouses) {
+          newBaseline[artPayload.article_id] = artPayload.from_warehouses.map(
+            (fw) => ({
+              warehouse_id: String(fw.warehouse_id ?? ''),
+              quantity: fw.quantity,
+            })
+          );
+        } else if (originalAllocationsByArticle[artPayload.article_id]) {
+          newBaseline[artPayload.article_id] =
+            originalAllocationsByArticle[artPayload.article_id];
+        }
+      }
+      setOriginalAllocationsByArticle(newBaseline);
 
       // 🆕 Ricarica i dati dell'intervento per aggiornare l'UI con eventuali modifiche server-side
       setIsInitialLoad(true); // Previeni ulteriori autosave durante il reload

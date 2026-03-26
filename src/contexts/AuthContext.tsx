@@ -1,6 +1,12 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import { loginUser } from '../utils/api';
 
@@ -16,7 +22,11 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   // Login method for user authentication
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
+  login: (
+    email: string,
+    password: string,
+    rememberMe?: boolean
+  ) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -48,55 +58,70 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Qui leggiamo solo il cookie per determinare lo stato iniziale
       const cookieToken = document.cookie
         .split('; ')
-        .find(row => row.startsWith('auth_token='))
+        .find((row) => row.startsWith('auth_token='))
         ?.split('=')[1];
-      
+
       if (cookieToken) {
         // Se c'è un token nel cookie, assumiamo che l'utente sia autenticato
         // Le info utente verranno caricate dal middleware/server
         setToken(cookieToken);
         // Potresti anche leggere user info dal cookie se necessario
       }
-      
+
       setIsLoading(false);
     };
 
     initAuth();
   }, []);
 
-  const login = async (email: string, password: string, rememberMe: boolean = false): Promise<{ success: boolean; error?: string }> => {
+  const login = async (
+    email: string,
+    password: string,
+    rememberMe: boolean = false
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
       const result = await loginUser(email, password);
-      
+
       if (!result.success || !result.data) {
-        return { success: false, error: result.error || 'Errore durante il login' };
+        return {
+          success: false,
+          error: result.error || 'Errore durante il login',
+        };
       }
 
       const { token: authToken, user: userData } = result.data;
 
       setToken(authToken);
       setUser(userData);
-      
+
       // Imposta solo il cookie - il middleware gestisce il resto
       const maxAge = rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60; // 30 giorni o 1 giorno
       const isSecure = window.location.protocol === 'https:';
       const cookieString = `auth_token=${authToken}; path=/; max-age=${maxAge}; SameSite=Lax${isSecure ? '; Secure' : ''}`;
       document.cookie = cookieString;
-      
+
       return { success: true };
     } catch (error) {
       console.error('Login error:', error);
-      return { success: false, error: 'Errore durante il login. Riprova più tardi.' };
+      return {
+        success: false,
+        error: 'Errore durante il login. Riprova più tardi.',
+      };
     }
   };
 
   const logout = () => {
+    // Cleanup storage
+    sessionStorage.clear();
+    localStorage.removeItem('auth_token');
+
     setUser(null);
     setToken(null);
-    
-    // Rimuovi solo il cookie - semplificato
-    document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-    
+
+    // Rimuovi il cookie
+    document.cookie =
+      'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+
     router.push('/login');
   };
 
@@ -121,9 +146,5 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     );
   }
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
-}; 
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};

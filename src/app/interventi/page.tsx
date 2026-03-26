@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, InfoIcon, X } from 'lucide-react';
+import { Plus, InfoIcon, X, FilterX } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import NuovoIntervento from './NuovoIntervento';
 import DettaglioIntervento from './DettaglioIntervento';
@@ -35,9 +35,12 @@ interface StoredInterventionFilters {
   selectedTechnician: string;
   selectedManualCheck: string;
   selectedInterventionType: string;
+  filtersInitialized?: boolean;
+  userId?: string;
 }
 
 function getStoredInterventionFilters(): StoredInterventionFilters | null {
+  if (typeof window === 'undefined') return null;
   try {
     const raw = sessionStorage.getItem(INTERVENTIONS_FILTERS_KEY);
     if (!raw) return null;
@@ -115,6 +118,8 @@ export default function InterventiPage() {
     () => getStoredInterventionFilters()?.selectedInterventionType ?? ''
   );
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  // Flag per impedire al save effect di riscrivere sessionStorage dopo handleClearAllFilters
+  const [filtersCleared, setFiltersCleared] = useState(false);
 
   const [viewMode, setViewMode] = useState<'lista' | 'calendario'>('lista');
   const [showNuovoIntervento, setShowNuovoIntervento] = useState(false);
@@ -215,7 +220,13 @@ export default function InterventiPage() {
   }, [auth.token]);
 
   // Effect per salvare i filtri in sessionStorage ad ogni cambio
+  // Non salvare se userInfo non è ancora disponibile (evita sovrascrittura con valori vuoti al primo render)
+  // Non salvare se filtersCleared è true (l'utente ha appena pulito i filtri, il sessionStorage deve restare vuoto)
+  // Non salvare se defaultFiltersSet è false (i default per il tecnico non sono ancora stati applicati)
   useEffect(() => {
+    if (!userInfo) return;
+    if (filtersCleared) return;
+    if (!defaultFiltersSet) return;
     saveInterventionFilters({
       dateRange,
       selectedZone,
@@ -223,6 +234,8 @@ export default function InterventiPage() {
       selectedTechnician,
       selectedManualCheck,
       selectedInterventionType,
+      filtersInitialized: true,
+      userId: userInfo.id,
     });
   }, [
     dateRange,
@@ -231,29 +244,38 @@ export default function InterventiPage() {
     selectedTechnician,
     selectedManualCheck,
     selectedInterventionType,
+    userInfo,
+    filtersCleared,
+    defaultFiltersSet,
   ]);
 
   // Effect per impostare i filtri di default per i tecnici
-  // I default vengono applicati solo se non ci sono filtri salvati in sessione con valori significativi
+  // I default (oggi + in_carico) vengono applicati solo per il ruolo "tecnico" alla prima visita della sessione.
+  // Per tutti gli altri ruoli: nessun filtro default, solo persistenza.
+  // Il flag filtersInitialized + userId distingue "prima visita" da "filtri intenzionalmente svuotati".
   useEffect(() => {
-    if (userInfo && !defaultFiltersSet && !isAdmin()) {
+    if (userInfo && !defaultFiltersSet) {
       const stored = getStoredInterventionFilters();
-      // Controlla se ci sono valori significativi salvati (il save effect scrive subito valori vuoti,
-      // quindi !stored non basta: bisogna verificare che ci sia almeno un filtro non vuoto)
-      const hasStoredFilters =
-        stored &&
-        (stored.selectedStatus !== '' ||
-          stored.dateRange.from !== '' ||
-          stored.dateRange.to !== '' ||
-          stored.selectedZone !== '' ||
-          stored.selectedTechnician !== '' ||
-          stored.selectedManualCheck !== '' ||
-          stored.selectedInterventionType !== '');
-      if (!hasStoredFilters) {
-        // Prima visita della sessione (o filtri tutti svuotati): applica filtri default per tecnici
-        const today = new Date().toISOString().split('T')[0]; // formato YYYY-MM-DD
-        setSelectedStatus('in_carico');
-        setDateRange({ from: today, to: '' });
+      const isTecnico = userInfo.role === 'tecnico';
+      // Ignora filtri salvati se appartengono a un altro utente (es. dopo logout/login)
+      const isCurrentUser = stored?.userId === userInfo.id;
+
+      if (!stored?.filtersInitialized || !isCurrentUser) {
+        // Pulisci filtri residui di un altro utente
+        if (!isCurrentUser && stored) {
+          try {
+            sessionStorage.removeItem(INTERVENTIONS_FILTERS_KEY);
+          } catch {
+            // sessionStorage non disponibile
+          }
+        }
+        if (isTecnico) {
+          // Prima visita della sessione per tecnico: applica filtri default
+          const today = new Date().toISOString().split('T')[0]; // formato YYYY-MM-DD
+          setSelectedStatus('in_carico');
+          setDateRange({ from: today, to: '' });
+        }
+        // Per gli altri ruoli: nessun default, restano vuoti
       }
       setDefaultFiltersSet(true);
     }
@@ -441,8 +463,8 @@ export default function InterventiPage() {
   // Effetto per caricare i dati iniziali e quando cambiano i filtri
   useEffect(() => {
     if (!urlParamsRead) return;
-    if (!isAdmin() && !userInfo) return;
-    if (!isAdmin() && !defaultFiltersSet) return;
+    if (!userInfo) return;
+    if (!defaultFiltersSet) return;
 
     fetchInterventionsData();
   }, [
@@ -533,6 +555,35 @@ export default function InterventiPage() {
   const handleInterventionTypeFilter = (typeId: string) => {
     setSelectedInterventionType(typeId);
     setCurrentPage(1);
+  };
+
+  const handleClearAllFilters = () => {
+    setSearchTerm('');
+    setDebouncedSearch('');
+    setDateRange({ from: '', to: '' });
+    setSelectedZone('');
+    setSelectedStatus('');
+    setSelectedTechnician('');
+    setSelectedManualCheck('');
+    setSelectedInterventionType('');
+    setCurrentPage(1);
+
+    // Impedisci al save effect di riscrivere sessionStorage con valori vuoti
+    setFiltersCleared(true);
+
+    // Resetta filtersInitialized così che i default tecnico vengano riapplicati al prossimo mount
+    try {
+      sessionStorage.removeItem(INTERVENTIONS_FILTERS_KEY);
+    } catch {
+      // sessionStorage non disponibile
+    }
+
+    // Rimuovi anche il parametro status dall'URL se presente
+    const url = new URL(window.location.href);
+    url.searchParams.delete('status');
+    router.replace(url.pathname + (url.search ? url.search : ''), {
+      scroll: false,
+    });
   };
 
   const formatDate = (dateString: string) => {
@@ -1061,20 +1112,39 @@ export default function InterventiPage() {
         </div>
       </div>
 
-      {selectedStatus && (
+      {(selectedStatus ||
+        dateRange.from ||
+        dateRange.to ||
+        selectedZone ||
+        selectedTechnician ||
+        selectedManualCheck ||
+        selectedInterventionType ||
+        searchTerm) && (
         <div className="mt-1 flex items-center gap-2 flex-wrap mb-4">
-          <span className="text-sm text-gray-600">Filtrato per stato:</span>
-          <span
-            className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(selectedStatus)}`}
-          >
-            {statusOptions.find((s) => s.key === selectedStatus)?.label}
-          </span>
+          {selectedStatus && (
+            <>
+              <span className="text-sm text-gray-600">Filtrato per stato:</span>
+              <span
+                className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(selectedStatus)}`}
+              >
+                {statusOptions.find((s) => s.key === selectedStatus)?.label}
+              </span>
+              <button
+                onClick={() => handleStatusFilter('')}
+                className="text-gray-400 hover:text-gray-600 ml-1"
+                title="Rimuovi filtro stato"
+              >
+                <X size={14} />
+              </button>
+            </>
+          )}
           <button
-            onClick={() => handleStatusFilter('')}
-            className="text-gray-400 hover:text-gray-600 ml-1"
-            title="Rimuovi filtro"
+            onClick={handleClearAllFilters}
+            className="flex items-center gap-1 ml-2 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            title="Pulisci tutti i filtri"
           >
-            <X size={14} />
+            <FilterX size={14} />
+            Pulisci tutti i filtri
           </button>
         </div>
       )}

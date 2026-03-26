@@ -42,7 +42,11 @@ interface ReportItemSummary {
   equipment_serial_number?: string;
   equipment_model?: string;
   note: string;
-  articles: Array<{ article_id: string; quantity: number; short_description?: string }>;
+  articles: Array<{
+    article_id: string;
+    quantity: number;
+    short_description?: string;
+  }>;
 }
 
 interface ActivityGroup {
@@ -80,7 +84,11 @@ interface SparePartCategory {
   planned_quantity: number;
   report_quantity: number;
   prepared_quantity: number;
-  source_warehouses: Array<{ warehouse_id: string; warehouse_name: string; quantity: number }>;
+  source_warehouses: Array<{
+    warehouse_id: string;
+    warehouse_name: string;
+    quantity: number;
+  }>;
 }
 
 interface PendingIntervention {
@@ -155,7 +163,9 @@ export default function ActivitiesView() {
   );
 
   // Stato per correzione deposito ricambi
-  const [editingWarehouseArticle, setEditingWarehouseArticle] = useState<string | null>(null);
+  const [editingWarehouseArticle, setEditingWarehouseArticle] = useState<
+    string | null
+  >(null);
   const [warehouseCorrectionData, setWarehouseCorrectionData] = useState<{
     articleId: string;
     originalWarehouseId: string;
@@ -171,14 +181,19 @@ export default function ActivitiesView() {
   }, []);
 
   // Conteggi per badge filtri
-  const anomalyCount = activityGroups.filter((g) => !g.isPendingConfirmation).length;
-  const pendingCount = activityGroups.filter((g) => g.isPendingConfirmation).length;
+  const anomalyCount = activityGroups.filter(
+    (g) => !g.isPendingConfirmation
+  ).length;
+  const pendingCount = activityGroups.filter(
+    (g) => g.isPendingConfirmation
+  ).length;
 
   // Gruppi filtrati e ordinati: anomalie prima, da confermare dopo
   const filteredGroups = activityGroups
     .filter((group) => {
       if (filterType === 'anomaly' && group.isPendingConfirmation) return false;
-      if (filterType === 'pending' && !group.isPendingConfirmation) return false;
+      if (filterType === 'pending' && !group.isPendingConfirmation)
+        return false;
       if (filterText) {
         const search = filterText.toLowerCase();
         const name = (group.customer_name || '').toLowerCase();
@@ -290,7 +305,9 @@ export default function ActivitiesView() {
             );
             // Deduplica: escludi pending che hanno già un anomaly group con stesso ID
             setActivityGroups((prev) => {
-              const existingIds = new Set(prev.map((g) => g.assistance_intervention_id));
+              const existingIds = new Set(
+                prev.map((g) => g.assistance_intervention_id)
+              );
               const uniquePending = pendingGroups.filter(
                 (g) => !existingIds.has(g.assistance_intervention_id)
               );
@@ -446,7 +463,11 @@ export default function ActivitiesView() {
                       itemArticles.push({
                         article_id: articleId,
                         quantity: art.quantity || 0,
-                        short_description: art.short_description || art.article_name || art.description || art.article_description,
+                        short_description:
+                          art.short_description ||
+                          art.article_name ||
+                          art.description ||
+                          art.article_description,
                       });
                     }
                   }
@@ -734,7 +755,9 @@ export default function ActivitiesView() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.details || 'Errore nella correzione del deposito');
+        throw new Error(
+          errorData.details || 'Errore nella correzione del deposito'
+        );
       }
 
       // Ri-fetcha i dettagli dell'intervento per aggiornare i movements
@@ -744,15 +767,25 @@ export default function ActivitiesView() {
       );
       if (intResponse.ok) {
         const intData = await intResponse.json();
-        setSelectedGroup((prev) => prev ? {
-          ...prev,
-          connected_articles: intData.connected_articles || prev.connected_articles,
-        } : prev);
+        setSelectedGroup((prev) =>
+          prev
+            ? {
+                ...prev,
+                connected_articles:
+                  intData.connected_articles || prev.connected_articles,
+              }
+            : prev
+        );
         // Aggiorna anche nel gruppo principale
         setActivityGroups((prev) =>
           prev.map((g) =>
-            g.assistance_intervention_id === selectedGroup.assistance_intervention_id
-              ? { ...g, connected_articles: intData.connected_articles || g.connected_articles }
+            g.assistance_intervention_id ===
+            selectedGroup.assistance_intervention_id
+              ? {
+                  ...g,
+                  connected_articles:
+                    intData.connected_articles || g.connected_articles,
+                }
               : g
           )
         );
@@ -762,7 +795,8 @@ export default function ActivitiesView() {
       setWarehouseCorrectionData(null);
     } catch (error) {
       console.error('Error correcting warehouse:', error);
-      const msg = error instanceof Error ? error.message : 'Errore nella correzione';
+      const msg =
+        error instanceof Error ? error.message : 'Errore nella correzione';
       setActivityErrors((prev) => {
         const updated = new Map(prev);
         updated.set(`correction-${articleId}`, msg);
@@ -869,22 +903,35 @@ export default function ActivitiesView() {
   const getAvailableWarehouses = (articleId: string) => {
     const article = articlesCache.get(articleId);
     if (!article) {
-      // Issue 1: se l'articolo non è ancora in cache, mostra tutti i magazzini come fallback
-      return warehouses.map((w) => ({
-        id: w.id,
-        description: w.description,
-        stock: 0,
-      }));
+      // Se l'articolo non è ancora in cache, mostra tutti i magazzini come fallback
+      return warehouses
+        .filter((w) => w.id !== 'CL')
+        .map((w) => ({
+          id: w.id,
+          description: w.description,
+          stock: 0,
+        }));
     }
 
-    // Restituisce solo i magazzini con stock > 0
-    return article.inventory
-      .filter((inv) => (inv.quantity_stock || 0) > 0)
-      .map((inv) => ({
-        id: inv.warehouse_id.toString(),
-        description: inv.warehouse_description,
-        stock: inv.quantity_stock || 0,
-      }));
+    // Mostra tutti i magazzini dall'inventario dell'articolo (anche con stock 0)
+    const inventoryWarehouses = article.inventory.map((inv) => ({
+      id: inv.warehouse_id.toString(),
+      description: inv.warehouse_description || `Magazzino ${inv.warehouse_id}`,
+      stock: inv.quantity_stock || 0,
+    }));
+
+    // Se non ci sono voci inventario, fallback a tutti i magazzini
+    if (inventoryWarehouses.length === 0) {
+      return warehouses
+        .filter((w) => w.id !== 'CL')
+        .map((w) => ({
+          id: w.id,
+          description: w.description,
+          stock: 0,
+        }));
+    }
+
+    return inventoryWarehouses;
   };
 
   const getStatusBadgeColor = (pendingCount: number, totalCount: number) => {
@@ -949,16 +996,21 @@ export default function ActivitiesView() {
     };
   };
 
-  // Issue 2: Calcola la quantità preparata (movimenti CL) per un articolo
+  // Issue 2: Calcola la quantità preparata (movimenti CL netti) per un articolo
   const getPreparedQuantity = (articleId: string): number => {
     if (!selectedGroup?.connected_articles) return 0;
     const connArticle = selectedGroup.connected_articles.find(
       (ca) => ca.id === articleId
     );
     if (!connArticle?.movements) return 0;
-    return connArticle.movements
+    // Somma movimenti IN (verso CL) e sottrai movimenti OUT (da CL)
+    const inbound = connArticle.movements
       .filter((m) => m.to_warehouse_id === 'CL')
       .reduce((sum, m) => sum + (m.quantity || 0), 0);
+    const outbound = connArticle.movements
+      .filter((m) => m.from_warehouse_id === 'CL')
+      .reduce((sum, m) => sum + (m.quantity || 0), 0);
+    return Math.max(0, inbound - outbound);
   };
 
   // Issue 3: Categorizza i ricambi (usati, non usati, aggiunti)
@@ -979,14 +1031,24 @@ export default function ActivitiesView() {
     for (const ca of connected_articles) {
       connectedIds.add(ca.id);
       const reportQty = reportMap.get(ca.id) || 0;
-      const clMovements = ca.movements
+      const clMovementsIn = ca.movements
         ? ca.movements.filter((m) => m.to_warehouse_id === 'CL')
         : [];
-      const preparedQty = clMovements.reduce((s, m) => s + (m.quantity || 0), 0);
+      const clMovementsOut = ca.movements
+        ? ca.movements.filter((m) => m.from_warehouse_id === 'CL')
+        : [];
+      const preparedQty = Math.max(
+        0,
+        clMovementsIn.reduce((s, m) => s + (m.quantity || 0), 0) -
+          clMovementsOut.reduce((s, m) => s + (m.quantity || 0), 0)
+      );
 
       // Raggruppa depositi di provenienza
-      const warehouseMap = new Map<string, { warehouse_name: string; quantity: number }>();
-      for (const m of clMovements) {
+      const warehouseMap = new Map<
+        string,
+        { warehouse_name: string; quantity: number }
+      >();
+      for (const m of clMovementsIn) {
         if (m.from_warehouse_id) {
           const key = m.from_warehouse_id;
           const existing = warehouseMap.get(key);
@@ -1010,11 +1072,13 @@ export default function ActivitiesView() {
         planned_quantity: ca.quantity,
         report_quantity: reportQty,
         prepared_quantity: preparedQty,
-        source_warehouses: Array.from(warehouseMap.entries()).map(([wId, data]) => ({
-          warehouse_id: wId,
-          warehouse_name: data.warehouse_name,
-          quantity: data.quantity,
-        })),
+        source_warehouses: Array.from(warehouseMap.entries()).map(
+          ([wId, data]) => ({
+            warehouse_id: wId,
+            warehouse_name: data.warehouse_name,
+            quantity: data.quantity,
+          })
+        ),
       });
     }
 
@@ -1023,8 +1087,13 @@ export default function ActivitiesView() {
       if (!connectedIds.has(articleId)) {
         // Prova a recuperare il nome dalla cache articoli o dai report_items
         const cachedArticle = articlesCache.get(articleId);
-        const reportItem = selectedGroup.report_items?.flatMap(ri => ri.articles).find(a => a.article_id === articleId);
-        const name = cachedArticle?.short_description || reportItem?.short_description || articleId;
+        const reportItem = selectedGroup.report_items
+          ?.flatMap((ri) => ri.articles)
+          .find((a) => a.article_id === articleId);
+        const name =
+          cachedArticle?.short_description ||
+          reportItem?.short_description ||
+          articleId;
         const desc = cachedArticle?.description || name;
         categories.push({
           article_id: articleId,
@@ -1129,11 +1198,19 @@ export default function ActivitiesView() {
           />
         </div>
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-          {([
-            { key: 'all' as const, label: 'Tutti', count: activityGroups.length },
+          {[
+            {
+              key: 'all' as const,
+              label: 'Tutti',
+              count: activityGroups.length,
+            },
             { key: 'anomaly' as const, label: 'Anomalie', count: anomalyCount },
-            { key: 'pending' as const, label: 'Da confermare', count: pendingCount },
-          ]).map((opt) => (
+            {
+              key: 'pending' as const,
+              label: 'Da confermare',
+              count: pendingCount,
+            },
+          ].map((opt) => (
             <button
               key={opt.key}
               onClick={() => setFilterType(opt.key)}
@@ -1179,7 +1256,9 @@ export default function ActivitiesView() {
                           Da confermare
                         </span>
                       ) : (
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded flex-shrink-0 ${getStatusBadgeColor(group.pendingActivities, group.totalActivities)}`}>
+                        <span
+                          className={`text-xs font-medium px-2 py-0.5 rounded flex-shrink-0 ${getStatusBadgeColor(group.pendingActivities, group.totalActivities)}`}
+                        >
                           {group.pendingActivities === 1
                             ? '1 anomalia'
                             : `${group.pendingActivities} anomalie`}
@@ -1216,13 +1295,14 @@ export default function ActivitiesView() {
                     {group.report_created_at && (
                       <span>
                         <span className="text-gray-400">Completato: </span>
-                        {new Date(
-                          group.report_created_at
-                        ).toLocaleDateString('it-IT', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                        })}
+                        {new Date(group.report_created_at).toLocaleDateString(
+                          'it-IT',
+                          {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                          }
+                        )}
                       </span>
                     )}
                     {group.report_id && (
@@ -1230,7 +1310,9 @@ export default function ActivitiesView() {
                         RAP-{group.report_id}
                       </span>
                     )}
-                    <span className="text-gray-400">ID: {group.assistance_intervention_id}</span>
+                    <span className="text-gray-400">
+                      ID: {group.assistance_intervention_id}
+                    </span>
                   </div>
 
                   {/* Note interne */}
@@ -1276,7 +1358,10 @@ export default function ActivitiesView() {
                 Nessuna attività corrisponde ai filtri selezionati.
               </p>
               <button
-                onClick={() => { setFilterText(''); setFilterType('all'); }}
+                onClick={() => {
+                  setFilterText('');
+                  setFilterType('all');
+                }}
                 className="mt-3 text-sm text-teal-600 hover:text-teal-700 underline"
               >
                 Resetta filtri
@@ -1311,7 +1396,8 @@ export default function ActivitiesView() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-2 min-w-0">
                   <h2 className="text-lg font-semibold text-gray-900 truncate">
-                    {selectedGroup.customer_name || `INT-${selectedGroup.assistance_intervention_id}`}
+                    {selectedGroup.customer_name ||
+                      `INT-${selectedGroup.assistance_intervention_id}`}
                   </h2>
                   {selectedGroup.isPendingConfirmation ? (
                     <span className="text-xs font-medium text-purple-700 bg-purple-100 px-2 py-0.5 rounded flex-shrink-0">
@@ -1342,19 +1428,32 @@ export default function ActivitiesView() {
                 {selectedGroup.date && (
                   <span>
                     <span className="text-gray-400">Data: </span>
-                    {new Date(selectedGroup.date).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    {new Date(selectedGroup.date).toLocaleDateString('it-IT', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                    })}
                   </span>
                 )}
                 {selectedGroup.report_created_at && (
                   <span>
                     <span className="text-gray-400">Completato: </span>
-                    {new Date(selectedGroup.report_created_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    {new Date(
+                      selectedGroup.report_created_at
+                    ).toLocaleDateString('it-IT', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                    })}
                   </span>
                 )}
                 {selectedGroup.assigned_to_name && (
                   <span>
                     <span className="text-gray-400">Tecnico: </span>
-                    {selectedGroup.assigned_to_name}{selectedGroup.assigned_to_surname ? ` ${selectedGroup.assigned_to_surname}` : ''}
+                    {selectedGroup.assigned_to_name}
+                    {selectedGroup.assigned_to_surname
+                      ? ` ${selectedGroup.assigned_to_surname}`
+                      : ''}
                   </span>
                 )}
                 {selectedGroup.zone_label && (
@@ -1375,7 +1474,12 @@ export default function ActivitiesView() {
               <div className="flex items-center gap-3 mt-2">
                 {selectedGroup.report_id && (
                   <button
-                    onClick={() => window.open(`/interventi/rapportino/${selectedGroup.report_id}`, '_blank')}
+                    onClick={() =>
+                      window.open(
+                        `/interventi/rapportino/${selectedGroup.report_id}`,
+                        '_blank'
+                      )
+                    }
                     className="flex items-center gap-1 text-xs text-teal-700 hover:text-teal-900 transition-colors"
                   >
                     <FileText size={12} />
@@ -1384,7 +1488,12 @@ export default function ActivitiesView() {
                   </button>
                 )}
                 <button
-                  onClick={() => window.open(`/interventi?ai=${selectedGroup.assistance_intervention_id}`, '_blank')}
+                  onClick={() =>
+                    window.open(
+                      `/interventi?ai=${selectedGroup.assistance_intervention_id}`,
+                      '_blank'
+                    )
+                  }
                   className="flex items-center gap-1 text-xs text-teal-700 hover:text-teal-900 transition-colors"
                 >
                   <Package size={12} />
@@ -1394,7 +1503,8 @@ export default function ActivitiesView() {
               </div>
 
               {/* Notes */}
-              {(selectedGroup.internal_notes || selectedGroup.customer_notes) && (
+              {(selectedGroup.internal_notes ||
+                selectedGroup.customer_notes) && (
                 <div className="mt-3 space-y-2">
                   {selectedGroup.internal_notes && (
                     <div className="text-sm text-gray-600 border-l-2 border-gray-300 pl-3">
@@ -1403,8 +1513,12 @@ export default function ActivitiesView() {
                   )}
                   {selectedGroup.customer_notes && (
                     <div className="text-sm text-gray-700 border-l-2 border-blue-400 pl-3 bg-blue-50 py-1.5 pr-3 rounded-r">
-                      <span className="text-xs font-medium text-blue-600 block mb-0.5">Lavoro eseguito</span>
-                      <span className="whitespace-pre-wrap">{selectedGroup.customer_notes}</span>
+                      <span className="text-xs font-medium text-blue-600 block mb-0.5">
+                        Lavoro eseguito
+                      </span>
+                      <span className="whitespace-pre-wrap">
+                        {selectedGroup.customer_notes}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -1439,11 +1553,17 @@ export default function ActivitiesView() {
                         </h4>
                         <div className="space-y-2">
                           {selectedGroup.connected_articles.map((ca) => {
-                            const preparedQty = ca.movements
+                            const inQty = ca.movements
                               ? ca.movements
                                   .filter((m) => m.to_warehouse_id === 'CL')
                                   .reduce((s, m) => s + (m.quantity || 0), 0)
                               : 0;
+                            const outQty = ca.movements
+                              ? ca.movements
+                                  .filter((m) => m.from_warehouse_id === 'CL')
+                                  .reduce((s, m) => s + (m.quantity || 0), 0)
+                              : 0;
+                            const preparedQty = Math.max(0, inQty - outQty);
                             return (
                               <div
                                 key={ca.id}
@@ -1512,8 +1632,14 @@ export default function ActivitiesView() {
                                   Attività completata con successo
                                 </span>
                                 <span className="text-green-700 text-xs ml-2">
-                                  {completedActivities.get(activity.id)!.movements_executed.length} movimenti eseguiti
-                                  {completedActivities.get(activity.id)!.case_type && ` · ${completedActivities.get(activity.id)!.case_type}`}
+                                  {
+                                    completedActivities.get(activity.id)!
+                                      .movements_executed.length
+                                  }{' '}
+                                  movimenti eseguiti
+                                  {completedActivities.get(activity.id)!
+                                    .case_type &&
+                                    ` · ${completedActivities.get(activity.id)!.case_type}`}
                                 </span>
                               </div>
                             </div>
@@ -1570,12 +1696,14 @@ export default function ActivitiesView() {
                                 <div className="flex items-center gap-3 mb-3">
                                   <div
                                     className={`px-3 py-1 rounded text-sm font-medium ${
-                                      completedActivities.has(activity.id) || activity.status === 'done'
+                                      completedActivities.has(activity.id) ||
+                                      activity.status === 'done'
                                         ? 'bg-green-100 text-green-800'
                                         : 'bg-orange-100 text-orange-800'
                                     }`}
                                   >
-                                    {completedActivities.has(activity.id) || activity.status === 'done'
+                                    {completedActivities.has(activity.id) ||
+                                    activity.status === 'done'
                                       ? 'Completata'
                                       : 'Da completare'}
                                   </div>
@@ -1722,17 +1850,6 @@ export default function ActivitiesView() {
                                                 max={(() => {
                                                   const data =
                                                     activity.data as ActivityData;
-                                                  if (
-                                                    quantityStatus.status ===
-                                                      'ECCESSO' &&
-                                                    allocation.warehouseId &&
-                                                    data?.article_id
-                                                  ) {
-                                                    return getWarehouseStock(
-                                                      allocation.warehouseId,
-                                                      data.article_id
-                                                    );
-                                                  }
                                                   return getRequiredQuantity(
                                                     activity
                                                   );
@@ -1747,17 +1864,9 @@ export default function ActivitiesView() {
                                                   const data =
                                                     activity.data as ActivityData;
                                                   const maxAllowed =
-                                                    quantityStatus.status ===
-                                                      'ECCESSO' &&
-                                                    allocation.warehouseId &&
-                                                    data?.article_id
-                                                      ? getWarehouseStock(
-                                                          allocation.warehouseId,
-                                                          data.article_id
-                                                        )
-                                                      : getRequiredQuantity(
-                                                          activity
-                                                        );
+                                                    getRequiredQuantity(
+                                                      activity
+                                                    );
 
                                                   // Limita il valore al massimo consentito
                                                   const validValue = Math.min(
@@ -1875,7 +1984,9 @@ export default function ActivitiesView() {
                                           <div className="flex items-center gap-2 text-xs text-gray-600">
                                             <span>
                                               PNC:{' '}
-                                              {quantityStatus.article.pnc_code || quantityStatus.article.id}
+                                              {quantityStatus.article
+                                                .pnc_code ||
+                                                quantityStatus.article.id}
                                             </span>
                                           </div>
                                         </div>
@@ -1928,116 +2039,121 @@ export default function ActivitiesView() {
                           </div>
                         </div>
 
-                        {activity.status === 'to_do' && !completedActivities.has(activity.id) && (
-                          <div className="flex flex-col gap-2 flex-shrink-0">
-                            {(() => {
-                              const quantityStatus =
-                                getQuantityStatus(activity);
-                              const isEditing = activityInEdit === activity.id;
-                              const canComplete = canCompleteActivity(activity);
+                        {activity.status === 'to_do' &&
+                          !completedActivities.has(activity.id) && (
+                            <div className="flex flex-col gap-2 flex-shrink-0">
+                              {(() => {
+                                const quantityStatus =
+                                  getQuantityStatus(activity);
+                                const isEditing =
+                                  activityInEdit === activity.id;
+                                const canComplete =
+                                  canCompleteActivity(activity);
 
-                              if (quantityStatus.status === 'PARI') {
-                                // Caso PARI: completamento diretto
-                                return (
-                                  <button
-                                    onClick={() =>
-                                      handleCompleteActivity(activity.id)
-                                    }
-                                    disabled={processingActivities.has(
-                                      activity.id
-                                    )}
-                                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                                  >
-                                    {processingActivities.has(activity.id) ? (
-                                      <>
-                                        <Loader2
-                                          className="animate-spin"
-                                          size={16}
-                                        />
-                                        Completando...
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Check size={16} />
-                                        Completa
-                                      </>
-                                    )}
-                                  </button>
-                                );
-                              } else if (
-                                quantityStatus.status === 'ECCESSO' ||
-                                quantityStatus.status === 'USO_PARZIALE'
-                              ) {
-                                // Casi ECCESSO e USO PARZIALE: richiedono gestione magazzini
-                                return (
-                                  <div className="flex flex-col gap-2">
-                                    {!isEditing ? (
-                                      <button
-                                        onClick={() =>
-                                          handleStartEdit(activity.id)
-                                        }
-                                        className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                                      >
-                                        Gestisci
-                                      </button>
-                                    ) : (
-                                      <>
+                                if (quantityStatus.status === 'PARI') {
+                                  // Caso PARI: completamento diretto
+                                  return (
+                                    <button
+                                      onClick={() =>
+                                        handleCompleteActivity(activity.id)
+                                      }
+                                      disabled={processingActivities.has(
+                                        activity.id
+                                      )}
+                                      className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                    >
+                                      {processingActivities.has(activity.id) ? (
+                                        <>
+                                          <Loader2
+                                            className="animate-spin"
+                                            size={16}
+                                          />
+                                          Completando...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Check size={16} />
+                                          Completa
+                                        </>
+                                      )}
+                                    </button>
+                                  );
+                                } else if (
+                                  quantityStatus.status === 'ECCESSO' ||
+                                  quantityStatus.status === 'USO_PARZIALE'
+                                ) {
+                                  // Casi ECCESSO e USO PARZIALE: richiedono gestione magazzini
+                                  return (
+                                    <div className="flex flex-col gap-2">
+                                      {!isEditing ? (
                                         <button
                                           onClick={() =>
-                                            handleCompleteActivity(activity.id)
+                                            handleStartEdit(activity.id)
                                           }
-                                          disabled={
-                                            !canComplete ||
-                                            processingActivities.has(
+                                          className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                        >
+                                          Gestisci
+                                        </button>
+                                      ) : (
+                                        <>
+                                          <button
+                                            onClick={() =>
+                                              handleCompleteActivity(
+                                                activity.id
+                                              )
+                                            }
+                                            disabled={
+                                              !canComplete ||
+                                              processingActivities.has(
+                                                activity.id
+                                              )
+                                            }
+                                            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                          >
+                                            {processingActivities.has(
                                               activity.id
-                                            )
-                                          }
-                                          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                                        >
-                                          {processingActivities.has(
-                                            activity.id
-                                          ) ? (
-                                            <>
-                                              <Loader2
-                                                className="animate-spin"
-                                                size={16}
-                                              />
-                                              Completando...
-                                            </>
-                                          ) : (
-                                            <>
-                                              <Check size={16} />
-                                              Completa
-                                            </>
-                                          )}
-                                        </button>
-                                        <button
-                                          onClick={() =>
-                                            setActivityInEdit(null)
-                                          }
-                                          className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                                        >
-                                          Annulla
-                                        </button>
-                                      </>
-                                    )}
-                                  </div>
-                                );
-                              } else {
-                                // Caso VERIFICA: pulsante disabilitato
-                                return (
-                                  <button
-                                    disabled
-                                    className="bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
-                                  >
-                                    <Activity size={16} />
-                                    Verifica
-                                  </button>
-                                );
-                              }
-                            })()}
-                          </div>
-                        )}
+                                            ) ? (
+                                              <>
+                                                <Loader2
+                                                  className="animate-spin"
+                                                  size={16}
+                                                />
+                                                Completando...
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Check size={16} />
+                                                Completa
+                                              </>
+                                            )}
+                                          </button>
+                                          <button
+                                            onClick={() =>
+                                              setActivityInEdit(null)
+                                            }
+                                            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                                          >
+                                            Annulla
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  );
+                                } else {
+                                  // Caso VERIFICA: pulsante disabilitato
+                                  return (
+                                    <button
+                                      disabled
+                                      className="bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+                                    >
+                                      <Activity size={16} />
+                                      Verifica
+                                    </button>
+                                  );
+                                }
+                              })()}
+                            </div>
+                          )}
                       </div>
                     </div>
                   ))}
@@ -2055,29 +2171,42 @@ export default function ActivitiesView() {
                 );
                 const added = categories.filter((c) => c.category === 'added');
 
-                const renderSparePartRow = (sp: SparePartCategory, bgClass: string, borderClass: string, badgeClass: string, badgeLabel: string, showPlanned: boolean) => (
+                const renderSparePartRow = (
+                  sp: SparePartCategory,
+                  bgClass: string,
+                  borderClass: string,
+                  badgeClass: string,
+                  badgeLabel: string,
+                  showPlanned: boolean
+                ) => (
                   <div
                     key={`${sp.category}-${sp.article_id}`}
                     className={`text-sm ${bgClass} p-3 rounded border ${borderClass}`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className={`${badgeClass} text-xs font-medium px-2 py-0.5 rounded flex-shrink-0`}>
+                      <span
+                        className={`${badgeClass} text-xs font-medium px-2 py-0.5 rounded flex-shrink-0`}
+                      >
                         {badgeLabel}
                       </span>
                       <div className="flex-1 min-w-0">
                         <span className="font-medium text-gray-900">
-                          {sp.description !== sp.short_description ? sp.description : sp.short_description}
+                          {sp.description !== sp.short_description
+                            ? sp.description
+                            : sp.short_description}
                         </span>
                         {sp.pnc_code && (
                           <span className="ml-1.5 text-xs text-gray-500">
                             PNC: {sp.pnc_code}
                           </span>
                         )}
-                        {!sp.pnc_code && sp.description !== sp.short_description && sp.short_description && (
-                          <span className="ml-1.5 text-xs text-gray-500">
-                            {sp.short_description}
-                          </span>
-                        )}
+                        {!sp.pnc_code &&
+                          sp.description !== sp.short_description &&
+                          sp.short_description && (
+                            <span className="ml-1.5 text-xs text-gray-500">
+                              {sp.short_description}
+                            </span>
+                          )}
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0 text-xs text-gray-500">
                         {showPlanned && (
@@ -2096,11 +2225,18 @@ export default function ActivitiesView() {
                       <div className="mt-2 flex items-center gap-2 flex-wrap">
                         <span className="text-xs text-gray-500">Deposito:</span>
                         {sp.source_warehouses.map((sw) => (
-                          <div key={sw.warehouse_id} className="inline-flex items-center gap-1">
-                            {editingWarehouseArticle === `${sp.article_id}-${sw.warehouse_id}` ? (
+                          <div
+                            key={sw.warehouse_id}
+                            className="inline-flex items-center gap-1"
+                          >
+                            {editingWarehouseArticle ===
+                            `${sp.article_id}-${sw.warehouse_id}` ? (
                               <div className="flex items-center gap-1">
                                 <select
-                                  value={warehouseCorrectionData?.newWarehouseId || ''}
+                                  value={
+                                    warehouseCorrectionData?.newWarehouseId ||
+                                    ''
+                                  }
                                   onChange={(e) =>
                                     setWarehouseCorrectionData({
                                       articleId: sp.article_id,
@@ -2113,7 +2249,11 @@ export default function ActivitiesView() {
                                 >
                                   <option value="">Seleziona...</option>
                                   {warehouses
-                                    .filter((w) => w.id !== 'CL' && w.id !== sw.warehouse_id)
+                                    .filter(
+                                      (w) =>
+                                        w.id !== 'CL' &&
+                                        w.id !== sw.warehouse_id
+                                    )
                                     .map((w) => (
                                       <option key={w.id} value={w.id}>
                                         {w.description}
@@ -2122,7 +2262,9 @@ export default function ActivitiesView() {
                                 </select>
                                 <button
                                   onClick={() => {
-                                    if (warehouseCorrectionData?.newWarehouseId) {
+                                    if (
+                                      warehouseCorrectionData?.newWarehouseId
+                                    ) {
                                       handleWarehouseCorrection(
                                         warehouseCorrectionData.articleId,
                                         warehouseCorrectionData.originalWarehouseId,
@@ -2131,12 +2273,18 @@ export default function ActivitiesView() {
                                       );
                                     }
                                   }}
-                                  disabled={!warehouseCorrectionData?.newWarehouseId || processingCorrection}
+                                  disabled={
+                                    !warehouseCorrectionData?.newWarehouseId ||
+                                    processingCorrection
+                                  }
                                   className="text-green-600 hover:text-green-800 disabled:text-gray-400 p-0.5"
                                   title="Conferma"
                                 >
                                   {processingCorrection ? (
-                                    <Loader2 className="animate-spin" size={12} />
+                                    <Loader2
+                                      className="animate-spin"
+                                      size={12}
+                                    />
                                   ) : (
                                     <Check size={12} />
                                   )}
@@ -2159,7 +2307,9 @@ export default function ActivitiesView() {
                                 </span>
                                 <button
                                   onClick={() => {
-                                    setEditingWarehouseArticle(`${sp.article_id}-${sw.warehouse_id}`);
+                                    setEditingWarehouseArticle(
+                                      `${sp.article_id}-${sw.warehouse_id}`
+                                    );
                                     setWarehouseCorrectionData({
                                       articleId: sp.article_id,
                                       originalWarehouseId: sw.warehouse_id,
@@ -2194,13 +2344,34 @@ export default function ActivitiesView() {
                     </h4>
                     <div className="space-y-2">
                       {used.map((sp) =>
-                        renderSparePartRow(sp, 'bg-green-50', 'border-green-200', 'bg-green-100 text-green-800', 'Usato', true)
+                        renderSparePartRow(
+                          sp,
+                          'bg-green-50',
+                          'border-green-200',
+                          'bg-green-100 text-green-800',
+                          'Usato',
+                          true
+                        )
                       )}
                       {unused.map((sp) =>
-                        renderSparePartRow(sp, 'bg-yellow-50', 'border-yellow-200', 'bg-yellow-100 text-yellow-800', 'Non usato', true)
+                        renderSparePartRow(
+                          sp,
+                          'bg-yellow-50',
+                          'border-yellow-200',
+                          'bg-yellow-100 text-yellow-800',
+                          'Non usato',
+                          true
+                        )
                       )}
                       {added.map((sp) =>
-                        renderSparePartRow(sp, 'bg-blue-50', 'border-blue-200', 'bg-blue-100 text-blue-800', 'Aggiunto', false)
+                        renderSparePartRow(
+                          sp,
+                          'bg-blue-50',
+                          'border-blue-200',
+                          'bg-blue-100 text-blue-800',
+                          'Aggiunto',
+                          false
+                        )
                       )}
                     </div>
                   </div>
@@ -2208,57 +2379,61 @@ export default function ActivitiesView() {
               })()}
 
               {/* Note per apparecchiatura dal rapportino */}
-              {selectedGroup.report_items && selectedGroup.report_items.length > 0 && (
-                <div className="mt-6 pt-4 border-t border-gray-200">
-                  <h4 className="font-medium text-gray-900 mb-3">
-                    Dettaglio per apparecchiatura
-                  </h4>
-                  <div className="space-y-3">
-                    {selectedGroup.report_items
-                      .filter((ri) => ri.note || ri.articles.length > 0)
-                      .map((ri) => (
-                        <div
-                          key={ri.equipment_id}
-                          className="bg-gray-50 rounded-lg p-3 border-l-2 border-teal-400"
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-gray-900 text-sm">
-                              {ri.equipment_description || `Apparecchiatura #${ri.equipment_id}`}
-                            </span>
-                            {ri.equipment_serial_number && (
-                              <span className="text-xs text-gray-500">
-                                S/N: {ri.equipment_serial_number}
+              {selectedGroup.report_items &&
+                selectedGroup.report_items.length > 0 && (
+                  <div className="mt-6 pt-4 border-t border-gray-200">
+                    <h4 className="font-medium text-gray-900 mb-3">
+                      Dettaglio per apparecchiatura
+                    </h4>
+                    <div className="space-y-3">
+                      {selectedGroup.report_items
+                        .filter((ri) => ri.note || ri.articles.length > 0)
+                        .map((ri) => (
+                          <div
+                            key={ri.equipment_id}
+                            className="bg-gray-50 rounded-lg p-3 border-l-2 border-teal-400"
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-gray-900 text-sm">
+                                {ri.equipment_description ||
+                                  `Apparecchiatura #${ri.equipment_id}`}
                               </span>
+                              {ri.equipment_serial_number && (
+                                <span className="text-xs text-gray-500">
+                                  S/N: {ri.equipment_serial_number}
+                                </span>
+                              )}
+                              {ri.equipment_model && (
+                                <span className="text-xs text-gray-500">
+                                  Mod: {ri.equipment_model}
+                                </span>
+                              )}
+                            </div>
+                            {ri.note && (
+                              <div className="text-sm text-gray-700 whitespace-pre-wrap mt-1">
+                                {ri.note}
+                              </div>
                             )}
-                            {ri.equipment_model && (
-                              <span className="text-xs text-gray-500">
-                                Mod: {ri.equipment_model}
-                              </span>
+                            {ri.articles.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {ri.articles.map((art, idx) => (
+                                  <span
+                                    key={`${art.article_id}-${idx}`}
+                                    className="inline-flex items-center gap-1 bg-white text-xs text-gray-700 px-2 py-0.5 rounded border border-gray-200"
+                                  >
+                                    {art.short_description || art.article_id}
+                                    <span className="font-medium text-teal-700">
+                                      ×{art.quantity}
+                                    </span>
+                                  </span>
+                                ))}
+                              </div>
                             )}
                           </div>
-                          {ri.note && (
-                            <div className="text-sm text-gray-700 whitespace-pre-wrap mt-1">
-                              {ri.note}
-                            </div>
-                          )}
-                          {ri.articles.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {ri.articles.map((art, idx) => (
-                                <span
-                                  key={`${art.article_id}-${idx}`}
-                                  className="inline-flex items-center gap-1 bg-white text-xs text-gray-700 px-2 py-0.5 rounded border border-gray-200"
-                                >
-                                  {art.short_description || art.article_id}
-                                  <span className="font-medium text-teal-700">×{art.quantity}</span>
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                        ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
 
             {/* Footer */}
@@ -2269,20 +2444,23 @@ export default function ActivitiesView() {
                     <span className="text-purple-600">
                       Intervento in attesa di conferma
                     </span>
-                  ) : (() => {
-                    const realPending = selectedGroup.activities.filter(
-                      (a) => a.status === 'to_do' && !completedActivities.has(a.id)
-                    ).length;
-                    return realPending > 0 ? (
-                      <span className="text-orange-600">
-                        {realPending} attività ancora da completare
-                      </span>
-                    ) : (
-                      <span className="text-green-600">
-                        ✅ Tutte le attività sono state completate
-                      </span>
-                    );
-                  })()}
+                  ) : (
+                    (() => {
+                      const realPending = selectedGroup.activities.filter(
+                        (a) =>
+                          a.status === 'to_do' && !completedActivities.has(a.id)
+                      ).length;
+                      return realPending > 0 ? (
+                        <span className="text-orange-600">
+                          {realPending} attività ancora da completare
+                        </span>
+                      ) : (
+                        <span className="text-green-600">
+                          ✅ Tutte le attività sono state completate
+                        </span>
+                      );
+                    })()
+                  )}
                 </div>
                 <button
                   onClick={() => {
